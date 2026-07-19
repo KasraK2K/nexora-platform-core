@@ -1,0 +1,4 @@
+interface:
+  display_name: "Nexora Platform Engineering"
+  short_description: "Plan, build, and review Nexora safely"
+  default_prompt: "Use $nexora-platform-engineering to design, implement, and verify a bounded Nexora vertical slice."
