@@ -24,7 +24,7 @@ Use `$nexora-platform-engineering` for architecture-sensitive planning, implemen
 - Use pnpm and preserve `pnpm-lock.yaml`.
 - Build: `pnpm run build`
 - Lint and autofix: `pnpm run lint`
-- Unit tests: `pnpm run test -- --runInBand`
+- Unit tests: `pnpm run test --runInBand`
 - End-to-end tests: `pnpm run test:e2e`
 - Coverage: `pnpm run test:cov`
 - Development server: `pnpm run start:dev`
@@ -32,6 +32,15 @@ Use `$nexora-platform-engineering` for architecture-sensitive planning, implemen
 The lint script mutates files. Run it before the final diff review. Do not claim target commands such as `typecheck`, `test:integration`, `openapi:check`, or database checks exist until they are added to `package.json` and verified.
 
 The current project uses Jest/ts-jest and does not enable full TypeScript strictness. Vitest and strict TypeScript are target baseline decisions, but migrating to them must be explicit and verified rather than assumed.
+
+## Development database workflow
+
+- Until the user explicitly states that Nexora has moved to production, treat database schema work as development-only.
+- Change `prisma/schema.prisma` directly and synchronize the development database with `pnpm exec prisma db push`; regenerate the Prisma client when required.
+- Do not create new Prisma migration directories or files, and do not run migration-generating commands such as `prisma migrate dev` or `pnpm run db:migrate`.
+- Keep development migration history absent. The Prisma schema is the source of truth until the production transition.
+- Before any direct schema synchronization that requires a reset or may lose data, stop and report the impact instead of accepting data loss automatically.
+- When the user explicitly announces the move to production, replace this development workflow with reviewed, forward-only, backward-compatible migrations using expand -> deploy -> backfill -> contract. Update repository commands and CI at that transition rather than assuming it has happened.
 
 ## Architecture invariants
 

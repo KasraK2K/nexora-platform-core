@@ -1,0 +1,126 @@
+// Development source of truth: synchronize with `prisma db push`.
+// Do not create migrations until the user explicitly announces the production transition.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserStatus {
+  ACTIVE
+}
+
+enum MembershipRole {
+  OWNER
+}
+
+model Identity {
+  id                 String              @id @db.Uuid
+  normalizedEmail    String              @unique(map: "identities_normalized_email_key") @map("normalized_email") @db.VarChar(254)
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  passwordCredential PasswordCredential?
+  user               User?
+
+  @@map("identities")
+}
+
+model PasswordCredential {
+  identityId   String   @id @map("identity_id") @db.Uuid
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  identity     Identity @relation(fields: [identityId], references: [id], onDelete: Restrict)
+
+  @@map("password_credentials")
+}
+
+model User {
+  id                 String         @id @db.Uuid
+  identityId         String         @unique(map: "users_identity_id_key") @map("identity_id") @db.Uuid
+  displayName        String         @map("display_name") @db.VarChar(100)
+  status             UserStatus     @default(ACTIVE)
+  createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+  identity           Identity       @relation(fields: [identityId], references: [id], onDelete: Restrict)
+  ownedOrganizations Organization[]
+  memberships        Membership[]
+  sessions           Session[]
+  auditLogs          AuditLog[]
+
+  @@map("users")
+}
+
+model Organization {
+  id          String      @id @db.Uuid
+  ownerUserId String      @map("owner_user_id") @db.Uuid
+  name        String      @db.VarChar(120)
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+  workspaces  Workspace[]
+  owner       User        @relation(fields: [ownerUserId], references: [id], onDelete: Restrict)
+
+  @@index([ownerUserId], map: "organizations_owner_user_id_idx")
+  @@map("organizations")
+}
+
+model Workspace {
+  id             String       @id @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  name           String       @db.VarChar(120)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  memberships    Membership[]
+  auditLogs      AuditLog[]
+
+  @@index([organizationId], map: "workspaces_organization_id_idx")
+  @@map("workspaces")
+}
+
+model Membership {
+  id          String         @id @db.Uuid
+  workspaceId String         @map("workspace_id") @db.Uuid
+  userId      String         @map("user_id") @db.Uuid
+  role        MembershipRole
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  workspace   Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  user        User           @relation(fields: [userId], references: [id], onDelete: Restrict)
+  sessions    Session[]
+
+  @@unique([workspaceId, userId], map: "memberships_workspace_id_user_id_key")
+  @@index([workspaceId, createdAt(sort: Desc)], map: "memberships_workspace_id_created_at_idx")
+  @@index([userId], map: "memberships_user_id_idx")
+  @@map("memberships")
+}
+
+model Session {
+  id                String     @id @db.Uuid
+  tokenHash         String     @unique(map: "sessions_token_hash_key") @map("token_hash") @db.Char(64)
+  userId            String     @map("user_id") @db.Uuid
+  activeWorkspaceId String     @map("active_workspace_id") @db.Uuid
+  expiresAt         DateTime   @map("expires_at") @db.Timestamptz(3)
+  revokedAt         DateTime?  @map("revoked_at") @db.Timestamptz(3)
+  createdAt         DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  user              User       @relation(fields: [userId], references: [id], onDelete: Restrict)
+  membership        Membership @relation(fields: [activeWorkspaceId, userId], references: [workspaceId, userId], onDelete: Restrict)
+
+  @@index([userId, expiresAt], map: "sessions_user_id_expires_at_idx")
+  @@index([activeWorkspaceId, expiresAt], map: "sessions_workspace_id_expires_at_idx")
+  @@map("sessions")
+}
+
+model AuditLog {
+  id          String    @id @db.Uuid
+  workspaceId String    @map("workspace_id") @db.Uuid
+  actorUserId String    @map("actor_user_id") @db.Uuid
+  action      String    @db.VarChar(100)
+  resourceId  String    @map("resource_id") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  actor       User      @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([workspaceId, createdAt(sort: Desc)], map: "audit_logs_workspace_id_created_at_idx")
+  @@map("audit_logs")
+}
