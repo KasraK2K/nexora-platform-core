@@ -20,4 +20,11 @@ export class PrismaUsersRepository implements UsersRepository {
       select: { id: true, displayName: true },
     });
   }
+
+  findActiveByIdentityId(identityId: string): Promise<UserSummary | null> {
+    return this.database.client.user.findFirst({
+      where: { identityId, status: 'ACTIVE' },
+      select: { id: true, displayName: true },
+    });
+  }
 }

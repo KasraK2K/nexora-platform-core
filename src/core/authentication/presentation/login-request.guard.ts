@@ -6,8 +6,8 @@ import {
   Inject,
   Injectable,
 } from '@nestjs/common';
-import { Request, Response } from 'express';
-import { RegistrationUnavailableError } from '../domain/registration.errors';
+import type { Request, Response } from 'express';
+import { AuthenticationUnavailableError } from '../domain/registration.errors';
 import {
   AUTHENTICATION_RATE_LIMITER,
   type AuthenticationRateLimitPort,
@@ -16,7 +16,7 @@ import {
 import { readNormalizedEmail } from './request-email';
 
 @Injectable()
-export class RegistrationRequestGuard implements CanActivate {
+export class LoginRequestGuard implements CanActivate {
   constructor(
     @Inject(AUTHENTICATION_RATE_LIMITER)
     private readonly rateLimiter: AuthenticationRateLimitPort,
@@ -26,23 +26,23 @@ export class RegistrationRequestGuard implements CanActivate {
     const http = context.switchToHttp();
     const request = http.getRequest<Request>();
     const response = http.getResponse<Response>();
-    const email = readNormalizedEmail(request.body);
     let decision: RateLimitDecision;
+
     try {
-      decision = await this.rateLimiter.checkRegistration(
+      decision = await this.rateLimiter.checkLogin(
         request.ip || request.socket.remoteAddress || 'unknown',
-        email,
+        readNormalizedEmail(request.body),
       );
     } catch {
-      throw new RegistrationUnavailableError();
+      throw new AuthenticationUnavailableError();
     }
 
     if (!decision.allowed) {
       response.setHeader('retry-after', decision.retryAfterSeconds.toString());
       throw new HttpException(
         {
-          code: 'REGISTRATION_RATE_LIMITED',
-          message: 'Too many registration attempts.',
+          code: 'AUTHENTICATION_RATE_LIMITED',
+          message: 'Too many authentication attempts.',
           retryable: true,
         },
         HttpStatus.TOO_MANY_REQUESTS,

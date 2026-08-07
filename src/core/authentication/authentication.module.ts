@@ -13,6 +13,10 @@ import {
   AuthenticationSessions,
 } from './application/authentication-sessions';
 import { GetCurrentSession } from './application/get-current-session.use-case';
+import { AUTHENTICATION_RATE_LIMITER } from './application/authentication-rate-limiter.port';
+import { CreateSession } from './application/create-session.use-case';
+import { RevokeAllSessions } from './application/revoke-all-sessions.use-case';
+import { RevokeCurrentSession } from './application/revoke-current-session.use-case';
 import { PASSWORD_COMPROMISE_CHECKER } from './application/password-compromise-checker.port';
 import { PASSWORD_HASHER } from './application/password-hasher.port';
 import { RegisterAccount } from './application/register-account.use-case';
@@ -22,10 +26,12 @@ import { PasswordPolicy } from './domain/password-policy';
 import { Argon2PasswordHasher } from './infrastructure/argon2-password-hasher';
 import { PrismaAuthenticationSessionsRepository } from './infrastructure/prisma-authentication-sessions.repository';
 import { PwnedPasswordsCompromiseChecker } from './infrastructure/pwned-passwords-compromise-checker';
-import { RegistrationRateLimiter } from './infrastructure/registration-rate-limiter';
+import { AuthenticationRateLimiter } from './infrastructure/authentication-rate-limiter';
 import { SessionCache } from './infrastructure/session-cache';
 import { AuthenticationController } from './presentation/authentication.controller';
 import { RegistrationRequestGuard } from './presentation/registration-request.guard';
+import { LoginRequestGuard } from './presentation/login-request.guard';
+import { TrustedOriginGuard } from './presentation/trusted-origin.guard';
 
 @Module({
   imports: [
@@ -44,10 +50,19 @@ import { RegistrationRequestGuard } from './presentation/registration-request.gu
     PasswordPolicy,
     SessionTokenService,
     SessionCache,
-    RegistrationRateLimiter,
+    AuthenticationRateLimiter,
+    {
+      provide: AUTHENTICATION_RATE_LIMITER,
+      useExisting: AuthenticationRateLimiter,
+    },
     RegistrationRequestGuard,
+    LoginRequestGuard,
+    TrustedOriginGuard,
     RegisterAccount,
+    CreateSession,
     GetCurrentSession,
+    RevokeCurrentSession,
+    RevokeAllSessions,
     AuthenticationSessions,
     Argon2PasswordHasher,
     PwnedPasswordsCompromiseChecker,

@@ -6,6 +6,8 @@ export type SessionToken = {
   hash: string;
 };
 
+const SESSION_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
+
 @Injectable()
 export class SessionTokenService {
   create(): SessionToken {
@@ -15,5 +17,9 @@ export class SessionTokenService {
 
   hash(raw: string): string {
     return createHash('sha256').update(raw, 'utf8').digest('hex');
+  }
+
+  hashIfValid(raw: string | undefined): string | undefined {
+    return raw && SESSION_TOKEN_PATTERN.test(raw) ? this.hash(raw) : undefined;
   }
 }

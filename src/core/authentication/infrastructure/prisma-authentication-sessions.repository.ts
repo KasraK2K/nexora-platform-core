@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { DatabaseContext } from '../../persistence/database-context';
 import type {
   AuthenticationSessionsRepository,
+  RevokedSession,
   SessionRecord,
 } from '../application/authentication-sessions';
 
@@ -23,6 +24,8 @@ export class PrismaAuthenticationSessionsRepository implements AuthenticationSes
     return this.database.client.session.findUnique({
       where: { tokenHash },
       select: {
+        id: true,
+        tokenHash: true,
         userId: true,
         activeWorkspaceId: true,
         expiresAt: true,
@@ -30,4 +33,31 @@ export class PrismaAuthenticationSessionsRepository implements AuthenticationSes
       },
     });
   }
+
+  async revokeByTokenHash(
+    tokenHash: string,
+    revokedAt: Date,
+  ): Promise<RevokedSession | null> {
+    const sessions = await this.database.client.session.updateManyAndReturn({
+      where: { tokenHash, revokedAt: null },
+      data: { revokedAt },
+      select: revokedSessionSelect,
+    });
+    return sessions[0] ?? null;
+  }
+
+  revokeAllForUser(userId: string, revokedAt: Date): Promise<RevokedSession[]> {
+    return this.database.client.session.updateManyAndReturn({
+      where: { userId, revokedAt: null },
+      data: { revokedAt },
+      select: revokedSessionSelect,
+    });
+  }
 }
+
+const revokedSessionSelect = {
+  id: true,
+  tokenHash: true,
+  userId: true,
+  activeWorkspaceId: true,
+} as const;

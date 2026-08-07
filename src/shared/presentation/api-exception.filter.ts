@@ -107,6 +107,7 @@ function applicationErrorStatus(code: string): number {
     case 'EMAIL_ALREADY_REGISTERED':
       return HttpStatus.CONFLICT;
     case 'AUTHENTICATION_REQUIRED':
+    case 'AUTHENTICATION_INVALID':
       return HttpStatus.UNAUTHORIZED;
     case 'REGISTRATION_UNAVAILABLE':
     case 'AUTHENTICATION_UNAVAILABLE':

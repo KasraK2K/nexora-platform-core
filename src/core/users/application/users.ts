@@ -11,6 +11,7 @@ export interface UsersRepository {
     displayName: string;
   }): Promise<void>;
   findById(id: string): Promise<UserSummary | null>;
+  findActiveByIdentityId(identityId: string): Promise<UserSummary | null>;
 }
 
 @Injectable()
@@ -29,5 +30,9 @@ export class Users {
 
   findById(id: string): Promise<UserSummary | null> {
     return this.repository.findById(id);
+  }
+
+  findActiveByIdentityId(identityId: string): Promise<UserSummary | null> {
+    return this.repository.findActiveByIdentityId(identityId);
   }
 }

@@ -11,6 +11,8 @@ import { SessionCache } from '../src/core/authentication/infrastructure/session-
 import { AuditLog } from '../src/core/audit/application/audit-log';
 import { PASSWORD_HASHER } from '../src/core/authentication/application/password-hasher.port';
 import type { PasswordHasher } from '../src/core/authentication/application/password-hasher.port';
+import { PasswordIdentityAuthentication } from '../src/core/identity/application/password-identity-authentication';
+import { AuthenticationRateLimiter } from '../src/core/authentication/infrastructure/authentication-rate-limiter';
 
 const ALLOWED_ORIGIN = 'http://localhost:3000';
 
@@ -21,6 +23,8 @@ describe('Nexora API (e2e)', () => {
   let sessionCache: SessionCache;
   let auditLog: AuditLog;
   let passwordHasher: PasswordHasher;
+  let passwordIdentities: PasswordIdentityAuthentication;
+  let authenticationRateLimiter: AuthenticationRateLimiter;
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -35,6 +39,8 @@ describe('Nexora API (e2e)', () => {
     sessionCache = app.get(SessionCache);
     auditLog = app.get(AuditLog);
     passwordHasher = app.get<PasswordHasher>(PASSWORD_HASHER);
+    passwordIdentities = app.get(PasswordIdentityAuthentication);
+    authenticationRateLimiter = app.get(AuthenticationRateLimiter);
   });
 
   beforeEach(async () => {
@@ -248,6 +254,285 @@ describe('Nexora API (e2e)', () => {
     expect(hash).toHaveBeenCalledTimes(11);
   });
 
+  it('authenticates a returning user with a fresh server-generated session', async () => {
+    const registration = await register('returning@example.com');
+    const registrationCookie = readCookieHeader(registration);
+
+    const authenticated = await request(app.getHttpServer())
+      .post('/v1/auth/sessions')
+      .set('Origin', ALLOWED_ORIGIN)
+      .set('Cookie', '__Host-nexora_session=attacker-controlled')
+      .send(loginBody(' RETURNING@Example.com '));
+
+    expect(authenticated.status).toBe(201);
+    expect(authenticated.headers['cache-control']).toBe('no-store');
+    expect(authenticated.body).toMatchObject({
+      data: {
+        user: { displayName: 'Owner' },
+        organization: { name: 'Nexora Customer' },
+        workspace: { name: 'Main Workspace' },
+        membership: { role: 'OWNER' },
+      },
+      meta: {},
+    });
+    const authenticatedCookie = readCookieHeader(authenticated);
+    expect(authenticatedCookie).not.toBe(registrationCookie);
+    expect(authenticatedCookie).not.toContain('attacker-controlled');
+    expect(readSetCookie(authenticated)).toContain('HttpOnly');
+    expect(readSetCookie(authenticated)).toContain('Secure');
+    expect(readSetCookie(authenticated)).toContain('SameSite=Lax');
+    expect(readSetCookie(authenticated)).toContain('Path=/');
+    expect(readSetCookie(authenticated)).not.toContain('Domain=');
+    expect(await prisma.session.count()).toBe(2);
+    expect(
+      await prisma.auditLog.count({
+        where: { action: 'auth.session.created' },
+      }),
+    ).toBe(1);
+
+    await request(app.getHttpServer())
+      .get('/v1/auth/session')
+      .set('Cookie', authenticatedCookie)
+      .expect(200);
+  });
+
+  it('uses one generic failure for unknown and incorrect credentials', async () => {
+    await register('known@example.com');
+    const sessionCount = await prisma.session.count();
+
+    const wrong = await login('known@example.com', 'A wrong passphrase 123');
+    const missing = await login(
+      'missing@example.com',
+      'A wrong passphrase 123',
+    );
+
+    expect(wrong.status).toBe(401);
+    expect(missing.status).toBe(401);
+    for (const response of [wrong, missing]) {
+      expect(response.headers['cache-control']).toBe('no-store');
+      expect(response.body).toMatchObject({
+        error: {
+          code: 'AUTHENTICATION_INVALID',
+          message: 'Email or password is incorrect.',
+          retryable: false,
+        },
+      });
+    }
+    expect(await prisma.session.count()).toBe(sessionCount);
+    expect(
+      await prisma.auditLog.count({
+        where: { action: 'auth.session.created' },
+      }),
+    ).toBe(0);
+  });
+
+  it('rolls back session creation when its audit record cannot be written', async () => {
+    await register('login-rollback@example.com');
+    const sessionCount = await prisma.session.count();
+    jest
+      .spyOn(auditLog, 'append')
+      .mockRejectedValueOnce(new Error('audit unavailable'));
+
+    const response = await login('login-rollback@example.com');
+    expect(response.status).toBe(503);
+    expect(response.headers['set-cookie']).toBeUndefined();
+    expect(await prisma.session.count()).toBe(sessionCount);
+    expect(
+      await prisma.auditLog.count({
+        where: { action: 'auth.session.created' },
+      }),
+    ).toBe(0);
+  });
+
+  it('rejects tenant injection, disallowed origins, and ambiguous workspace selection during login', async () => {
+    const registration = await register('workspace-choice@example.com');
+    const userId = readString(
+      registration.body as unknown,
+      'data',
+      'user',
+      'id',
+    );
+
+    const injected = await request(app.getHttpServer())
+      .post('/v1/auth/sessions')
+      .set('Origin', ALLOWED_ORIGIN)
+      .send({
+        ...loginBody('workspace-choice@example.com'),
+        workspaceId: randomUUID(),
+        role: 'OWNER',
+      });
+    expect(injected.status).toBe(400);
+
+    const crossOrigin = await request(app.getHttpServer())
+      .post('/v1/auth/sessions')
+      .set('Origin', 'https://attacker.example')
+      .send(loginBody('workspace-choice@example.com'));
+    expect(crossOrigin.status).toBe(403);
+
+    const organizationId = randomUUID();
+    const workspaceId = randomUUID();
+    await prisma.organization.create({
+      data: { id: organizationId, ownerUserId: userId, name: 'Second Org' },
+    });
+    await prisma.workspace.create({
+      data: { id: workspaceId, organizationId, name: 'Second Workspace' },
+    });
+    await prisma.membership.create({
+      data: {
+        id: randomUUID(),
+        workspaceId,
+        userId,
+        role: 'OWNER',
+      },
+    });
+
+    const ambiguous = await login('workspace-choice@example.com');
+    expect(ambiguous.status).toBe(401);
+    expect(readString(ambiguous.body as unknown, 'error', 'code')).toBe(
+      'AUTHENTICATION_INVALID',
+    );
+    expect(await prisma.session.count()).toBe(1);
+  });
+
+  it('rate-limits login before credential verification and fails safely when enforcement is unavailable', async () => {
+    const authenticate = jest
+      .spyOn(passwordIdentities, 'authenticate')
+      .mockResolvedValue(null);
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const response = await request(app.getHttpServer())
+        .post('/v1/auth/sessions')
+        .set('Origin', ALLOWED_ORIGIN)
+        .set('X-Forwarded-For', '203.0.113.20')
+        .send(loginBody('limited-login@example.com'));
+      expect(response.status).toBe(401);
+    }
+
+    const limited = await request(app.getHttpServer())
+      .post('/v1/auth/sessions')
+      .set('Origin', ALLOWED_ORIGIN)
+      .set('X-Forwarded-For', '203.0.113.20')
+      .send(loginBody('limited-login@example.com'));
+    expect(limited.status).toBe(429);
+    expect(readString(limited.body as unknown, 'error', 'code')).toBe(
+      'AUTHENTICATION_RATE_LIMITED',
+    );
+    expect(limited.headers['retry-after']).toBeDefined();
+    expect(authenticate).toHaveBeenCalledTimes(10);
+
+    await redis.client.flushDb();
+    authenticate.mockClear();
+    jest
+      .spyOn(authenticationRateLimiter, 'checkLogin')
+      .mockRejectedValueOnce(new Error('redis unavailable'));
+    const unavailable = await login('unavailable@example.com');
+    expect(unavailable.status).toBe(503);
+    expect(readString(unavailable.body as unknown, 'error', 'code')).toBe(
+      'AUTHENTICATION_UNAVAILABLE',
+    );
+    expect(authenticate).not.toHaveBeenCalled();
+  });
+
+  it('revokes only the current session, tolerates cache failure, and remains idempotent', async () => {
+    const registration = await register('logout@example.com');
+    const registrationCookie = readCookieHeader(registration);
+    const authenticated = await login('logout@example.com');
+    const authenticatedCookie = readCookieHeader(authenticated);
+    jest
+      .spyOn(sessionCache, 'remove')
+      .mockRejectedValueOnce(new Error('redis cache unavailable'));
+
+    const [logout, concurrentLogout] = await Promise.all([
+      request(app.getHttpServer())
+        .delete('/v1/auth/session')
+        .set('Origin', ALLOWED_ORIGIN)
+        .set('Cookie', authenticatedCookie),
+      request(app.getHttpServer())
+        .delete('/v1/auth/session')
+        .set('Origin', ALLOWED_ORIGIN)
+        .set('Cookie', authenticatedCookie),
+    ]);
+    expect([logout.status, concurrentLogout.status]).toEqual([204, 204]);
+    expect(readSetCookie(logout)).toContain('__Host-nexora_session=;');
+    expect(readSetCookie(logout)).toContain('Expires=');
+    expect(readSetCookie(logout)).toContain('Max-Age=0');
+    expect(await prisma.session.count({ where: { revokedAt: null } })).toBe(1);
+    expect(
+      await prisma.auditLog.count({
+        where: { action: 'auth.session.revoked' },
+      }),
+    ).toBe(1);
+
+    await request(app.getHttpServer())
+      .get('/v1/auth/session')
+      .set('Cookie', authenticatedCookie)
+      .expect(401);
+    await request(app.getHttpServer())
+      .get('/v1/auth/session')
+      .set('Cookie', registrationCookie)
+      .expect(200);
+    await request(app.getHttpServer())
+      .delete('/v1/auth/session')
+      .set('Origin', ALLOWED_ORIGIN)
+      .set('Cookie', authenticatedCookie)
+      .expect(204);
+    expect(
+      await prisma.auditLog.count({
+        where: { action: 'auth.session.revoked' },
+      }),
+    ).toBe(1);
+  });
+
+  it('rolls back revocation when its audit record cannot be written', async () => {
+    const registration = await register('logout-rollback@example.com');
+    const cookie = readCookieHeader(registration);
+    jest
+      .spyOn(auditLog, 'append')
+      .mockRejectedValueOnce(new Error('audit unavailable'));
+
+    const response = await request(app.getHttpServer())
+      .delete('/v1/auth/session')
+      .set('Origin', ALLOWED_ORIGIN)
+      .set('Cookie', cookie);
+    expect(response.status).toBe(503);
+    expect(response.headers['set-cookie']).toBeUndefined();
+    expect(await prisma.session.count({ where: { revokedAt: null } })).toBe(1);
+  });
+
+  it('revokes every session for the current user without affecting another tenant', async () => {
+    const accountA = await register('revoke-all-a@example.com');
+    const loginA = await login('revoke-all-a@example.com');
+    const userA = readString(accountA.body as unknown, 'data', 'user', 'id');
+    const accountB = await register('revoke-all-b@example.com');
+    const loginB = await login('revoke-all-b@example.com');
+    const userB = readString(accountB.body as unknown, 'data', 'user', 'id');
+
+    await request(app.getHttpServer())
+      .delete('/v1/auth/sessions')
+      .set('Origin', ALLOWED_ORIGIN)
+      .set('Cookie', readCookieHeader(loginA))
+      .expect(204);
+
+    expect(
+      await prisma.session.count({ where: { userId: userA, revokedAt: null } }),
+    ).toBe(0);
+    expect(
+      await prisma.session.count({ where: { userId: userB, revokedAt: null } }),
+    ).toBe(2);
+    await request(app.getHttpServer())
+      .get('/v1/auth/session')
+      .set('Cookie', readCookieHeader(accountA))
+      .expect(401);
+    await request(app.getHttpServer())
+      .get('/v1/auth/session')
+      .set('Cookie', readCookieHeader(loginB))
+      .expect(200);
+    expect(
+      await prisma.auditLog.count({
+        where: { action: 'auth.sessions.revoked_all', actorUserId: userA },
+      }),
+    ).toBe(1);
+  });
+
   it('does not allow one session to resolve another workspace', async () => {
     const accountA = await register('tenant-a@example.com');
     const cookieA = (
@@ -378,6 +663,13 @@ describe('Nexora API (e2e)', () => {
       .set('Origin', ALLOWED_ORIGIN)
       .send(registrationBody(email));
   }
+
+  function login(email: string, password = 'A secure passphrase 123') {
+    return request(app.getHttpServer())
+      .post('/v1/auth/sessions')
+      .set('Origin', ALLOWED_ORIGIN)
+      .send(loginBody(email, password));
+  }
 });
 
 function registrationBody(email: string) {
@@ -388,6 +680,24 @@ function registrationBody(email: string) {
     organizationName: 'Nexora Customer',
     workspaceName: 'Main Workspace',
   };
+}
+
+function loginBody(email: string, password = 'A secure passphrase 123') {
+  return { email, password };
+}
+
+function readSetCookie(response: { headers: Record<string, unknown> }): string {
+  const setCookie = response.headers['set-cookie'];
+  if (!Array.isArray(setCookie) || typeof setCookie[0] !== 'string') {
+    throw new Error('Expected a Set-Cookie header.');
+  }
+  return setCookie[0];
+}
+
+function readCookieHeader(response: {
+  headers: Record<string, unknown>;
+}): string {
+  return readSetCookie(response).split(';', 1)[0];
 }
 
 async function clearRegistrationData(prisma: PrismaService): Promise<void> {

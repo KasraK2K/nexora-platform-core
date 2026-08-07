@@ -184,6 +184,7 @@ function createFixture(): {
   const users = new Users({
     create: () => Promise.resolve(),
     findById: () => Promise.resolve(null),
+    findActiveByIdentityId: () => Promise.resolve(null),
   });
   const organizations = new Organizations({
     create: () => Promise.resolve(),
@@ -196,10 +197,13 @@ function createFixture(): {
   const memberships = new Memberships({
     createOwner: () => Promise.resolve(),
     find: () => Promise.resolve(null),
+    resolveLoginWorkspace: () => Promise.resolve({ kind: 'none' }),
   });
   const sessions = new AuthenticationSessions({
     create: () => Promise.resolve(),
     findByTokenHash: () => Promise.resolve(null),
+    revokeByTokenHash: () => Promise.resolve(null),
+    revokeAllForUser: () => Promise.resolve([]),
   });
   const auditLog = new AuditLog({ append: () => Promise.resolve() });
 

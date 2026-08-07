@@ -12,8 +12,6 @@ import { SESSION_CACHE } from './session-cache.port';
 import type { SessionCachePort } from './session-cache.port';
 import { SessionTokenService } from './session-token.service';
 
-const SESSION_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
-
 export type CurrentSession = {
   user: { id: string; displayName: string };
   organization: { id: string; name: string };
@@ -34,11 +32,10 @@ export class GetCurrentSession {
   ) {}
 
   async execute(rawToken: string | undefined): Promise<CurrentSession> {
-    if (!rawToken || !SESSION_TOKEN_PATTERN.test(rawToken)) {
+    const tokenHash = this.sessionTokens.hashIfValid(rawToken);
+    if (!tokenHash) {
       throw new AuthenticationRequiredError();
     }
-
-    const tokenHash = this.sessionTokens.hash(rawToken);
     let currentSession: CurrentSession | undefined;
     try {
       currentSession = await this.resolveCurrentSession(tokenHash);

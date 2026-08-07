@@ -5,11 +5,18 @@ export const AUTHENTICATION_SESSIONS_REPOSITORY = Symbol(
 );
 
 export type SessionRecord = {
+  id: string;
+  tokenHash: string;
   userId: string;
   activeWorkspaceId: string;
   expiresAt: Date;
   revokedAt: Date | null;
 };
+
+export type RevokedSession = Pick<
+  SessionRecord,
+  'id' | 'tokenHash' | 'userId' | 'activeWorkspaceId'
+>;
 
 export interface AuthenticationSessionsRepository {
   create(input: {
@@ -20,6 +27,11 @@ export interface AuthenticationSessionsRepository {
     expiresAt: Date;
   }): Promise<void>;
   findByTokenHash(tokenHash: string): Promise<SessionRecord | null>;
+  revokeByTokenHash(
+    tokenHash: string,
+    revokedAt: Date,
+  ): Promise<RevokedSession | null>;
+  revokeAllForUser(userId: string, revokedAt: Date): Promise<RevokedSession[]>;
 }
 
 @Injectable()
@@ -41,5 +53,16 @@ export class AuthenticationSessions {
 
   findByTokenHash(tokenHash: string): Promise<SessionRecord | null> {
     return this.repository.findByTokenHash(tokenHash);
+  }
+
+  revokeByTokenHash(
+    tokenHash: string,
+    revokedAt: Date,
+  ): Promise<RevokedSession | null> {
+    return this.repository.revokeByTokenHash(tokenHash, revokedAt);
+  }
+
+  revokeAllForUser(userId: string, revokedAt: Date): Promise<RevokedSession[]> {
+    return this.repository.revokeAllForUser(userId, revokedAt);
   }
 }

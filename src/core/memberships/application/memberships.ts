@@ -8,6 +8,11 @@ export type MembershipSummary = {
   role: 'OWNER';
 };
 
+export type LoginWorkspaceResolution =
+  | { kind: 'selected'; membership: MembershipSummary }
+  | { kind: 'none' }
+  | { kind: 'ambiguous' };
+
 export interface MembershipsRepository {
   createOwner(input: {
     id: string;
@@ -18,6 +23,7 @@ export interface MembershipsRepository {
     workspaceId: string;
     userId: string;
   }): Promise<MembershipSummary | null>;
+  resolveLoginWorkspace(userId: string): Promise<LoginWorkspaceResolution>;
 }
 
 @Injectable()
@@ -40,5 +46,9 @@ export class Memberships {
     userId: string;
   }): Promise<MembershipSummary | null> {
     return this.repository.find(input);
+  }
+
+  resolveLoginWorkspace(userId: string): Promise<LoginWorkspaceResolution> {
+    return this.repository.resolveLoginWorkspace(userId);
   }
 }

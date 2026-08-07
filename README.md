@@ -11,18 +11,25 @@ single application; the target pnpm/Turborepo migration has not been performed.
   entry in one PostgreSQL transaction.
 - `GET /v1/auth/session` resolves the authenticated user and server-trusted
   active workspace from the opaque session cookie.
+- `POST /v1/auth/sessions` verifies a returning user's password and issues a
+  fresh opaque session without accepting a client-selected workspace.
+- `DELETE /v1/auth/session` idempotently revokes the presented session;
+  `DELETE /v1/auth/sessions` revokes every session for the current user.
 - Passwords use Argon2id. Only a SHA-256 session-token digest is stored;
   PostgreSQL is authoritative and Redis is a disposable lookup cache.
 - New passwords are screened against a bundled common-password fallback and
   the free Pwned Passwords range API without transmitting plaintext passwords
   or complete password hashes. Set `PWNED_PASSWORDS_ENABLED=false` for
   local-only screening.
-- Registration validates the exact browser Origin and applies Redis-backed IP
-  and normalized-email rate limits before password hashing.
+- Every session-creating or session-revoking request validates the exact
+  browser Origin. Registration and login apply separate Redis-backed IP and
+  normalized-email rate limits before password hashing or verification.
 - OpenAPI UI is served at `/docs` while the application is running.
 
-Email verification, login, logout, password reset, invitations, and additional
-workspace membership management are not implemented yet.
+Email verification, password reset, invitations, and additional workspace
+membership management are not implemented yet. Login deliberately refuses an
+account with more than one eligible workspace until the multi-workspace
+selection contract is defined.
 
 > Registration currently activates the account and issues a session before
 > mailbox verification. Do not expose it as public production signup until an

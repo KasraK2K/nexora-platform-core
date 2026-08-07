@@ -2,11 +2,10 @@ import { createHmac } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { AppConfig } from '../../configuration/app-config';
 import { RedisService } from '../../redis/redis.service';
-
-export type RateLimitDecision = {
-  allowed: boolean;
-  retryAfterSeconds: number;
-};
+import type {
+  AuthenticationRateLimitPort,
+  RateLimitDecision,
+} from '../application/authentication-rate-limiter.port';
 
 const WINDOW_SECONDS = 15 * 60;
 const SCRIPT = `
@@ -17,27 +16,44 @@ return {current, ttl}
 `; // Atomic fixed-window counter rate-limiter
 
 @Injectable()
-export class RegistrationRateLimiter {
+export class AuthenticationRateLimiter implements AuthenticationRateLimitPort {
   constructor(
     private readonly redis: RedisService,
     private readonly config: AppConfig,
   ) {}
 
-  async check(
+  async checkRegistration(
     clientIp: string,
     normalizedEmail?: string,
   ): Promise<RateLimitDecision> {
+    return this.check('registration', clientIp, normalizedEmail, 10, 5);
+  }
+
+  async checkLogin(
+    clientIp: string,
+    normalizedEmail?: string,
+  ): Promise<RateLimitDecision> {
+    return this.check('login', clientIp, normalizedEmail, 20, 10);
+  }
+
+  private async check(
+    scope: string,
+    clientIp: string,
+    normalizedEmail: string | undefined,
+    ipLimit: number,
+    emailLimit: number,
+  ): Promise<RateLimitDecision> {
     const ipDecision = await this.increment(
-      `auth:registration:ip:${this.digest(clientIp)}`,
-      10,
+      `auth:${scope}:ip:${this.digest(clientIp)}`,
+      ipLimit,
     );
     if (!ipDecision.allowed || !normalizedEmail) {
       return ipDecision;
     }
 
     return this.increment(
-      `auth:registration:email:${this.digest(normalizedEmail)}`,
-      5,
+      `auth:${scope}:email:${this.digest(normalizedEmail)}`,
+      emailLimit,
     );
   }
 

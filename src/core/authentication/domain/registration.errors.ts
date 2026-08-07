@@ -44,3 +44,12 @@ export class AuthenticationUnavailableError extends ApplicationError {
     super('Authentication is temporarily unavailable.');
   }
 }
+
+export class AuthenticationInvalidError extends ApplicationError {
+  readonly code = 'AUTHENTICATION_INVALID';
+  readonly retryable = false;
+
+  constructor() {
+    super('Email or password is incorrect.');
+  }
+}
