@@ -20,6 +20,7 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "docker compose -f compose.test.yaml up -d --wait && dotenv -e .env.test -- prisma db push && dotenv -e .env.test -- jest --config ./test/jest-e2e.json --runInBand",
+    "update:password-blocklist": "node scripts/update-common-password-blocklist.mjs",
     "db:generate": "dotenv -e .env.example -- prisma generate",
     "db:push": "dotenv -e .env.example -- prisma db push",
     "db:dev:up": "docker compose up -d --wait",

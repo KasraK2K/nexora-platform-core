@@ -14,9 +14,12 @@ import type { TransactionManager } from '../../../shared/application/transaction
 import { PasswordPolicy } from '../domain/password-policy';
 import {
   EmailAlreadyRegisteredError,
+  InvalidRegistrationError,
   RegistrationUnavailableError,
 } from '../domain/registration.errors';
 import { AuthenticationSessions } from './authentication-sessions';
+import { PASSWORD_COMPROMISE_CHECKER } from './password-compromise-checker.port';
+import type { PasswordCompromiseChecker } from './password-compromise-checker.port';
 import { PASSWORD_HASHER } from './password-hasher.port';
 import type { PasswordHasher } from './password-hasher.port';
 import { SessionTokenService } from './session-token.service';
@@ -48,6 +51,8 @@ export class RegisterAccount {
 
   constructor(
     @Inject(PASSWORD_HASHER) private readonly passwordHasher: PasswordHasher,
+    @Inject(PASSWORD_COMPROMISE_CHECKER)
+    private readonly passwordCompromiseChecker: PasswordCompromiseChecker,
     @Inject(TRANSACTION_MANAGER)
     private readonly transactions: TransactionManager,
     private readonly identities: IdentityRegistration,
@@ -68,6 +73,19 @@ export class RegisterAccount {
   async execute(command: RegisterAccountCommand): Promise<RegisteredAccount> {
     const normalizedEmail = command.email.trim().toLocaleLowerCase('en-US');
     const password = this.passwordPolicy.validateAndNormalize(command.password);
+    let passwordIsCompromised: boolean;
+    try {
+      passwordIsCompromised =
+        await this.passwordCompromiseChecker.isCompromised(password);
+    } catch {
+      throw new RegistrationUnavailableError();
+    }
+    if (passwordIsCompromised) {
+      throw new InvalidRegistrationError(
+        'Choose a password that has not appeared in common-password or breach data.',
+      );
+    }
+
     const session = this.sessionTokens.create();
     const sessionExpiresAt = new Date(
       this.clock.now().getTime() + this.config.sessionTtlSeconds * 1000,

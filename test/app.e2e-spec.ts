@@ -191,6 +191,23 @@ describe('Nexora API (e2e)', () => {
     expect(await prisma.identity.count()).toBe(0);
   });
 
+  it('rejects a locally blocklisted password before creating data', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/v1/auth/registrations')
+      .set('Origin', ALLOWED_ORIGIN)
+      .send({
+        ...registrationBody('compromised-password@example.com'),
+        password: '123456789012345',
+      });
+
+    expect(response.status).toBe(400);
+    expect(readString(response.body as unknown, 'error', 'code')).toBe(
+      'REGISTRATION_INVALID',
+    );
+    expect(await prisma.identity.count()).toBe(0);
+    expect(await prisma.passwordCredential.count()).toBe(0);
+  });
+
   it('rate-limits repeated registration attempts before password hashing', async () => {
     const hash = jest
       .spyOn(passwordHasher, 'hash')

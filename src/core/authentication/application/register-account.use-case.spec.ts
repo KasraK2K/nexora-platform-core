@@ -12,8 +12,12 @@ import { Clock } from '../../../shared/application/clock';
 import { IdentifierFactory } from '../../../shared/application/identifier-factory';
 import type { TransactionManager } from '../../../shared/application/transaction-manager.port';
 import { PasswordPolicy } from '../domain/password-policy';
-import { InvalidRegistrationError } from '../domain/registration.errors';
+import {
+  InvalidRegistrationError,
+  RegistrationUnavailableError,
+} from '../domain/registration.errors';
 import { AuthenticationSessions } from './authentication-sessions';
+import type { PasswordCompromiseChecker } from './password-compromise-checker.port';
 import type { PasswordHasher } from './password-hasher.port';
 import { RegisterAccount } from './register-account.use-case';
 import type { SessionCachePort } from './session-cache.port';
@@ -25,6 +29,19 @@ class RecordingHasher implements PasswordHasher {
   hash(password: string): Promise<string> {
     this.received.push(password);
     return Promise.resolve('argon2id-hash');
+  }
+}
+
+class RecordingPasswordCompromiseChecker implements PasswordCompromiseChecker {
+  received: string[] = [];
+  compromised = false;
+  failure: Error | undefined;
+
+  isCompromised(password: string): Promise<boolean> {
+    this.received.push(password);
+    return this.failure
+      ? Promise.reject(this.failure)
+      : Promise.resolve(this.compromised);
   }
 }
 
@@ -75,6 +92,9 @@ describe('RegisterAccount', () => {
     });
 
     expect(fixture.hasher.received).toEqual(['A secure passphrase 123']);
+    expect(fixture.passwordCompromiseChecker.received).toEqual([
+      'A secure passphrase 123',
+    ]);
     expect(fixture.identityWrites).toEqual([
       expect.objectContaining({
         normalizedEmail: 'person@example.com',
@@ -103,16 +123,52 @@ describe('RegisterAccount', () => {
     expect(fixture.hasher.received).toHaveLength(0);
     expect(fixture.identityWrites).toHaveLength(0);
   });
+
+  it('rejects a compromised password before hashing or persistence', async () => {
+    const fixture = createFixture();
+    fixture.passwordCompromiseChecker.compromised = true;
+
+    await expect(
+      fixture.useCase.execute({
+        email: 'person@example.com',
+        password: 'A breached passphrase 123',
+        displayName: 'Person',
+        organizationName: 'Example Org',
+        workspaceName: 'Main Workspace',
+      }),
+    ).rejects.toBeInstanceOf(InvalidRegistrationError);
+    expect(fixture.hasher.received).toHaveLength(0);
+    expect(fixture.identityWrites).toHaveLength(0);
+  });
+
+  it('fails safely when the checker itself cannot produce a fallback result', async () => {
+    const fixture = createFixture();
+    fixture.passwordCompromiseChecker.failure = new Error('checker failed');
+
+    await expect(
+      fixture.useCase.execute({
+        email: 'person@example.com',
+        password: 'A secure passphrase 123',
+        displayName: 'Person',
+        organizationName: 'Example Org',
+        workspaceName: 'Main Workspace',
+      }),
+    ).rejects.toBeInstanceOf(RegistrationUnavailableError);
+    expect(fixture.hasher.received).toHaveLength(0);
+    expect(fixture.identityWrites).toHaveLength(0);
+  });
 });
 
 function createFixture(): {
   useCase: RegisterAccount;
   hasher: RecordingHasher;
+  passwordCompromiseChecker: RecordingPasswordCompromiseChecker;
   identityWrites: CreatePasswordIdentity[];
   sessionCache: RecordingSessionCache;
 } {
   const identityWrites: CreatePasswordIdentity[] = [];
   const hasher = new RecordingHasher();
+  const passwordCompromiseChecker = new RecordingPasswordCompromiseChecker();
   const sessionCache = new RecordingSessionCache();
   const clock = new Clock();
   jest
@@ -149,10 +205,12 @@ function createFixture(): {
 
   return {
     hasher,
+    passwordCompromiseChecker,
     identityWrites,
     sessionCache,
     useCase: new RegisterAccount(
       hasher,
+      passwordCompromiseChecker,
       new InlineTransactionManager(),
       identities,
       users,

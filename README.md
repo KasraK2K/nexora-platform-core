@@ -13,6 +13,10 @@ single application; the target pnpm/Turborepo migration has not been performed.
   active workspace from the opaque session cookie.
 - Passwords use Argon2id. Only a SHA-256 session-token digest is stored;
   PostgreSQL is authoritative and Redis is a disposable lookup cache.
+- New passwords are screened against a bundled common-password fallback and
+  the free Pwned Passwords range API without transmitting plaintext passwords
+  or complete password hashes. Set `PWNED_PASSWORDS_ENABLED=false` for
+  local-only screening.
 - Registration validates the exact browser Origin and applies Redis-backed IP
   and normalized-email rate limits before password hashing.
 - OpenAPI UI is served at `/docs` while the application is running.
@@ -44,6 +48,9 @@ pnpm run start:dev
 The local PostgreSQL port is `55432`; Redis uses `56379`.
 `TRUST_PROXY` is empty locally. Set it to the exact trusted Caddy address or
 subnet in a proxied deployment; never use an unrestricted proxy setting.
+`PWNED_PASSWORDS_TIMEOUT_MS` bounds the optional remote breach lookup and must
+remain between 100 and 5000 milliseconds. The local fallback remains active
+when remote lookup is disabled or unavailable.
 
 Example registration request:
 
@@ -62,6 +69,10 @@ pnpm run test --runInBand
 pnpm run test:e2e
 pnpm run build
 ```
+
+Refresh the generated local password fallback from its documented free source
+with `pnpm run update:password-blocklist`, then review the source checksum,
+generated diff, and `THIRD_PARTY_NOTICES.md` before committing it.
 
 `test:e2e` starts isolated PostgreSQL and Redis services on ports `55433` and
 `56380`, synchronizes the database from `prisma/schema.prisma` with

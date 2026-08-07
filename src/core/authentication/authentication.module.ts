@@ -13,6 +13,7 @@ import {
   AuthenticationSessions,
 } from './application/authentication-sessions';
 import { GetCurrentSession } from './application/get-current-session.use-case';
+import { PASSWORD_COMPROMISE_CHECKER } from './application/password-compromise-checker.port';
 import { PASSWORD_HASHER } from './application/password-hasher.port';
 import { RegisterAccount } from './application/register-account.use-case';
 import { SessionTokenService } from './application/session-token.service';
@@ -20,6 +21,7 @@ import { SESSION_CACHE } from './application/session-cache.port';
 import { PasswordPolicy } from './domain/password-policy';
 import { Argon2PasswordHasher } from './infrastructure/argon2-password-hasher';
 import { PrismaAuthenticationSessionsRepository } from './infrastructure/prisma-authentication-sessions.repository';
+import { PwnedPasswordsCompromiseChecker } from './infrastructure/pwned-passwords-compromise-checker';
 import { RegistrationRateLimiter } from './infrastructure/registration-rate-limiter';
 import { SessionCache } from './infrastructure/session-cache';
 import { AuthenticationController } from './presentation/authentication.controller';
@@ -48,8 +50,13 @@ import { RegistrationRequestGuard } from './presentation/registration-request.gu
     GetCurrentSession,
     AuthenticationSessions,
     Argon2PasswordHasher,
+    PwnedPasswordsCompromiseChecker,
     PrismaAuthenticationSessionsRepository,
     { provide: PASSWORD_HASHER, useExisting: Argon2PasswordHasher },
+    {
+      provide: PASSWORD_COMPROMISE_CHECKER,
+      useExisting: PwnedPasswordsCompromiseChecker,
+    },
     { provide: SESSION_CACHE, useExisting: SessionCache },
     {
       provide: AUTHENTICATION_SESSIONS_REPOSITORY,

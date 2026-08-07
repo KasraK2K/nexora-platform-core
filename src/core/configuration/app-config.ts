@@ -13,6 +13,13 @@ const environmentSchema = z
     TRUST_PROXY: z.string().default(''),
     RATE_LIMIT_KEY_SECRET: z.string().min(32),
     COOKIE_SECURE: z.enum(['true', 'false']).default('false'),
+    PWNED_PASSWORDS_ENABLED: z.enum(['true', 'false']).default('true'),
+    PWNED_PASSWORDS_TIMEOUT_MS: z.coerce
+      .number()
+      .int()
+      .min(100)
+      .max(5_000)
+      .default(1_500),
     SESSION_TTL_SECONDS: z.coerce
       .number()
       .int()
@@ -70,6 +77,10 @@ export class AppConfig {
   readonly databaseUrl = this.environment.DATABASE_URL;
   readonly redisUrl = this.environment.REDIS_URL;
   readonly cookieSecure = this.environment.COOKIE_SECURE === 'true';
+  readonly pwnedPasswordsEnabled =
+    this.environment.PWNED_PASSWORDS_ENABLED === 'true';
+  readonly pwnedPasswordsTimeoutMs =
+    this.environment.PWNED_PASSWORDS_TIMEOUT_MS;
   readonly sessionTtlSeconds = this.environment.SESSION_TTL_SECONDS;
   readonly trustedProxies = this.environment.TRUST_PROXY.split(',')
     .map((proxy) => proxy.trim())
