@@ -24,6 +24,7 @@ Apply only the sections relevant to the change. Treat each unchecked item as eit
 ## Current-state gate
 
 - Inspect the real owning files, package scripts, lockfile, tests, and runtime configuration.
+- Inspect installed declarations and version-matched official documentation for changed third-party APIs; record and replace deprecated usage without blanket suppressions.
 - Separate implemented behavior from the target baseline.
 - Confirm whether the requested work is explanation, diagnosis, planning, implementation, or review.
 - Identify user-visible scope and explicit non-goals.
@@ -176,6 +177,7 @@ Apply only the sections relevant to the change. Treat each unchecked item as eit
 - Add golden datasets and human samples for output-quality changes.
 - Test timeout, cancellation, malformed output, fallback, and stream failures.
 - Run only verified current repository commands and record exact results.
+- Run the repository deprecation audit after TypeScript or dependency changes and review package-manager, build, lint, test, and runtime output for non-TypeScript deprecations.
 
 ## Architecture review
 

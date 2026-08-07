@@ -20,6 +20,7 @@ Use the PDF-derived implementation baseline without confusing planned architectu
 
 - Treat the target monorepo, Prisma, Redis, BullMQ, Next.js, Zod, OpenAPI, Stripe, storage, RAG, and observability stack as planned until the repository contains and configures them.
 - Use current verified scripts and test tooling. Do not invent commands or claim planned gates passed.
+- Verify third-party calls and configuration against the installed version, lockfile, declarations, and version-matched official documentation. Reject deprecated APIs and unsupported remembered syntax.
 - Make foundation migrations explicit. Do not mix a repo-wide scaffold migration into an unrelated feature.
 - Keep existing behavior unless the request authorizes a change.
 
@@ -91,6 +92,7 @@ Use the applicable checklists for:
 - Always add replay/concurrency/invariant tests for billing, credits, and webhooks.
 - Use deterministic AI fakes for normal tests and evaluation fixtures for AI quality changes.
 - Run only commands that exist in the repository, then inspect the final diff after any autofix command.
+- Run `pnpm run check:deprecated` after TypeScript or dependency changes, and inspect other command output for configuration/runtime deprecations the TypeScript audit cannot see.
 
 ## Delegate when useful
 

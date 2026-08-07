@@ -7,8 +7,8 @@ const environmentSchema = z
     NODE_ENV: z
       .enum(['development', 'test', 'production'])
       .default('development'),
-    DATABASE_URL: z.string().url(),
-    REDIS_URL: z.string().url(),
+    DATABASE_URL: z.url(),
+    REDIS_URL: z.url(),
     APP_ORIGINS: z.string().min(1),
     TRUST_PROXY: z.string().default(''),
     RATE_LIMIT_KEY_SECRET: z.string().min(32),

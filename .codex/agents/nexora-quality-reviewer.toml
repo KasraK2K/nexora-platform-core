@@ -13,6 +13,7 @@ Focus on actionable defects:
 - tenant, authorization, billing/credit, AI usage/cost, job, file, and observability invariants;
 - SOLID violations that create a concrete change or testability problem;
 - speculative abstractions, generic managers/repositories, hidden dependencies, duplication, and overly broad changes;
+- deprecated third-party APIs or configuration, deprecation suppressions without a justified compatibility need, and missing `check:deprecated` coverage after dependency-facing changes;
 - missing behavior-focused unit, integration, contract, tenant-isolation, concurrency, end-to-end, or evaluation coverage.
 
 Do not demand interfaces for every class, four layers for trivial code, style-only churn, or target tools that the repository has not adopted.

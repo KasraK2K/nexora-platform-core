@@ -23,6 +23,7 @@ Use `$nexora-platform-engineering` for architecture-sensitive planning, implemen
 
 - Use pnpm and preserve `pnpm-lock.yaml`.
 - Build: `pnpm run build`
+- Deprecated API audit: `pnpm run check:deprecated`
 - Lint and autofix: `pnpm run lint`
 - Unit tests: `pnpm run test --runInBand`
 - End-to-end tests: `pnpm run test:e2e`
@@ -32,6 +33,14 @@ Use `$nexora-platform-engineering` for architecture-sensitive planning, implemen
 The lint script mutates files. Run it before the final diff review. Do not claim target commands such as `typecheck`, `test:integration`, `openapi:check`, or database checks exist until they are added to `package.json` and verified.
 
 The current project uses Jest/ts-jest and does not enable full TypeScript strictness. Vitest and strict TypeScript are target baseline decisions, but migrating to them must be explicit and verified rather than assumed.
+
+## Dependency and API compatibility
+
+- Check the installed package version, lockfile, type declarations, and official version-matched documentation before introducing or changing a third-party API. Do not rely on remembered syntax.
+- Do not add APIs, options, commands, or configuration marked `@deprecated`, and do not silence deprecation warnings without a documented compatibility reason approved in the task scope.
+- Run `pnpm run check:deprecated` after TypeScript or dependency changes. Also inspect build, lint, test, install, and runtime output because configuration and dynamically generated aliases may not be represented by TypeScript deprecation metadata.
+- Use `allowBuilds` in `pnpm-workspace.yaml` for dependency lifecycle-script policy. Do not restore the deprecated `pnpm.onlyBuiltDependencies` package field.
+- When replacing a deprecated API, preserve behavior and add or update tests when timing, validation order, shutdown behavior, persistence, security, or public contracts could change.
 
 ## Development database workflow
 

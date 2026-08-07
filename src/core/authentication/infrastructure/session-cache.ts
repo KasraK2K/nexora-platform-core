@@ -22,7 +22,7 @@ export class SessionCache implements SessionCachePort {
     }
 
     await this.redis.client.set(this.key(tokenHash), JSON.stringify(session), {
-      PX: ttlMilliseconds,
+      expiration: { type: 'PX', value: ttlMilliseconds },
     });
   }
 
