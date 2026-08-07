@@ -1,8 +1,8 @@
 import path from 'node:path';
-import process from 'node:process';
+import nodeProcess from 'node:process';
 import ts from 'typescript';
 
-const projectRoot = process.cwd();
+const projectRoot = nodeProcess.cwd();
 const configPath = ts.findConfigFile(
   projectRoot,
   ts.sys.fileExists,
@@ -11,13 +11,13 @@ const configPath = ts.findConfigFile(
 
 if (!configPath) {
   console.error('Unable to find tsconfig.json.');
-  process.exitCode = 1;
+  nodeProcess.exitCode = 1;
 } else {
   const configFile = ts.readConfigFile(configPath, ts.sys.readFile);
 
   if (configFile.error) {
     reportDiagnostics([configFile.error]);
-    process.exitCode = 1;
+    nodeProcess.exitCode = 1;
   } else {
     const parsedConfig = ts.parseJsonConfigFileContent(
       configFile.config,
@@ -29,7 +29,7 @@ if (!configPath) {
 
     if (parsedConfig.errors.length > 0) {
       reportDiagnostics(parsedConfig.errors);
-      process.exitCode = 1;
+      nodeProcess.exitCode = 1;
     } else {
       const program = ts.createProgram({
         rootNames: parsedConfig.fileNames,
@@ -81,7 +81,7 @@ if (!configPath) {
           );
         }
         console.error(`Found ${findings.length} deprecated API use(s).`);
-        process.exitCode = 1;
+        nodeProcess.exitCode = 1;
       } else {
         console.log('No deprecated TypeScript APIs found.');
       }

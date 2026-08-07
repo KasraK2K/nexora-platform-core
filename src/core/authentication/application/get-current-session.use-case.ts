@@ -39,56 +39,64 @@ export class GetCurrentSession {
     }
 
     const tokenHash = this.sessionTokens.hash(rawToken);
+    let currentSession: CurrentSession | undefined;
     try {
-      const session = await this.sessions.findByTokenHash(tokenHash);
-      if (
-        !session ||
-        session.revokedAt ||
-        session.expiresAt.getTime() <= Date.now()
-      ) {
-        await this.removeCacheBestEffort(tokenHash);
-        throw new AuthenticationRequiredError();
-      }
-
-      const [user, workspace, membership] = await Promise.all([
-        this.users.findById(session.userId),
-        this.workspaces.findById(session.activeWorkspaceId),
-        this.memberships.find({
-          workspaceId: session.activeWorkspaceId,
-          userId: session.userId,
-        }),
-      ]);
-      if (!user || !workspace || !membership || membership.role !== 'OWNER') {
-        await this.removeCacheBestEffort(tokenHash);
-        throw new AuthenticationRequiredError();
-      }
-
-      const organization = await this.organizations.findById(
-        workspace.organizationId,
-      );
-      if (!organization) {
-        await this.removeCacheBestEffort(tokenHash);
-        throw new AuthenticationRequiredError();
-      }
-
-      await this.refreshCacheBestEffort(
-        tokenHash,
-        { userId: user.id, workspaceId: workspace.id },
-        session.expiresAt,
-      );
-
-      return {
-        user,
-        organization,
-        workspace: { id: workspace.id, name: workspace.name },
-        membership: { role: 'OWNER' },
-      };
-    } catch (error) {
-      if (error instanceof AuthenticationRequiredError) {
-        throw error;
-      }
+      currentSession = await this.resolveCurrentSession(tokenHash);
+    } catch {
       throw new AuthenticationUnavailableError();
     }
+
+    if (!currentSession) {
+      await this.removeCacheBestEffort(tokenHash);
+      throw new AuthenticationRequiredError();
+    }
+
+    return currentSession;
+  }
+
+  private async resolveCurrentSession(
+    tokenHash: string,
+  ): Promise<CurrentSession | undefined> {
+    const session = await this.sessions.findByTokenHash(tokenHash);
+    if (
+      !session ||
+      session.revokedAt ||
+      session.expiresAt.getTime() <= Date.now()
+    ) {
+      return undefined;
+    }
+
+    const [user, workspace, membership] = await Promise.all([
+      this.users.findById(session.userId),
+      this.workspaces.findById(session.activeWorkspaceId),
+      this.memberships.find({
+        workspaceId: session.activeWorkspaceId,
+        userId: session.userId,
+      }),
+    ]);
+    if (!user || !workspace || !membership || membership.role !== 'OWNER') {
+      return undefined;
+    }
+
+    const organization = await this.organizations.findById(
+      workspace.organizationId,
+    );
+    if (!organization) {
+      return undefined;
+    }
+
+    await this.refreshCacheBestEffort(
+      tokenHash,
+      { userId: user.id, workspaceId: workspace.id },
+      session.expiresAt,
+    );
+
+    return {
+      user,
+      organization,
+      workspace: { id: workspace.id, name: workspace.name },
+      membership: { role: 'OWNER' },
+    };
   }
 
   private async refreshCacheBestEffort(
@@ -106,6 +114,10 @@ export class GetCurrentSession {
   }
 
   private async removeCacheBestEffort(tokenHash: string): Promise<void> {
-    await this.sessionCache.remove(tokenHash).catch(() => undefined);
+    try {
+      await this.sessionCache.remove(tokenHash);
+    } catch {
+      // PostgreSQL is authoritative; cache cleanup must not mask an invalid session.
+    }
   }
 }

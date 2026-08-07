@@ -35,16 +35,23 @@ const environmentSchema = z
     for (const origin of environment.APP_ORIGINS.split(',').map((value) =>
       value.trim(),
     )) {
+      let parsed: URL;
       try {
-        const parsed = new URL(origin);
-        if (
-          origin !== parsed.origin ||
-          (environment.NODE_ENV === 'production' &&
-            parsed.protocol !== 'https:')
-        ) {
-          throw new Error('Origin must be canonical and secure.');
-        }
+        parsed = new URL(origin);
       } catch {
+        context.addIssue({
+          code: 'custom',
+          path: ['APP_ORIGINS'],
+          message:
+            'APP_ORIGINS must contain canonical origins, using HTTPS in production.',
+        });
+        continue;
+      }
+
+      if (
+        origin !== parsed.origin ||
+        (environment.NODE_ENV === 'production' && parsed.protocol !== 'https:')
+      ) {
         context.addIssue({
           code: 'custom',
           path: ['APP_ORIGINS'],
