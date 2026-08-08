@@ -71,3 +71,32 @@ export class EmailVerificationUnavailableError extends ApplicationError {
     super('Email verification is temporarily unavailable.');
   }
 }
+
+export class PasswordResetInvalidError extends ApplicationError {
+  readonly code = 'PASSWORD_RESET_INVALID';
+  readonly retryable = false;
+
+  constructor() {
+    super('The password reset link is invalid or has expired.');
+  }
+}
+
+export class InvalidPasswordResetPasswordError extends ApplicationError {
+  readonly code = 'PASSWORD_RESET_INVALID_PASSWORD';
+  readonly retryable = false;
+
+  constructor(
+    message = 'Password must contain between 15 and 128 Unicode characters.',
+  ) {
+    super(message);
+  }
+}
+
+export class PasswordResetUnavailableError extends ApplicationError {
+  readonly code = 'PASSWORD_RESET_UNAVAILABLE';
+  readonly retryable = true;
+
+  constructor() {
+    super('Password reset is temporarily unavailable.');
+  }
+}

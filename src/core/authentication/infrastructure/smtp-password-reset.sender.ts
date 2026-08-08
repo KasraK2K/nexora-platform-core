@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { AppConfig } from '../../configuration/app-config';
-import type { EmailVerificationSender } from '../application/email-verification-sender.port';
+import type { PasswordResetSender } from '../application/password-reset-sender.port';
 import { SmtpMailTransport } from './smtp-mail.transport';
 
 @Injectable()
-export class SmtpEmailVerificationSender implements EmailVerificationSender {
+export class SmtpPasswordResetSender implements PasswordResetSender {
   constructor(
     private readonly config: AppConfig,
     private readonly transport: SmtpMailTransport,
@@ -15,17 +15,17 @@ export class SmtpEmailVerificationSender implements EmailVerificationSender {
     token: string;
     expiresAt: Date;
   }): Promise<void> {
-    const verificationUrl = new URL(this.config.emailVerificationUrl);
-    verificationUrl.searchParams.set('token', input.token);
+    const resetUrl = new URL(this.config.passwordResetUrl);
+    resetUrl.searchParams.set('token', input.token);
 
     await this.transport.send({
       to: input.to,
-      subject: 'Verify your email address',
+      subject: 'Reset your password',
       text: [
-        'Verify your email address by opening this link:',
-        verificationUrl.toString(),
+        'Reset your password by opening this link:',
+        resetUrl.toString(),
         `This link expires at ${input.expiresAt.toISOString()}.`,
-        'If you did not create this account, you can ignore this email.',
+        'If you did not request a password reset, you can ignore this email.',
       ].join('\n\n'),
     });
   }

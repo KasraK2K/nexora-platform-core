@@ -45,6 +45,16 @@ import {
 } from './email-verification.contract';
 import { EmailVerificationRequestGuard } from './email-verification-request.guard';
 import { EmailVerificationConfirmationGuard } from './email-verification-confirmation.guard';
+import { RequestPasswordReset } from '../application/request-password-reset.use-case';
+import { ResetPassword } from '../application/reset-password.use-case';
+import {
+  passwordResetConfirmationSchema,
+  passwordResetRequestSchema,
+  type PasswordResetConfirmation,
+  type PasswordResetRequest,
+} from './password-reset.contract';
+import { PasswordResetRequestGuard } from './password-reset-request.guard';
+import { PasswordResetConfirmationGuard } from './password-reset-confirmation.guard';
 
 @ApiTags('Authentication')
 @Controller('v1/auth')
@@ -57,6 +67,8 @@ export class AuthenticationController {
     private readonly revokeAllSessions: RevokeAllSessions,
     private readonly requestEmailVerification: RequestEmailVerification,
     private readonly verifyEmail: VerifyEmail,
+    private readonly requestPasswordReset: RequestPasswordReset,
+    private readonly resetPassword: ResetPassword,
     private readonly config: AppConfig,
   ) {}
 
@@ -158,6 +170,74 @@ export class AuthenticationController {
   ): Promise<void> {
     setPrivateResponseHeaders(response);
     await this.verifyEmail.execute(body.token);
+  }
+
+  @Post('password-reset-requests')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @UseGuards(TrustedOriginGuard, PasswordResetRequestGuard)
+  @ApiOperation({ summary: 'Request a password reset link' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['email'],
+      properties: {
+        email: { type: 'string', format: 'email', maxLength: 254 },
+      },
+    },
+  })
+  @ApiAcceptedResponse({
+    description: 'The request is accepted regardless of account existence.',
+  })
+  async requestPasswordResetLink(
+    @Body(new ZodValidationPipe(passwordResetRequestSchema))
+    body: PasswordResetRequest,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<unknown> {
+    setPrivateResponseHeaders(response);
+    await this.requestPasswordReset.execute(body.email);
+    return { data: null, meta: {} };
+  }
+
+  @Post('password-resets')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(TrustedOriginGuard, PasswordResetConfirmationGuard)
+  @ApiOperation({ summary: 'Replace a password using a reset token' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['token', 'newPassword'],
+      properties: {
+        token: {
+          type: 'string',
+          minLength: 43,
+          maxLength: 43,
+          writeOnly: true,
+        },
+        newPassword: {
+          type: 'string',
+          minLength: 15,
+          maxLength: 128,
+          writeOnly: true,
+        },
+      },
+    },
+  })
+  @ApiNoContentResponse({
+    description: 'Password replaced and every existing session revoked.',
+  })
+  async confirmPasswordReset(
+    @Body(new ZodValidationPipe(passwordResetConfirmationSchema))
+    body: PasswordResetConfirmation,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<void> {
+    setPrivateResponseHeaders(response);
+    await this.resetPassword.execute({
+      token: body.token,
+      newPassword: body.newPassword,
+    });
+    clearSessionCookie(response, this.config);
   }
 
   @Post('sessions')

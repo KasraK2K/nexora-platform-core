@@ -3,6 +3,7 @@ import { DatabaseContext } from '../../persistence/database-context';
 import type {
   AuthenticationSessionsRepository,
   RevokedSession,
+  SessionContext,
   SessionRecord,
 } from '../application/authentication-sessions';
 
@@ -31,6 +32,14 @@ export class PrismaAuthenticationSessionsRepository implements AuthenticationSes
         expiresAt: true,
         revokedAt: true,
       },
+    });
+  }
+
+  findLatestForUser(userId: string): Promise<SessionContext | null> {
+    return this.database.client.session.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      select: { userId: true, activeWorkspaceId: true },
     });
   }
 

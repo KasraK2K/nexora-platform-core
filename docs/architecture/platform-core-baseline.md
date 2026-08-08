@@ -27,6 +27,8 @@ The repository is currently one NestJS modular monolith. It implements:
 - returning-user login, current-session resolution, logout, and revoke-all;
 - pending-account email verification with hashed, expiring, replaceable,
   single-use tokens and enumeration-resistant resend behavior;
+- password reset with hashed, expiring, replaceable, single-use tokens,
+  compromised-password screening, and transactional session revocation;
 - provider-neutral SMTP delivery with a local Mailpit development adapter;
 - origin checks, authentication rate limiting, compromised-password screening;
 - audit records, request IDs, Zod transport validation, and OpenAPI generation.
@@ -302,7 +304,7 @@ prove a stable shared contract.
 
 ## Platform roadmap
 
-1. Complete the remaining account lifecycle: password reset/change and
+1. Complete the remaining account lifecycle: authenticated password change and
    session-management policy.
 2. Complete tenant foundation: actor/workspace context, base RBAC, invitations,
    workspace switching, ownership transfer, and tenant isolation tests.

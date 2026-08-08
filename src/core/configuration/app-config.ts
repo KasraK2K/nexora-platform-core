@@ -35,6 +35,13 @@ const environmentSchema = z
     EMAIL_VERIFICATION_URL: z
       .url()
       .default('http://localhost:3000/verify-email'),
+    PASSWORD_RESET_TTL_SECONDS: z.coerce
+      .number()
+      .int()
+      .min(300)
+      .max(86_400)
+      .default(3_600),
+    PASSWORD_RESET_URL: z.url().default('http://localhost:3000/reset-password'),
     EMAIL_FROM: z
       .string()
       .min(3)
@@ -71,6 +78,17 @@ const environmentSchema = z
         code: 'custom',
         path: ['EMAIL_VERIFICATION_URL'],
         message: 'EMAIL_VERIFICATION_URL must use HTTPS in production.',
+      });
+    }
+
+    if (
+      environment.NODE_ENV === 'production' &&
+      new URL(environment.PASSWORD_RESET_URL).protocol !== 'https:'
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['PASSWORD_RESET_URL'],
+        message: 'PASSWORD_RESET_URL must use HTTPS in production.',
       });
     }
 
@@ -128,6 +146,9 @@ export class AppConfig {
   readonly emailVerificationTtlSeconds =
     this.environment.EMAIL_VERIFICATION_TTL_SECONDS;
   readonly emailVerificationUrl = this.environment.EMAIL_VERIFICATION_URL;
+  readonly passwordResetTtlSeconds =
+    this.environment.PASSWORD_RESET_TTL_SECONDS;
+  readonly passwordResetUrl = this.environment.PASSWORD_RESET_URL;
   readonly emailFrom = this.environment.EMAIL_FROM;
   readonly smtpHost = this.environment.SMTP_HOST;
   readonly smtpPort = this.environment.SMTP_PORT;

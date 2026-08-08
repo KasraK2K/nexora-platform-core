@@ -45,6 +45,20 @@ import { PrismaEmailVerificationsRepository } from './infrastructure/prisma-emai
 import { SmtpEmailVerificationSender } from './infrastructure/smtp-email-verification.sender';
 import { EmailVerificationRequestGuard } from './presentation/email-verification-request.guard';
 import { EmailVerificationConfirmationGuard } from './presentation/email-verification-confirmation.guard';
+import { PasswordResetTokenService } from './application/password-reset-token.service';
+import {
+  PASSWORD_RESET_TOKENS_REPOSITORY,
+  PasswordResetTokens,
+} from './application/password-reset-tokens';
+import { PasswordResetDelivery } from './application/password-reset-delivery';
+import { PASSWORD_RESET_SENDER } from './application/password-reset-sender.port';
+import { RequestPasswordReset } from './application/request-password-reset.use-case';
+import { ResetPassword } from './application/reset-password.use-case';
+import { PrismaPasswordResetTokensRepository } from './infrastructure/prisma-password-reset-tokens.repository';
+import { SmtpMailTransport } from './infrastructure/smtp-mail.transport';
+import { SmtpPasswordResetSender } from './infrastructure/smtp-password-reset.sender';
+import { PasswordResetRequestGuard } from './presentation/password-reset-request.guard';
+import { PasswordResetConfirmationGuard } from './presentation/password-reset-confirmation.guard';
 
 @Module({
   imports: [
@@ -65,6 +79,9 @@ import { EmailVerificationConfirmationGuard } from './presentation/email-verific
     EmailVerificationTokenService,
     EmailVerifications,
     EmailVerificationDelivery,
+    PasswordResetTokenService,
+    PasswordResetTokens,
+    PasswordResetDelivery,
     SessionCache,
     AuthenticationRateLimiter,
     {
@@ -75,6 +92,8 @@ import { EmailVerificationConfirmationGuard } from './presentation/email-verific
     LoginRequestGuard,
     EmailVerificationRequestGuard,
     EmailVerificationConfirmationGuard,
+    PasswordResetRequestGuard,
+    PasswordResetConfirmationGuard,
     TrustedOriginGuard,
     RegisterAccount,
     CreateSession,
@@ -83,12 +102,17 @@ import { EmailVerificationConfirmationGuard } from './presentation/email-verific
     RevokeAllSessions,
     RequestEmailVerification,
     VerifyEmail,
+    RequestPasswordReset,
+    ResetPassword,
     AuthenticationSessions,
     Argon2PasswordHasher,
     PwnedPasswordsCompromiseChecker,
     PrismaAuthenticationSessionsRepository,
     PrismaEmailVerificationsRepository,
+    PrismaPasswordResetTokensRepository,
+    SmtpMailTransport,
     SmtpEmailVerificationSender,
+    SmtpPasswordResetSender,
     { provide: PASSWORD_HASHER, useExisting: Argon2PasswordHasher },
     {
       provide: PASSWORD_COMPROMISE_CHECKER,
@@ -102,6 +126,14 @@ import { EmailVerificationConfirmationGuard } from './presentation/email-verific
     {
       provide: EMAIL_VERIFICATIONS_REPOSITORY,
       useExisting: PrismaEmailVerificationsRepository,
+    },
+    {
+      provide: PASSWORD_RESET_SENDER,
+      useExisting: SmtpPasswordResetSender,
+    },
+    {
+      provide: PASSWORD_RESET_TOKENS_REPOSITORY,
+      useExisting: PrismaPasswordResetTokensRepository,
     },
     {
       provide: AUTHENTICATION_SESSIONS_REPOSITORY,

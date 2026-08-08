@@ -23,4 +23,9 @@ export interface AuthenticationRateLimitPort {
   checkEmailVerificationConfirmation(
     clientIp: string,
   ): Promise<RateLimitDecision>;
+  checkPasswordResetRequest(
+    clientIp: string,
+    normalizedEmail?: string,
+  ): Promise<RateLimitDecision>;
+  checkPasswordResetConfirmation(clientIp: string): Promise<RateLimitDecision>;
 }

@@ -61,6 +61,31 @@ export class AuthenticationRateLimiter implements AuthenticationRateLimitPort {
     );
   }
 
+  async checkPasswordResetRequest(
+    clientIp: string,
+    normalizedEmail?: string,
+  ): Promise<RateLimitDecision> {
+    return this.check(
+      'password-reset-request',
+      clientIp,
+      normalizedEmail,
+      20,
+      5,
+    );
+  }
+
+  async checkPasswordResetConfirmation(
+    clientIp: string,
+  ): Promise<RateLimitDecision> {
+    return this.check(
+      'password-reset-confirmation',
+      clientIp,
+      undefined,
+      30,
+      30,
+    );
+  }
+
   private async check(
     scope: string,
     clientIp: string,

@@ -24,6 +24,11 @@ repository or changing runtime identifiers inherited from this base.
   invalidates older links and sends a replacement.
 - `POST /v1/auth/email-verifications` atomically consumes a hashed,
   expiring, single-use token and activates the user.
+- `POST /v1/auth/password-reset-requests` returns the same accepted response
+  regardless of account existence and replaces older reset links for active
+  accounts. `POST /v1/auth/password-resets` consumes the hashed token,
+  replaces the Argon2id credential, revokes every session, and audits the
+  completed reset in one PostgreSQL transaction.
 - `GET /v1/auth/session` resolves the authenticated user and server-trusted
   active workspace from the opaque session cookie.
 - `POST /v1/auth/sessions` verifies a returning user's password and issues a
@@ -44,8 +49,8 @@ repository or changing runtime identifiers inherited from this base.
   returned by the API, or stored in PostgreSQL.
 - OpenAPI UI is served at `/docs` while the application is running.
 
-Password reset, invitations, authorization roles, and additional workspace
-membership management are not implemented. Login refuses unverified accounts
+Authenticated password change, invitations, authorization roles, and
+additional workspace membership management are not implemented. Login refuses unverified accounts
 and accounts with more than one eligible workspace until the multi-workspace
 selection contract is defined. The session issued at registration is restricted
 to the existing account/session endpoints until later authorization middleware
@@ -95,6 +100,8 @@ when remote lookup is disabled or unavailable.
 `SMTP_TIMEOUT_MS` bounds each synchronous verification delivery attempt; a
 failure leaves the durable intent marked `FAILED` so the user can request a
 replacement link.
+`PASSWORD_RESET_TTL_SECONDS` bounds reset-link lifetime. Reset tokens are
+single-use SHA-256 digests at rest, and successful reset requires a fresh login.
 
 Example registration request:
 

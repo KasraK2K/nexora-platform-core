@@ -18,6 +18,11 @@ export type RevokedSession = Pick<
   'id' | 'tokenHash' | 'userId' | 'activeWorkspaceId'
 >;
 
+export type SessionContext = Pick<
+  SessionRecord,
+  'userId' | 'activeWorkspaceId'
+>;
+
 export interface AuthenticationSessionsRepository {
   create(input: {
     id: string;
@@ -27,6 +32,7 @@ export interface AuthenticationSessionsRepository {
     expiresAt: Date;
   }): Promise<void>;
   findByTokenHash(tokenHash: string): Promise<SessionRecord | null>;
+  findLatestForUser(userId: string): Promise<SessionContext | null>;
   revokeByTokenHash(
     tokenHash: string,
     revokedAt: Date,
@@ -53,6 +59,10 @@ export class AuthenticationSessions {
 
   findByTokenHash(tokenHash: string): Promise<SessionRecord | null> {
     return this.repository.findByTokenHash(tokenHash);
+  }
+
+  findLatestForUser(userId: string): Promise<SessionContext | null> {
+    return this.repository.findLatestForUser(userId);
   }
 
   revokeByTokenHash(

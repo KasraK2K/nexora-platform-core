@@ -17,6 +17,10 @@ import {
   EMAIL_VERIFICATION_SENDER,
   type EmailVerificationSender,
 } from '../src/core/authentication/application/email-verification-sender.port';
+import {
+  PASSWORD_RESET_SENDER,
+  type PasswordResetSender,
+} from '../src/core/authentication/application/password-reset-sender.port';
 
 const ALLOWED_ORIGIN = 'http://localhost:3000';
 const verificationDeliveries: Array<{
@@ -27,6 +31,17 @@ const verificationDeliveries: Array<{
 const recordingEmailSender: EmailVerificationSender = {
   send(input) {
     verificationDeliveries.push(input);
+    return Promise.resolve();
+  },
+};
+const resetDeliveries: Array<{
+  to: string;
+  token: string;
+  expiresAt: Date;
+}> = [];
+const recordingPasswordResetSender: PasswordResetSender = {
+  send(input) {
+    resetDeliveries.push(input);
     return Promise.resolve();
   },
 };
@@ -47,6 +62,8 @@ describe('Nexora API (e2e)', () => {
     })
       .overrideProvider(EMAIL_VERIFICATION_SENDER)
       .useValue(recordingEmailSender)
+      .overrideProvider(PASSWORD_RESET_SENDER)
+      .useValue(recordingPasswordResetSender)
       .compile();
 
     app = moduleFixture.createNestApplication<NestExpressApplication>();
@@ -65,6 +82,7 @@ describe('Nexora API (e2e)', () => {
     await clearRegistrationData(prisma);
     await redis.client.flushDb();
     verificationDeliveries.length = 0;
+    resetDeliveries.length = 0;
   });
 
   afterEach(() => {
@@ -259,6 +277,138 @@ describe('Nexora API (e2e)', () => {
     });
     expect(
       (await prisma.emailVerification.findFirstOrThrow()).deliveryStatus,
+    ).toBe('FAILED');
+  });
+
+  it('resets a password, revokes every session, and accepts only the replacement password', async () => {
+    const registration = await register('password-reset@example.com');
+    const registrationCookie = readCookieHeader(registration);
+    const secondSession = await login('password-reset@example.com');
+    const secondCookie = readCookieHeader(secondSession);
+
+    const missing = await requestPasswordReset('missing@example.com');
+    const existing = await requestPasswordReset(' PASSWORD-RESET@Example.com ');
+    expect(missing.status).toBe(202);
+    expect(existing.status).toBe(202);
+    expect(existing.body).toEqual(missing.body);
+
+    const token = readPasswordResetToken('password-reset@example.com');
+    const stored = await prisma.passwordResetToken.findFirstOrThrow();
+    expect(stored.tokenHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(stored.tokenHash).not.toBe(token);
+
+    const reset = await confirmPasswordReset(
+      token,
+      'A replacement passphrase 456',
+    );
+    expect(reset.status).toBe(204);
+    expect(readSetCookie(reset)).toContain('__Host-nexora_session=;');
+    expect(
+      (await prisma.passwordResetToken.findFirstOrThrow()).consumedAt,
+    ).not.toBeNull();
+    expect(await prisma.session.count({ where: { revokedAt: null } })).toBe(0);
+    expect(
+      await prisma.auditLog.count({
+        where: { action: 'password.reset.completed' },
+      }),
+    ).toBe(1);
+
+    await request(app.getHttpServer())
+      .get('/v1/auth/session')
+      .set('Cookie', registrationCookie)
+      .expect(401);
+    await request(app.getHttpServer())
+      .get('/v1/auth/session')
+      .set('Cookie', secondCookie)
+      .expect(401);
+    expect((await login('password-reset@example.com')).status).toBe(401);
+    expect(
+      (
+        await login(
+          'password-reset@example.com',
+          'A replacement passphrase 456',
+        )
+      ).status,
+    ).toBe(201);
+  });
+
+  it('replaces reset links and allows only one concurrent confirmation', async () => {
+    await register('reset-replacement@example.com');
+    await requestPasswordReset('reset-replacement@example.com');
+    const firstToken = readPasswordResetToken('reset-replacement@example.com');
+    await requestPasswordReset('reset-replacement@example.com');
+    const secondToken = readPasswordResetToken(
+      'reset-replacement@example.com',
+      firstToken,
+    );
+
+    await confirmPasswordReset(
+      firstToken,
+      'A replacement passphrase 456',
+    ).expect(400);
+    const results = await Promise.all([
+      confirmPasswordReset(secondToken, 'A concurrent passphrase 456'),
+      confirmPasswordReset(secondToken, 'A concurrent passphrase 456'),
+    ]);
+    expect(results.map((response) => response.status).sort()).toEqual([
+      204, 400,
+    ]);
+    expect(
+      await prisma.passwordResetToken.count({
+        where: { invalidatedAt: { not: null } },
+      }),
+    ).toBe(1);
+  });
+
+  it('rejects expired and compromised reset attempts without changing the password', async () => {
+    await register('reset-invalid@example.com');
+    await requestPasswordReset('reset-invalid@example.com');
+    const compromisedToken = readPasswordResetToken(
+      'reset-invalid@example.com',
+    );
+
+    const compromised = await confirmPasswordReset(
+      compromisedToken,
+      '123456789012345',
+    );
+    expect(compromised.status).toBe(400);
+    expect(readString(compromised.body as unknown, 'error', 'code')).toBe(
+      'PASSWORD_RESET_INVALID_PASSWORD',
+    );
+    expect(
+      (await prisma.passwordResetToken.findFirstOrThrow()).consumedAt,
+    ).toBeNull();
+
+    await requestPasswordReset('reset-invalid@example.com');
+    const expiredToken = readPasswordResetToken(
+      'reset-invalid@example.com',
+      compromisedToken,
+    );
+    const latestReset = await prisma.passwordResetToken.findFirstOrThrow({
+      orderBy: { createdAt: 'desc' },
+    });
+    await prisma.passwordResetToken.update({
+      where: { id: latestReset.id },
+      data: { expiresAt: new Date(Date.now() - 1_000) },
+    });
+    await confirmPasswordReset(
+      expiredToken,
+      'A replacement passphrase 456',
+    ).expect(400);
+    expect((await login('reset-invalid@example.com')).status).toBe(201);
+  });
+
+  it('keeps reset requests generic when delivery fails', async () => {
+    await register('reset-delivery@example.com');
+    jest
+      .spyOn(recordingPasswordResetSender, 'send')
+      .mockRejectedValueOnce(new Error('smtp unavailable'));
+
+    const response = await requestPasswordReset('reset-delivery@example.com');
+
+    expect(response.status).toBe(202);
+    expect(
+      (await prisma.passwordResetToken.findFirstOrThrow()).deliveryStatus,
     ).toBe('FAILED');
   });
 
@@ -797,6 +947,20 @@ describe('Nexora API (e2e)', () => {
       .set('Origin', ALLOWED_ORIGIN)
       .send({ token });
   }
+
+  function requestPasswordReset(email: string) {
+    return request(app.getHttpServer())
+      .post('/v1/auth/password-reset-requests')
+      .set('Origin', ALLOWED_ORIGIN)
+      .send({ email });
+  }
+
+  function confirmPasswordReset(token: string, newPassword: string) {
+    return request(app.getHttpServer())
+      .post('/v1/auth/password-resets')
+      .set('Origin', ALLOWED_ORIGIN)
+      .send({ token, newPassword });
+  }
 });
 
 function registrationBody(email: string) {
@@ -829,6 +993,7 @@ function readCookieHeader(response: {
 
 async function clearRegistrationData(prisma: PrismaService): Promise<void> {
   await prisma.auditLog.deleteMany();
+  await prisma.passwordResetToken.deleteMany();
   await prisma.session.deleteMany();
   await prisma.emailVerification.deleteMany();
   await prisma.membership.deleteMany();
@@ -849,11 +1014,26 @@ function readVerificationToken(
       delivery.to.toLowerCase() === normalizedEmail &&
       delivery.token !== excludedToken
     ) {
-      return delivery.token;
+      return Promise.resolve(delivery.token);
     }
   }
   throw new Error(
     `Verification email was not delivered to ${normalizedEmail}.`,
+  );
+}
+
+function readPasswordResetToken(email: string, excludedToken?: string): string {
+  const normalizedEmail = email.trim().toLocaleLowerCase('en-US');
+  for (const delivery of [...resetDeliveries].reverse()) {
+    if (
+      delivery.to.toLowerCase() === normalizedEmail &&
+      delivery.token !== excludedToken
+    ) {
+      return delivery.token;
+    }
+  }
+  throw new Error(
+    `Password reset email was not delivered to ${normalizedEmail}.`,
   );
 }
 

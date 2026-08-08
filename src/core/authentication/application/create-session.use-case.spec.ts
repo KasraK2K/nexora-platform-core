@@ -186,6 +186,7 @@ function createFixture(options?: {
       return Promise.resolve();
     },
     findByTokenHash: () => Promise.resolve(null),
+    findLatestForUser: () => Promise.resolve(null),
     revokeByTokenHash: () => Promise.resolve(null),
     revokeAllForUser: () => Promise.resolve([]),
   });

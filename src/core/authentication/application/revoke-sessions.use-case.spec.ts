@@ -115,6 +115,7 @@ function createFixture(): {
   const repository: AuthenticationSessionsRepository = {
     create: () => Promise.resolve(),
     findByTokenHash: () => Promise.resolve(activeSession),
+    findLatestForUser: () => Promise.resolve(null),
     revokeByTokenHash: () => {
       if (currentRevoked) {
         return Promise.resolve(null);

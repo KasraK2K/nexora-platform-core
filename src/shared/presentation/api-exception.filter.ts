@@ -104,6 +104,8 @@ function applicationErrorStatus(code: string): number {
   switch (code) {
     case 'REGISTRATION_INVALID':
     case 'EMAIL_VERIFICATION_INVALID':
+    case 'PASSWORD_RESET_INVALID':
+    case 'PASSWORD_RESET_INVALID_PASSWORD':
       return HttpStatus.BAD_REQUEST;
     case 'EMAIL_ALREADY_REGISTERED':
       return HttpStatus.CONFLICT;
@@ -113,6 +115,7 @@ function applicationErrorStatus(code: string): number {
     case 'REGISTRATION_UNAVAILABLE':
     case 'AUTHENTICATION_UNAVAILABLE':
     case 'EMAIL_VERIFICATION_UNAVAILABLE':
+    case 'PASSWORD_RESET_UNAVAILABLE':
       return HttpStatus.SERVICE_UNAVAILABLE;
     default:
       return HttpStatus.INTERNAL_SERVER_ERROR;

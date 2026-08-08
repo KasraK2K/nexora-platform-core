@@ -17,6 +17,10 @@ import {
   IdentityLookup,
 } from './application/identity-lookup';
 import { PrismaIdentityLookupRepository } from './infrastructure/prisma-identity-lookup.repository';
+import {
+  PASSWORD_CREDENTIAL_MANAGEMENT_REPOSITORY,
+  PasswordCredentialManagement,
+} from './application/password-credential-management';
 
 @Module({
   imports: [CoreInfrastructureModule],
@@ -28,6 +32,7 @@ import { PrismaIdentityLookupRepository } from './infrastructure/prisma-identity
     Argon2PasswordVerifier,
     IdentityLookup,
     PrismaIdentityLookupRepository,
+    PasswordCredentialManagement,
     {
       provide: IDENTITY_REGISTRATION_REPOSITORY,
       useExisting: PrismaIdentityRegistrationRepository,
@@ -41,11 +46,16 @@ import { PrismaIdentityLookupRepository } from './infrastructure/prisma-identity
       provide: IDENTITY_LOOKUP_REPOSITORY,
       useExisting: PrismaIdentityLookupRepository,
     },
+    {
+      provide: PASSWORD_CREDENTIAL_MANAGEMENT_REPOSITORY,
+      useExisting: PrismaPasswordIdentityRepository,
+    },
   ],
   exports: [
     IdentityRegistration,
     PasswordIdentityAuthentication,
     IdentityLookup,
+    PasswordCredentialManagement,
   ],
 })
 export class IdentityModule {}
