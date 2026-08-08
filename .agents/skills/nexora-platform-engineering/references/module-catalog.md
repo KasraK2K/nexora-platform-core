@@ -1,237 +1,124 @@
-# Nexora Module Catalog
+# Nexora Platform Core Module Catalog
 
-Use this reference to choose ownership and dependencies. The catalog is a target baseline; inspect the repository before assuming a module or table exists.
-
-## Contents
-
-- [Ownership rules](#ownership-rules)
-- [Core modules](#core-modules)
-- [Product modules](#product-modules)
-- [Shared kernel](#shared-kernel)
-- [Contract and event guidance](#contract-and-event-guidance)
+Use this product-neutral target to choose ownership and dependencies. Inspect
+the repository before assuming a module or table exists.
 
 ## Ownership rules
 
 - Give one module ownership of each business rule and table.
-- Expose a narrow application contract; keep repositories and ORM models private.
-- Let product modules consume Core contracts. Do not let Core import product modules.
-- Prefer an ID, stable contract, or outbox event over a cross-module aggregate reference.
-- Include workspace scope in every tenant-owned repository operation.
-- Add Core behavior only after at least two product modules prove the shared need.
+- Expose narrow application contracts; keep repositories and ORM models private.
+- Downstream products may consume Core contracts. Core never imports a product
+  module or queries its tables.
+- Prefer stable IDs, contracts, and committed events over cross-module aggregate
+  references.
+- Include trusted workspace scope in every tenant-owned repository operation.
+- Add a reusable capability to Core only for an unavoidable platform boundary,
+  an explicit platform requirement, or a second proven product consumer.
 
-## Core modules
+## Foundation modules
 
 ### Identity
 
-- Responsibility: stable principals, password/external identities, linking and unlinking.
-- Owns: `identities`, `password_credentials`, `identity_links`.
-- Public operations: resolve identity, create password identity, link/unlink external identity.
-- Critical controls: normalized email/provider subject uniqueness, Argon2id, re-authentication, conflict and last-login-method protection.
+- Owns stable principals and authentication methods: `identities`,
+  `password_credentials`, and future identity links.
+- Controls normalized uniqueness, Argon2id, reauthentication, and
+  last-login-method protection.
 
 ### Authentication
 
-- Responsibility: registration, login/logout, verification/reset, opaque session lifecycle.
-- Owns: `sessions`, `verification_tokens`, `password_reset_tokens`.
-- Depends on: Identity, Users, Redis session store, email contract.
-- Critical controls: Secure HttpOnly SameSite cookie, rotation, revoke-all, CSRF/origin checks, throttling, timing-safe failures.
+- Owns registration, verification/reset, login/logout, and opaque sessions:
+  `sessions`, future `verification_tokens`, and `password_reset_tokens`.
+- Depends on public Identity, Users, Memberships, Redis cache, and future email
+  contracts.
+- Controls secure cookies, rotation, revocation, origin checks, throttling,
+  timing-safe failures, and hashed tokens.
 
-### Authorization
-
-- Responsibility: permission and resource-policy decisions.
-- Owns or governs: roles, permissions, role-permission mapping with Roles and Permissions.
-- Depends on: tenant context, memberships, roles.
-- Critical controls: deny by default, resource ownership, permission matrix, cross-workspace denial.
+The implemented registration flow is a compatible default onboarding policy:
+it atomically creates identity, user, organization, workspace, OWNER
+membership, session, and audit. A downstream product may replace that policy
+only through a separately reviewed contract change.
 
 ### Users
 
-- Responsibility: profile, status, and user lifecycle.
-- Owns: `users`.
-- Depends on: Identity and Audit.
-- Critical controls: self/admin scopes, PII minimization, deactivation effects.
+- Owns `users`, profile, status, and lifecycle.
+- Controls self/admin scope, PII minimization, and deactivation effects.
 
 ### Organizations
 
-- Responsibility: commercial boundary, billing customer, subscription owner.
-- Owns: `organizations`.
-- Depends on: Users and Audit.
-- Critical controls: owner-only billing changes, ownership transfer, archive constraints.
+- Owns `organizations` and the commercial ownership boundary.
+- Controls ownership transfer, archive constraints, and commercial-operation
+  authorization.
 
 ### Workspaces
 
-- Responsibility: operational tenant and feature-execution boundary.
-- Owns: `workspaces`.
-- Depends on: Organizations and Memberships.
-- Critical controls: mandatory tenant context, workspace limits, archive policy.
+- Owns `workspaces` and the operational tenant boundary.
+- Controls trusted tenant context, switching, limits, and archive policy.
 
 ### Memberships
 
-- Responsibility: connect users to workspaces with roles and invitations.
-- Owns: `memberships`, `membership_invites`.
-- Depends on: Users, Workspaces, Notifications.
-- Critical controls: hashed invitation tokens, expiry, duplicate prevention, last-owner protection.
+- Owns `memberships` and future `membership_invites`.
+- Controls hashed invitation tokens, expiry, duplicate prevention,
+  cross-tenant denial, and last-owner protection.
 
-### Roles and Permissions
+### Authorization and roles
 
-- Responsibility: system RBAC catalog and later workspace custom roles.
-- Owns: `roles`, `permissions`, `role_permissions`.
-- Depends on: Authorization and Audit.
-- Critical controls: immutable system roles, workspace scope for custom roles, owner/admin/member MVP matrix.
+- Governs role, permission, and role-permission catalogs.
+- Depends on immutable tenant context and Memberships.
+- Controls deny-by-default policy, resource ownership, base roles, and tenant
+  isolation tests.
 
-### Subscription
+### Audit
 
-- Responsibility: plan state and subscription lifecycle.
-- Owns: `plans`, `subscriptions`, `plan_features`.
-- Depends on: Billing provider and Feature Access.
-- Critical controls: explicit state machine, webhook source of truth, replay and out-of-order handling.
+- Owns `audit_logs` and records stable actor/action/resource facts.
+- Controls append-oriented behavior, redaction, retention, correlation, and
+  privileged-action coverage.
 
-### Billing
+### Configuration and persistence
 
-- Responsibility: customers, checkout, portal, invoices, payment events.
-- Owns: `billing_customers`, `invoices`, `payment_events`.
-- Depends on: Stripe adapter, Subscription, Audit.
-- Critical controls: raw-body signature verification, event deduplication, reconciliation, no direct trust in redirect state.
+- Owns typed startup configuration, transactions, database access, and
+  infrastructure lifecycle, but no product data.
+- Controls fail-fast validation, secret redaction, explicit transactions, and
+  safe health summaries.
 
-### Credits
+## Optional reusable capability packs
 
-- Responsibility: accounts, immutable ledger, reserve/commit/release/refund.
-- Owns: `credit_accounts`, `credit_transactions`, `credit_reservations`.
-- Depends on: Usage and Subscription.
-- Critical controls: BigInt micros, row lock or correct optimistic concurrency, idempotency, double-commit prevention, compensating refunds.
+These are not automatic Core scope.
 
-### Usage Metering
+- Subscription, billing, and feature access: generic lifecycle and entitlement
+  contracts, signed/deduplicated webhooks, replay safety, and reconciliation.
+- Credits and usage: integer-micro accounts, append-only transactions,
+  reservations, normalized usage, idempotent state transitions, concurrency,
+  and reconciliation.
+- Jobs and outbox: durable job/attempt state, committed-event delivery, minimal
+  payloads, deduplication, bounded retry, cancellation, and audited replay.
+- Files: reusable metadata, versions, private tenant storage, signed URLs,
+  checksum/MIME validation, quarantine, and cleanup.
+- Notifications: reusable delivery state, provider adapters, template
+  allow-lists, idempotent send, and unsubscribe handling.
+- Feature flags, API keys, and webhooks: deterministic audited flags; show-once
+  hashed scoped keys; HMAC webhooks with replay and SSRF defenses.
+- External capability gateways: provider-neutral contracts may be promoted only
+  after at least two products prove the same stable need. Provider-specific
+  behavior and product policy remain downstream.
 
-- Responsibility: normalized usage and provider/customer cost dimensions.
-- Owns: `usage_records`.
-- Depends on: AI Gateway and Credits.
-- Critical controls: append-only, workspace scope, deduplication, pricing/model version, aggregation accuracy.
+## Downstream product modules
 
-### Feature Access
+A product module owns its customer outcome, domain model, use cases, schema,
+repositories, APIs, UI, provider adapters, prompts, evaluations, pricing, usage
+policy, and product events.
 
-- Responsibility: entitlement and plan-limit evaluation.
-- Owns: `features`, `plan_features`, `workspace_entitlements`.
-- Depends on: Plans, Subscription, Feature Flags.
-- Critical controls: server-side source of truth, plan matrix, grace behavior, hard versus soft limit distinction.
+It may consume existing Core contracts but must not query Core-owned tables.
+Promoting behavior into Core requires a proven consumer, product-neutral
+contract, clear ownership, compatibility/rollback design, and an ADR when
+ownership or public contracts change.
 
-### AI Gateway
+## Shared kernel and contracts
 
-- Responsibility: provider-neutral generate/stream/embed/moderate, routing, usage normalization.
-- Owns: `ai_requests`, `ai_request_attempts`.
-- Depends on: Provider Registry, Model Registry, Credits, Usage.
-- Critical controls: credential isolation, timeout/cancellation, safe retry, circuit breaker, fallback constraints, stream cancellation, no provider types in domain modules.
-
-### Provider Registry
-
-- Responsibility: providers, capabilities, health, secret references.
-- Owns: `ai_providers`, `provider_credentials` or secret references.
-- Depends on: Configuration and secret manager.
-- Critical controls: no plaintext database key, environment and tenant allow-lists, disabled/health behavior.
-
-### Model Registry
-
-- Responsibility: capabilities, routing metadata, context limits, and versioned pricing.
-- Owns: `ai_models`, `model_prices`.
-- Depends on: Provider Registry.
-- Critical controls: environment allow-list, capability compatibility, pricing version correctness.
-
-### Prompt Registry
-
-- Responsibility: template/version lifecycle, publish, render, and rollback.
-- Owns: `prompt_templates`, `prompt_versions`.
-- Depends on: Audit, Feature Flags, product-owned evaluation sets.
-- Critical controls: immutable versions, typed variables/output, production approval, snapshots, evaluation, injection cases, rollback.
-
-### File Management
-
-- Responsibility: upload intents, metadata, finalization, access, versioning, deletion.
-- Owns: `files`, `file_versions`.
-- Depends on: object storage, Jobs, Audit.
-- Critical controls: size/MIME/checksum validation, tenant ownership, quarantine, malware scanning, short-lived signed URLs, cleanup.
-
-### Job Management
-
-- Responsibility: durable job state and BullMQ bridge.
-- Owns: `jobs`, `job_attempts`.
-- Depends on: Redis/BullMQ and Audit.
-- Critical controls: handler allow-list, minimal payloads, deterministic deduplication, retry classes, cancellation, progress, stalled detection.
-
-### Notifications
-
-- Responsibility: in-app and email notifications.
-- Owns: `notifications`, `notification_deliveries`.
-- Depends on: email provider and Jobs.
-- Critical controls: template allow-list, idempotent send, unsubscribe and provider failure handling.
-
-### Audit Log
-
-- Responsibility: actor/action/resource/before/after records for privileged and sensitive actions.
-- Owns: `audit_logs`.
-- Consumes: stable contracts/events from all modules.
-- Critical controls: append-only, redaction, retention, privileged-action coverage, correlation.
-
-### Configuration
-
-- Responsibility: typed configuration and startup validation.
-- Owns: no business tables.
-- Depends on: environment and secret manager.
-- Critical controls: fail fast per environment, never expose secrets, safe health summary only.
-
-### Feature Flags
-
-- Responsibility: progressive release and kill switches.
-- Owns: `feature_flags`, `feature_flag_overrides`.
-- Depends on: Tenancy and Configuration.
-- Critical controls: server evaluation, audited administration, deterministic default/override/percentage behavior.
-
-### API Keys
-
-- Responsibility: workspace integration keys and scopes.
-- Owns: `api_keys`.
-- Depends on: Authorization and Audit.
-- Critical controls: show once, prefix plus hash, workspace binding, scope, revocation, last-used audit.
-
-### Webhooks
-
-- Responsibility: workspace endpoint registration, subscriptions, delivery, retry, and secret rotation.
-- Owns: `webhooks`, `webhook_deliveries`.
-- Depends on: Jobs and Audit.
-- Critical controls: HMAC, timestamp/replay protection, SSRF and DNS-rebinding defenses, safe retries.
-
-## Product modules
-
-### Translator - MVP
-
-- Outcome: translate text and later files with streaming, projects, history, retry, auto source language, and glossary.
-- Owns: `translation_projects`, `translations`, `translation_segments`, `translation_glossary_entries`.
-- Use cases: create/stream translation, translate file, get/list history, cancel batch, manage glossary.
-- Depends on: AI Gateway, Credits, Usage, Prompt Registry, Files, Feature Access, Audit.
-- API: `/v1/translation-projects`, `/v1/translations`, and an SSE stream contract.
-- Async jobs: file translation, batch translation, export.
-- Invariants: reserve upper bound, commit actual usage, exact workspace scope, no sensitive text logging, idempotent create, cancellation-safe streaming.
-
-### Legal Advisor - post-MVP bounded beta
-
-- Outcome: upload documents, run structured analysis, ask grounded questions, inspect findings/citations, export, delete.
-- Owns: `legal_documents`, `legal_analyses`, `legal_findings`, `legal_citations` plus module-owned document/chunk associations.
-- Depends on: Files, Jobs, AI Gateway, RAG, Credits, Prompt Registry, Audit.
-- Async jobs: scan, extract, embed, analyze, report; each stage is idempotent and checkpointed.
-- Invariants: tenant and document-version filters, claim-to-source citation, jurisdiction/consent, disclaimer, injection evaluation, complete vector/object deletion.
-
-### Video Generator - post-MVP bounded beta
-
-- Outcome: create projects, submit async generations, show progress, cancel/retry, and download assets.
-- Owns: `video_projects`, `video_generations`, `video_assets`.
-- Depends on: Credits, Jobs, Files, Provider Registry, Audit.
-- Async jobs: submit, poll, webhook finalize, download, cleanup.
-- Invariants: hard budget, capability-aware provider, signed webhook and asset URLs, cancel race handling, reservation expiry, release/refund/commit correctness.
-
-## Shared kernel
-
-Limit shared primitives to stable concepts such as identifier types, Money/credit micros, Clock, Result, domain Error, and event envelope. Keep feature helpers, provider concerns, ORM utilities, and product policies out of the shared kernel.
-
-## Contract and event guidance
-
-- Name contracts by capability, not storage mechanism.
-- Keep commands idempotent where redelivery or client retry is possible.
-- Include stable IDs, workspace scope, event version, occurred-at time, and correlation/causation IDs in integration events.
-- Publish only committed facts through the outbox.
-- Do not expose ORM models, raw provider payloads, secrets, or full sensitive content.
+- Limit shared primitives to stable identifiers, Money, Clock, Result, domain
+  Error, and event envelopes.
+- Name contracts by capability, not provider or storage mechanism.
+- Keep retryable commands idempotent.
+- Include stable IDs, workspace, event version, occurred-at, correlation, and
+  causation IDs in integration events.
+- Publish only committed facts through an outbox.
+- Never expose ORM models, raw provider payloads, secrets, or sensitive content.

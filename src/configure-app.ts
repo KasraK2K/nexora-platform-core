@@ -13,7 +13,7 @@ export function configureApp(app: NestExpressApplication): void {
   app.enableShutdownHooks();
 
   const openApiConfig = new DocumentBuilder()
-    .setTitle('Nexora AI API')
+    .setTitle('Nexora Platform Core API')
     .setVersion('1')
     .addCookieAuth(config.sessionCookieName)
     .build();

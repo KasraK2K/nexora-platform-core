@@ -1,117 +1,168 @@
 ---
 name: nexora-platform-engineering
-description: Plan, design, implement, diagnose, or review Nexora AI SaaS changes against the repository's modular-monolith architecture. Use for NestJS modules, vertical slices, APIs, persistence, tenancy, authentication or authorization, billing or credits, AI Gateway providers, prompts, RAG, workflows or agents, queues, files, frontend integration, deployment, ADRs, or architecture-sensitive refactors. Do not use for trivial copy edits or questions unrelated to this repository.
+description: Plan, design, implement, diagnose, or review Nexora Platform Core and its downstream product extension boundary. Use for NestJS modules, APIs, persistence, tenancy, authentication, authorization, billing, credits, usage, jobs, files, external-provider boundaries, frontend integration, deployment, ADRs, repository forks, or architecture-sensitive refactors. Keep this base repository product-neutral; product modules and product policy belong in downstream repositories.
 ---
 
 # Nexora Platform Engineering
 
-Use the PDF-derived implementation baseline without confusing planned architecture with implemented code.
+Use the product-neutral Platform Core baseline without confusing planned
+architecture with implemented code or placing downstream product behavior in
+this repository.
 
 ## Load the right context
 
 1. Read the applicable `AGENTS.md`.
-2. Inspect the actual repository, `package.json`, lockfile, tests, and configuration before making claims.
-3. Read only the relevant sections of [the architecture baseline](../../../docs/architecture/ai-saas-platform-baseline.md).
-4. Read [module-catalog.md](references/module-catalog.md) when choosing ownership, contracts, dependencies, tables, jobs, permissions, or product boundaries.
-5. Read [change-checklists.md](references/change-checklists.md) when planning, implementing, or reviewing a change.
-6. Use [the ADR template](../../../docs/adr/0000-template.md) when a material decision changes or extends the baseline.
+2. Inspect the repository, `package.json`, lockfile, tests, schema, and active
+   configuration before making claims.
+3. Read only the relevant sections of
+   [the Platform Core baseline](../../../docs/architecture/platform-core-baseline.md).
+4. Read [module-catalog.md](references/module-catalog.md) for ownership,
+   contracts, dependencies, tables, permissions, and the Core/product boundary.
+5. Read [change-checklists.md](references/change-checklists.md) for planning,
+   implementation, or review.
+6. Use [the ADR template](../../../docs/adr/0000-template.md) when a material
+   decision changes architecture or the product boundary.
 
 ## Preserve current truth
 
-- Treat the target monorepo, Prisma, Redis, BullMQ, Next.js, Zod, OpenAPI, Stripe, storage, RAG, and observability stack as planned until the repository contains and configures them.
-- Use current verified scripts and test tooling. Do not invent commands or claim planned gates passed.
-- Verify third-party calls and configuration against the installed version, lockfile, declarations, and version-matched official documentation. Reject deprecated APIs and unsupported remembered syntax.
-- Make foundation migrations explicit. Do not mix a repo-wide scaffold migration into an unrelated feature.
-- Keep existing behavior unless the request authorizes a change.
+- This repository is Nexora Platform Core. It contains no customer-facing
+  product module, provider SDK, prompt, retrieval pipeline, evaluation set, or
+  product UI.
+- Treat the target monorepo, authorization catalog, billing, jobs, files,
+  frontend, provider gateways, and observability stack as planned until they
+  exist and are configured.
+- Use current verified scripts and test tooling. Do not invent commands or
+  claim planned gates passed.
+- Verify changed third-party APIs against installed versions, declarations,
+  the lockfile, and official version-matched documentation.
+- Make foundation migrations explicit and preserve working behavior unless the
+  request authorizes a change.
+
+## Classify the repository boundary first
+
+### Platform Core
+
+A capability belongs here when it is a stable cross-product concern, an
+unavoidable platform boundary, or has at least two proven product consumers.
+Examples include identity, authentication, users, organizations, workspaces,
+memberships, tenant context, base authorization, audit, configuration, and
+stable transaction/error primitives.
+
+Generic commercial or operational capabilities such as billing, credits,
+usage, jobs, files, notifications, API keys, and webhooks require an explicit
+platform need; they are not automatic Core scope.
+
+### Downstream product repository
+
+A capability belongs downstream when it represents a customer outcome or
+contains product workflow, schema, APIs, UI, provider behavior, prompts,
+retrieval, evaluation data, product pricing, or usage policy.
+
+Core may expose a narrow public contract consumed by products. Core must never
+import a product module, query its tables, or encode its roadmap.
+
+If requested work is product-specific while the current repository is Platform
+Core, stop before editing and recommend creating or using the intended
+downstream product repository unless the user explicitly changes this
+repository's role through an ADR.
 
 ## Classify the request
 
-- For an explanation or status question, inspect and answer without editing.
-- For diagnosis, identify the cause and evidence; implement only when requested.
-- For planning, produce a bounded design and stop before implementation unless the user asks for both.
-- For implementation, deliver the smallest complete vertical slice and verify it.
-- For review, report findings first, ordered by severity, with concrete file references and missing tests.
+- For explanation or status, inspect and answer without editing.
+- For diagnosis, identify cause and evidence; implement only when requested.
+- For planning, produce a bounded design and stop unless implementation is also
+  requested.
+- For implementation, deliver the smallest complete slice and verify it.
+- For review, return actionable findings first, ordered by severity.
 
-## Engineer the change
-
-### 1. Define the slice
+## Define and implement the slice
 
 State:
 
-- user-visible outcome and explicit non-goals
-- owning Core or product module
-- public application contract and consumers
-- data owner, aggregate/transaction boundary, and migration impact
-- actor, trusted tenant context, permission, entitlement, and resource policy
-- synchronous, streaming, asynchronous, and external-provider paths
-- usage, cost, credit, audit, privacy, and retention impact
-- API/UI behavior and compatibility
-- observability, test, rollout, rollback, and ADR needs
+- outcome and explicit non-goals;
+- Platform Core versus downstream product ownership;
+- public application contract and consumers;
+- data owner, aggregate, transaction boundary, and schema impact;
+- actor, trusted tenant context, permission, entitlement, and resource policy;
+- synchronous, streaming, job, webhook, and provider paths;
+- idempotency, replay, cancellation, cost, audit, privacy, and retention impact;
+- API/UI compatibility, observability, tests, rollout, rollback, and ADR need.
 
-Do not start with generic shared infrastructure. Start from the user outcome and the module that owns it.
+Then:
 
-### 2. Respect the dependency direction
+- keep transports thin and validation at the boundary;
+- put orchestration and transactions in application use cases;
+- keep domain policies framework-independent;
+- define narrow inward-facing ports for real external boundaries;
+- wire infrastructure adapters at the composition root;
+- import modules only through public contracts;
+- reject cross-module table access, internal HTTP, provider types in domain
+  code, hidden globals, and speculative generic frameworks;
+- promote product code into Core only after proven reuse and ownership review.
 
-- Keep presentation thin.
-- Put orchestration and transaction boundaries in application use cases.
-- Put business invariants in framework-independent domain code.
-- Define narrow ports inward and implement them in infrastructure.
-- Wire implementations at the composition root.
-- Import other modules only through public contracts.
-- Reject direct cross-module table access, provider types in domain code, hidden global dependencies, and internal HTTP inside the monolith.
-- Extract shared concepts only after a second proven consumer, except for unavoidable external boundaries.
+## Apply cross-cutting controls
 
-### 3. Apply cross-cutting controls
+Use the applicable checklists for authentication, authorization, tenant
+isolation, audit, secrets, billing, credits, usage, external providers,
+generated output, retrieval, automated workflows, queues, files, APIs,
+observability, privacy, and operations.
 
-Use the applicable checklists for:
+## Product repository creation
 
-- authentication, authorization, tenant isolation, audit, and secrets
-- billing, subscriptions, credit ledger, usage, concurrency, and idempotency
-- AI routing, prompt versions, output validation, evaluation, and data policy
-- RAG grounding, source spans, prompt injection, and deletion
-- queues, outbox, retries, cancellation, progress, and redelivery
-- file validation, quarantine, signed URLs, ownership, and cleanup
-- API contracts, stable errors, pagination, rate limits, SSE, and compatibility
-- structured logs, traces, metrics, alerts, privacy, and runbooks
+When creating a downstream product from Platform Core:
 
-### 4. Implement pragmatically
+1. start from a reviewed Core commit or tag;
+2. rename the package and define a product-specific mission;
+3. review runtime identifiers separately: OpenAPI title, cookie name, Compose
+   database/user/volume names, environment URLs, test fixtures, HTTP user agents,
+   and brand-specific denylist entries;
+4. do not silently rename cookies or data volumes because that can invalidate
+   sessions or make existing data appear missing;
+5. create `src/products/<capability>` until a monorepo migration is approved;
+6. add a product architecture supplement and ADRs for providers or changed
+   Core decisions;
+7. keep product data, providers, prompts, evaluations, pricing, and UI
+   downstream;
+8. document how compatible Core updates are incorporated and rolled back.
 
-- Prefer cohesive, intention-revealing code and explicit dependencies.
-- Add no interface merely to satisfy a pattern; add it for a real boundary or substitution need.
-- Avoid generic repositories, generic managers, service locators, and speculative frameworks.
-- Validate untrusted data at the edge and keep transport/ORM objects out of the domain.
-- Make illegal states difficult to represent where the complexity pays for itself.
-- Keep the change narrow and preserve intentional repository conventions.
+The current registration flow is a default onboarding policy that creates an
+identity, user, organization, workspace, OWNER membership, session, and audit
+record atomically. Preserve it for compatibility unless a downstream product
+explicitly replaces that policy through a separately designed change.
 
-### 5. Verify in proportion to risk
+## Verify in proportion to risk
 
 - Add behavior-focused unit tests for policies and use cases.
-- Add integration tests for persistence, transactions, queues, storage, migrations, and adapters.
-- Add API end-to-end tests for the changed route or flow.
-- Always add tenant A/B denial tests for tenant-owned data.
-- Always add replay/concurrency/invariant tests for billing, credits, and webhooks.
-- Use deterministic AI fakes for normal tests and evaluation fixtures for AI quality changes.
-- Run only commands that exist in the repository, then inspect the final diff after any autofix command.
-- Run `pnpm run check:deprecated` after TypeScript or dependency changes, and inspect other command output for configuration/runtime deprecations the TypeScript audit cannot see.
+- Add integration tests for persistence, transactions, queues, storage, and
+  adapters when changed.
+- Add API end-to-end tests for changed flows.
+- Always test tenant A/B denial for tenant-owned data.
+- Always test concurrency, replay, and invariants for billing, credits, and
+  webhooks.
+- Use deterministic fakes for external providers and keep quality evaluations
+  in the owning product repository.
+- Run only commands that exist and inspect the final diff after autofix.
+- Run `pnpm run check:deprecated` after TypeScript or dependency changes.
+
+## Architecture debt guards
+
+- Do not expand the current direct import of an Identity domain error from
+  Authentication; replace it with a public application contract in a dedicated
+  future boundary-hardening slice.
+- Do not give downstream products direct access to `PrismaService` or
+  `DatabaseContext`; add an architecture dependency test before product modules
+  are introduced.
 
 ## Delegate when useful
 
-For a complex change, keep integration in the main thread and delegate independent read-heavy work:
-
-- use `nexora-architect` for ownership, dependency, data, transaction, roadmap, and ADR analysis
-- use `nexora-security-reviewer` for threat and tenant-isolation analysis
-- use `nexora-quality-reviewer` for correctness, SOLID/clean-code, regression, and test analysis
-
-Avoid subagents for trivial tasks and avoid overlapping parallel edits.
+For complex work, keep integration in the main thread and delegate independent
+read-heavy checks to `nexora-architect`, `nexora-security-reviewer`, or
+`nexora-quality-reviewer`. Avoid delegation for trivial work and overlapping
+parallel edits.
 
 ## Report the result
 
-Include:
-
-1. outcome and changed behavior
-2. important architecture choices and assumptions
-3. affected contracts, data, migrations, security, and operations
-4. checks run and their results
-5. remaining risks, deferred scope, and ADR follow-up
-
-Never present an unimplemented target component or an unrun check as complete.
+Include outcome, Core versus downstream ownership, affected contracts/data,
+schema/security/operations impact, checks and exact results, unresolved choices,
+deferred scope, rollback, and ADR follow-up. Never present an unimplemented
+component or unrun check as complete.

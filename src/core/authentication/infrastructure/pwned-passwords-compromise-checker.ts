@@ -10,6 +10,7 @@ const RANGE_ENTRY_PATTERN = /^([A-F0-9]{35}):([0-9]{1,10})$/;
 const CONTEXT_SPECIFIC_PASSWORDS = [
   'nexorapassword1',
   'nexora-ai-password',
+  'nexora-platform-core-password',
   'nexora123456789',
   'password-for-nexora',
   'nexoraai20262026',
@@ -52,7 +53,7 @@ export class PwnedPasswordsCompromiseChecker implements PasswordCompromiseChecke
         headers: {
           Accept: 'text/plain',
           'Add-Padding': 'true',
-          'User-Agent': 'NexoraAI-password-screening/1.0',
+          'User-Agent': 'NexoraPlatformCore-password-screening/1.0',
         },
         redirect: 'error',
         signal: AbortSignal.timeout(this.config.pwnedPasswordsTimeoutMs),

@@ -1,0 +1,345 @@
+# Nexora Platform Core - Implementation Baseline
+
+## Purpose
+
+Nexora Platform Core is a reusable, product-neutral SaaS foundation. It owns
+cross-product identity, tenancy, security, operational, and optional commercial
+capabilities. A downstream repository owns each customer-facing product and its
+product-specific workflows, data, provider integrations, prompts, evaluation
+sets, usage policy, and UI.
+
+Use `docs/architecture/downstream-product-guide.md` when creating that
+repository.
+
+This document is a target baseline, not evidence that every component exists.
+Inspect the current code, schema, lockfile, scripts, tests, and runtime
+configuration before making an implementation claim.
+
+Material deviations require an ADR based on `docs/adr/0000-template.md`.
+
+## Current state
+
+The repository is currently one NestJS modular monolith. It implements:
+
+- password identity registration and Argon2id credentials;
+- user, organization, workspace, and OWNER membership creation;
+- opaque server sessions backed authoritatively by PostgreSQL with Redis cache;
+- returning-user login, current-session resolution, logout, and revoke-all;
+- origin checks, authentication rate limiting, compromised-password screening;
+- audit records, request IDs, Zod transport validation, and OpenAPI generation.
+
+The repository does not contain a customer-facing product module, provider SDK,
+prompt, retrieval pipeline, generated-output policy, product UI, billing system,
+job system, file system, or production deployment topology.
+
+## Product boundary
+
+### Platform Core owns
+
+- stable principals, authentication methods, verification/reset, and sessions;
+- users, organizations, workspaces, memberships, tenant context, and base RBAC;
+- audit, configuration validation, stable errors, request correlation, and
+  reusable persistence/transaction boundaries;
+- generic billing, subscriptions, entitlements, credits, usage, jobs, files,
+  notifications, API keys, or webhooks only after an explicit platform need or
+  a second proven product consumer.
+
+### A downstream product repository owns
+
+- its product domain model, policies, use cases, persistence, APIs, and UI;
+- product-specific external-provider adapters and routing policy;
+- prompts, generated-output validation, retrieval policy, evaluation fixtures,
+  pricing, usage normalization, and product analytics;
+- product files, jobs, webhooks, and events unless they consume an existing
+  generic Core contract.
+
+Core must never import a downstream product module, query its tables, or encode
+its roadmap. A downstream product may depend on narrow public Core contracts.
+
+## Architecture style
+
+- Keep one deployable modular monolith until measurable extraction criteria are
+  met.
+- Organize capabilities as vertical, feature-first modules.
+- Keep dependency direction presentation -> application -> domain, with
+  infrastructure implementing inward-facing ports.
+- Keep domain code free of NestJS, Prisma, HTTP, Redis, queue, and provider SDK
+  types.
+- Let an application use case own its transaction boundary.
+- Publish committed facts through an outbox or equivalent reliable handoff when
+  asynchronous effects are required.
+- Avoid internal HTTP between modules in the monolith.
+- Keep the shared kernel limited to stable primitives such as identifiers,
+  Money, Clock, Result, Error, and event envelopes.
+- Add an abstraction for a real external boundary, volatile policy, or second
+  proven consumer, not for speculative reuse.
+
+## Repository structure
+
+### Current structure
+
+```text
+src/
+  core/
+    authentication/
+    identity/
+    users/
+    organizations/
+    workspaces/
+    memberships/
+    audit/
+    persistence/
+    redis/
+  shared/
+prisma/
+test/
+```
+
+Until an explicit foundation change adopts a monorepo, downstream product
+modules belong under `src/products/<capability>` in their own repository.
+
+### Target structure
+
+The accepted long-term direction is pnpm workspaces and Turborepo, while
+retaining one modular-monolith backend:
+
+```text
+apps/
+  api/
+  web/
+  worker/
+packages/
+  platform-core/
+  database/
+  contracts/
+  config/
+```
+
+Do not perform this reorganization as incidental work. Preserve current package
+commands until the explicit migration is implemented and verified.
+
+## Core module map
+
+### Implemented foundation
+
+- Identity: stable principals and authentication methods.
+- Authentication: registration, login, opaque sessions, and revocation.
+- Users: profile and lifecycle data.
+- Organizations: commercial ownership boundary.
+- Workspaces: operational tenant boundary.
+- Memberships: users connected to workspaces.
+- Audit: append-oriented sensitive-action records.
+- Configuration, persistence, Redis, and shared primitives.
+
+### Planned foundation
+
+- Email verification and password reset.
+- Immutable authenticated actor and workspace context.
+- Authorization plus base OWNER, ADMIN, and MEMBER roles.
+- Invitations, ownership transfer, workspace switching, and last-owner safety.
+- User and workspace lifecycle operations.
+- Tenant-isolation matrices at repository and API boundaries.
+
+### Optional reusable capability packs
+
+Add only when explicitly required:
+
+- Subscription, billing, feature access, credits, and usage metering.
+- Job management, outbox dispatch, notifications, and file management.
+- Feature flags, API keys, and outbound webhooks.
+- External capability gateways and provider registries after multiple products
+  prove the shared contract.
+
+An optional capability pack is still Core only when its contract is
+product-neutral. Product policy stays downstream.
+
+## Data ownership and persistence
+
+- Give one module ownership of each table and business rule.
+- Use stable IDs and public contracts across module boundaries.
+- Store business timestamps as UTC `timestamptz`.
+- Put non-null `workspace_id` on tenant-owned records and include workspace scope
+  in unique constraints and leading indexes.
+- Keep repositories scoped by trusted tenant context.
+- Use JSONB for flexible metadata, not queryable core state.
+- Keep transaction boundaries in application use cases.
+- Write durable state and its outbox record in the same transaction.
+- Use real PostgreSQL for persistence and transaction verification.
+
+During development, `prisma/schema.prisma` is the source of truth and schema
+changes use `prisma db push`. Do not create migration history until the user
+explicitly announces the production transition. At that transition, use
+reviewed forward-only expand -> deploy -> backfill -> contract migrations.
+
+## Tenancy and authorization
+
+- `Organization` is the commercial boundary.
+- `Workspace` is the operational tenant and authorization boundary.
+- Resolve the actor from a verified session or API key, validate workspace
+  membership server-side, and inject immutable tenant context.
+- Never trust a route ID, UI state, or arbitrary client header as authorization.
+- Deny by default and authorize both the action and resource.
+- Scope database access, cache keys, files, jobs, webhooks, audit, and external
+  requests by trusted `workspaceId`.
+- Add positive and negative tenant A/B tests for every tenant-owned surface.
+- PostgreSQL RLS may provide defense in depth but does not replace application
+  authorization.
+
+## Identity and session security
+
+- Use opaque, rotatable server sessions in Secure, HttpOnly, SameSite cookies.
+- PostgreSQL is authoritative for revocation; Redis is a disposable lookup
+  cache and its cleanup is best effort.
+- Hash session, verification, reset, invitation, and API-key secrets at rest.
+- Use generic responses for credential, verification, invitation, and reset
+  operations where enumeration is possible.
+- Apply exact-origin validation, trusted-proxy configuration, and bounded
+  rate limits before expensive password work.
+- Screen new passwords before hashing without transmitting plaintext or a full
+  password digest.
+- Audit sensitive lifecycle and privileged operations without logging secrets
+  or personally identifiable data.
+
+## Commercial and metered capabilities
+
+Billing, credits, usage, and entitlements are optional reusable capabilities,
+not automatic platform scope.
+
+When added:
+
+- use integer micros for money and credits;
+- keep ledgers append-only and auditable;
+- make grants, reserve, commit, release, refund, and webhook processing
+  transactional and idempotent;
+- handle webhook signature verification, replay, deduplication, and
+  out-of-order events;
+- version plans, entitlements, supplier prices, customer charges, and policy;
+- add concurrency and reconciliation tests.
+
+Product-specific pricing and usage policy remain downstream.
+
+## External provider extensions
+
+Platform Core contains no product-provider integration by default.
+
+A downstream product that uses an external capability provider must:
+
+- define a narrow, provider-neutral inward-facing port;
+- keep SDK types, raw errors, and credentials inside infrastructure adapters;
+- enforce allow-lists, timeout, cancellation, bounded retry, budgets, and
+  output validation;
+- separate supplier usage/cost from customer usage/charge;
+- keep sensitive request/response content out of normal logs;
+- use deterministic fakes for ordinary tests and product-owned evaluation data
+  for generated-output quality;
+- require typed tools, permissions, step limits, loop detection, audit, and
+  human approval for risky automated actions.
+
+Promote a provider gateway into Platform Core only after at least two products
+prove a stable shared contract.
+
+## Jobs, files, and integration events
+
+- Queue payloads contain stable identifiers and minimal parameters, not raw
+  secrets or file contents.
+- Use deterministic job IDs or database uniqueness for deduplication.
+- Make handlers idempotent after redelivery and classify retryable versus
+  permanent failures.
+- Persist durable job state and coarse progress outside Redis.
+- Support bounded retry, cancellation, timeout, heartbeat, failed state, and
+  audited replay where applicable.
+- Keep object storage private and tenant-scoped.
+- Use short-lived presigned URLs and verify object existence, size, checksum,
+  MIME magic bytes, extension, and ownership before finalization.
+- Revoke file access immediately and perform cleanup idempotently.
+- Include event version, workspace, stable IDs, occurred-at, correlation, and
+  causation IDs in integration events.
+
+## API and observability
+
+- Use versioned resource-oriented REST documented through OpenAPI.
+- Use SSE only for demonstrated server-to-client streaming requirements.
+- Keep transport schemas separate from domain objects.
+- Use stable error codes and safe messages.
+- Require idempotency for costly creates, billing operations, and webhooks.
+- Use cursor pagination and allow-listed filtering/sorting.
+- Propagate sanitized request and correlation IDs.
+- Emit structured logs, metrics, and traces with redaction.
+- Never expose stacks, SQL, credentials, raw provider payloads, or sensitive
+  content in responses or ordinary logs.
+
+## Verification and definition of done
+
+- Unit-test domain policies and application decisions.
+- Integration-test repositories, transactions, Redis, queues, storage, and
+  external adapters when those surfaces change.
+- End-to-end-test changed API flows with real authentication and tenant context.
+- Contract-test OpenAPI/transport schemas, external adapters, events, and
+  webhook signatures.
+- Add tenant-isolation tests for every tenant-owned repository and endpoint.
+- Add concurrency and replay tests for financial and asynchronous state.
+- Run only commands present in `package.json` and record exact results.
+- Run `pnpm run check:deprecated` after TypeScript or dependency changes.
+- Treat ownership, contract, tenancy, security, data impact, observability,
+  tests, rollout, and rollback as part of the change.
+
+## Deployment baseline
+
+- Keep local development reproducible with Docker Compose.
+- Build immutable application images and promote the same image through
+  environments.
+- Keep stateful production data in reviewed PostgreSQL, Redis, and private
+  object-storage services.
+- Validate configuration and secrets at startup without exposing them.
+- Add health and readiness gates, security headers, backups, restore drills,
+  backward-compatible rollout, and rollback runbooks before production.
+- Define RPO, RTO, SLOs, capacity, provider quotas, and retention before launch.
+- Do not adopt microservices, Kubernetes, multi-region, or dedicated-tenant
+  topology without measurable need and an ADR.
+
+## Platform roadmap
+
+1. Complete account lifecycle: email verification, password reset/change, and
+   session-management policy.
+2. Complete tenant foundation: actor/workspace context, base RBAC, invitations,
+   workspace switching, ownership transfer, and tenant isolation tests.
+3. Complete repository foundation through explicit changes: monorepo decision,
+   strict TypeScript plan, contract gates, seeds, and CI.
+4. Add optional reusable capabilities only when a downstream product proves the
+   need.
+5. Prepare production operations: deployment, observability, privacy,
+   backup/restore, security testing, and migration transition.
+
+No named product appears in the Platform Core roadmap. Each downstream product
+repository owns its own roadmap.
+
+## Accepted decisions
+
+- NestJS 11 with the Express adapter.
+- PostgreSQL and Prisma in infrastructure.
+- Redis as disposable infrastructure for sessions, rate limits, and future
+  queues, with durable state outside Redis.
+- Modular monolith with shared database/shared schema and logical module data
+  ownership.
+- Workspace-scoped row isolation.
+- Opaque server sessions.
+- REST/OpenAPI, with SSE only for demonstrated streaming needs.
+- pnpm workspaces and Turborepo as an explicit long-term repository target.
+- Product-neutral Platform Core with downstream product repositories.
+
+## Open decisions
+
+Resolve these only when their phase begins:
+
+- multi-workspace selection and tenant-resolver precedence;
+- production cookie, Origin, CORS, and trusted-proxy topology;
+- email provider and reliable delivery mechanism;
+- base roles, permissions, invitations, and ownership-transfer policy;
+- whether and when to enable PostgreSQL RLS;
+- billing provider, plan, credit, entitlement, and refund policy if commercial
+  capabilities are added;
+- managed infrastructure providers, region, sizing, secret manager, and
+  observability tenancy;
+- retention, data deletion, RPO/RTO, SLOs, and capacity budgets;
+- the release and compatibility strategy used by downstream product
+  repositories to consume Platform Core updates.

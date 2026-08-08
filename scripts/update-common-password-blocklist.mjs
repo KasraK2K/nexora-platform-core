@@ -12,7 +12,9 @@ const MAX_CODE_POINTS = 128;
 const MAX_BYTES = 512;
 
 const response = await fetch(SOURCE_URL, {
-  headers: { 'User-Agent': 'NexoraAI-password-blocklist-updater/1.0' },
+  headers: {
+    'User-Agent': 'NexoraPlatformCore-password-blocklist-updater/1.0',
+  },
   redirect: 'error',
   signal: AbortSignal.timeout(30_000),
 });

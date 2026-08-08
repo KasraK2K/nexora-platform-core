@@ -26,6 +26,9 @@ describe('PwnedPasswordsCompromiseChecker', () => {
     const checker = new PwnedPasswordsCompromiseChecker(new AppConfig());
 
     await expect(checker.isCompromised('123456789012345')).resolves.toBe(true);
+    await expect(
+      checker.isCompromised('nexora-platform-core-password'),
+    ).resolves.toBe(true);
     expect(fetch).not.toHaveBeenCalled();
   });
 
@@ -52,6 +55,9 @@ describe('PwnedPasswordsCompromiseChecker', () => {
     expect(requestUrl).toBe(`https://api.pwnedpasswords.com/range/${prefix}`);
     expect(requestInit?.redirect).toBe('error');
     expect(new Headers(requestInit?.headers).get('Add-Padding')).toBe('true');
+    expect(new Headers(requestInit?.headers).get('User-Agent')).toBe(
+      'NexoraPlatformCore-password-screening/1.0',
+    );
     expect(JSON.stringify(fetch.mock.calls)).not.toContain(password);
     expect(JSON.stringify(fetch.mock.calls)).not.toContain(hash);
   });
