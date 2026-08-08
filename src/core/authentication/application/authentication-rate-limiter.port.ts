@@ -16,4 +16,11 @@ export interface AuthenticationRateLimitPort {
     clientIp: string,
     normalizedEmail?: string,
   ): Promise<RateLimitDecision>;
+  checkEmailVerificationRequest(
+    clientIp: string,
+    normalizedEmail?: string,
+  ): Promise<RateLimitDecision>;
+  checkEmailVerificationConfirmation(
+    clientIp: string,
+  ): Promise<RateLimitDecision>;
 }

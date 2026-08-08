@@ -17,7 +17,13 @@ repository or changing runtime identifiers inherited from this base.
 
 - `POST /v1/auth/registrations` creates a password identity, user,
   organization, initial workspace, OWNER membership, opaque session, and audit
-  entry in one PostgreSQL transaction.
+  entries in one PostgreSQL transaction. New users remain
+  `PENDING_VERIFICATION` until they prove mailbox ownership.
+- `POST /v1/auth/email-verification-requests` returns the same accepted
+  response for missing, active, and pending accounts. For pending accounts it
+  invalidates older links and sends a replacement.
+- `POST /v1/auth/email-verifications` atomically consumes a hashed,
+  expiring, single-use token and activates the user.
 - `GET /v1/auth/session` resolves the authenticated user and server-trusted
   active workspace from the opaque session cookie.
 - `POST /v1/auth/sessions` verifies a returning user's password and issues a
@@ -31,18 +37,19 @@ repository or changing runtime identifiers inherited from this base.
   or complete password hashes.
 - Session-creating and session-revoking requests validate the exact browser
   Origin. Registration and login use separate Redis-backed IP and
-  normalized-email rate limits before expensive password work.
+  normalized-email rate limits before expensive password work. Verification
+  request and confirmation routes have separate limits.
+- Email delivery uses a provider-neutral SMTP port. Local development includes
+  Mailpit; raw verification tokens are delivered by email and are never logged,
+  returned by the API, or stored in PostgreSQL.
 - OpenAPI UI is served at `/docs` while the application is running.
 
-Email verification, password reset, invitations, authorization roles, and
-additional workspace membership management are not implemented. Login refuses
-an account with more than one eligible workspace until the multi-workspace
-selection contract is defined.
-
-> Registration currently activates the account and issues a session before
-> mailbox verification. Do not expose it as public production signup until an
-> email provider, hashed verification-token flow, and enumeration-resistant
-> response contract are implemented.
+Password reset, invitations, authorization roles, and additional workspace
+membership management are not implemented. Login refuses unverified accounts
+and accounts with more than one eligible workspace until the multi-workspace
+selection contract is defined. The session issued at registration is restricted
+to the existing account/session endpoints until later authorization middleware
+defines broader actor policy.
 
 ## Product extension model
 
@@ -65,7 +72,7 @@ requirement.
 ## Prerequisites
 
 - Node.js 24
-- pnpm 10.32.1 through Corepack
+- pnpm 11.20.0 through Corepack
 - Docker with Docker Compose
 
 ## Local development
@@ -78,12 +85,16 @@ pnpm run db:push
 pnpm run start:dev
 ```
 
-The local PostgreSQL port is `55432`; Redis uses `56379`.
+The local PostgreSQL port is `55432`; Redis uses `56379`. Mailpit accepts SMTP
+on `1025` and exposes its local mailbox UI at `http://localhost:8025`.
 `TRUST_PROXY` is empty locally. Set it to the exact trusted proxy address or
 subnet in a proxied deployment; never use an unrestricted proxy setting.
 `PWNED_PASSWORDS_TIMEOUT_MS` bounds the optional remote breach lookup and must
 remain between 100 and 5000 milliseconds. The local fallback remains active
 when remote lookup is disabled or unavailable.
+`SMTP_TIMEOUT_MS` bounds each synchronous verification delivery attempt; a
+failure leaves the durable intent marked `FAILED` so the user can request a
+replacement link.
 
 Example registration request:
 
@@ -92,6 +103,15 @@ curl -i http://localhost:3000/v1/auth/registrations \
   -H "Content-Type: application/json" \
   -H "Origin: http://localhost:3000" \
   -d '{"email":"owner@example.com","password":"A secure passphrase 123","displayName":"Owner","organizationName":"Example","workspaceName":"Main"}'
+```
+
+Open the delivered message in Mailpit, then submit its `token` query parameter:
+
+```bash
+curl -i http://localhost:3000/v1/auth/email-verifications \
+  -H "Content-Type: application/json" \
+  -H "Origin: http://localhost:3000" \
+  -d '{"token":"the-43-character-token-from-the-email"}'
 ```
 
 ## Verification

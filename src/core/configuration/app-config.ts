@@ -26,6 +26,30 @@ const environmentSchema = z
       .min(300)
       .max(2_592_000)
       .default(604_800),
+    EMAIL_VERIFICATION_TTL_SECONDS: z.coerce
+      .number()
+      .int()
+      .min(300)
+      .max(604_800)
+      .default(86_400),
+    EMAIL_VERIFICATION_URL: z
+      .url()
+      .default('http://localhost:3000/verify-email'),
+    EMAIL_FROM: z
+      .string()
+      .min(3)
+      .default('Nexora Platform <no-reply@nexora.local>'),
+    SMTP_HOST: z.string().min(1).default('localhost'),
+    SMTP_PORT: z.coerce.number().int().min(1).max(65_535).default(1025),
+    SMTP_SECURE: z.enum(['true', 'false']).default('false'),
+    SMTP_USER: z.string().default(''),
+    SMTP_PASSWORD: z.string().default(''),
+    SMTP_TIMEOUT_MS: z.coerce
+      .number()
+      .int()
+      .min(100)
+      .max(30_000)
+      .default(5_000),
   })
   .superRefine((environment, context) => {
     if (
@@ -36,6 +60,25 @@ const environmentSchema = z
         code: 'custom',
         path: ['COOKIE_SECURE'],
         message: 'COOKIE_SECURE must be true in production.',
+      });
+    }
+
+    if (
+      environment.NODE_ENV === 'production' &&
+      new URL(environment.EMAIL_VERIFICATION_URL).protocol !== 'https:'
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['EMAIL_VERIFICATION_URL'],
+        message: 'EMAIL_VERIFICATION_URL must use HTTPS in production.',
+      });
+    }
+
+    if (Boolean(environment.SMTP_USER) !== Boolean(environment.SMTP_PASSWORD)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['SMTP_USER'],
+        message: 'SMTP_USER and SMTP_PASSWORD must be configured together.',
       });
     }
 
@@ -82,6 +125,16 @@ export class AppConfig {
   readonly pwnedPasswordsTimeoutMs =
     this.environment.PWNED_PASSWORDS_TIMEOUT_MS;
   readonly sessionTtlSeconds = this.environment.SESSION_TTL_SECONDS;
+  readonly emailVerificationTtlSeconds =
+    this.environment.EMAIL_VERIFICATION_TTL_SECONDS;
+  readonly emailVerificationUrl = this.environment.EMAIL_VERIFICATION_URL;
+  readonly emailFrom = this.environment.EMAIL_FROM;
+  readonly smtpHost = this.environment.SMTP_HOST;
+  readonly smtpPort = this.environment.SMTP_PORT;
+  readonly smtpSecure = this.environment.SMTP_SECURE === 'true';
+  readonly smtpUser = this.environment.SMTP_USER;
+  readonly smtpPassword = this.environment.SMTP_PASSWORD;
+  readonly smtpTimeoutMs = this.environment.SMTP_TIMEOUT_MS;
   readonly trustedProxies = this.environment.TRUST_PROXY.split(',')
     .map((proxy) => proxy.trim())
     .filter(Boolean);

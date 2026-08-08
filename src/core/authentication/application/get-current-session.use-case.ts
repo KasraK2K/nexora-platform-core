@@ -13,7 +13,11 @@ import type { SessionCachePort } from './session-cache.port';
 import { SessionTokenService } from './session-token.service';
 
 export type CurrentSession = {
-  user: { id: string; displayName: string };
+  user: {
+    id: string;
+    displayName: string;
+    status: 'PENDING_VERIFICATION' | 'ACTIVE';
+  };
   organization: { id: string; name: string };
   workspace: { id: string; name: string };
   membership: { role: 'OWNER' };

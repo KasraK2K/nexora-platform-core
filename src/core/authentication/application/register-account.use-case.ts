@@ -25,6 +25,9 @@ import type { PasswordHasher } from './password-hasher.port';
 import { SessionTokenService } from './session-token.service';
 import { SESSION_CACHE } from './session-cache.port';
 import type { SessionCachePort } from './session-cache.port';
+import { EmailVerificationDelivery } from './email-verification-delivery';
+import { EmailVerificationTokenService } from './email-verification-token.service';
+import { EmailVerifications } from './email-verifications';
 
 export type RegisterAccountCommand = {
   email: string;
@@ -43,6 +46,8 @@ export type RegisteredAccount = {
   workspaceName: string;
   sessionToken: string;
   sessionExpiresAt: Date;
+  status: 'PENDING_VERIFICATION';
+  verificationEmailSent: boolean;
 };
 
 @Injectable()
@@ -65,6 +70,9 @@ export class RegisterAccount {
     @Inject(SESSION_CACHE) private readonly sessionCache: SessionCachePort,
     private readonly passwordPolicy: PasswordPolicy,
     private readonly sessionTokens: SessionTokenService,
+    private readonly verificationTokens: EmailVerificationTokenService,
+    private readonly emailVerifications: EmailVerifications,
+    private readonly verificationDelivery: EmailVerificationDelivery,
     private readonly identifiers: IdentifierFactory,
     private readonly clock: Clock,
     private readonly config: AppConfig,
@@ -90,6 +98,12 @@ export class RegisterAccount {
     const sessionExpiresAt = new Date(
       this.clock.now().getTime() + this.config.sessionTtlSeconds * 1000,
     );
+    const verification = this.verificationTokens.create();
+    const verificationId = this.identifiers.create();
+    const verificationExpiresAt = new Date(
+      this.clock.now().getTime() +
+        this.config.emailVerificationTtlSeconds * 1000,
+    );
 
     let passwordHash: string;
     try {
@@ -114,6 +128,7 @@ export class RegisterAccount {
           id: userId,
           identityId,
           displayName: command.displayName,
+          status: 'PENDING_VERIFICATION',
         });
         await this.organizations.create({
           id: organizationId,
@@ -130,6 +145,13 @@ export class RegisterAccount {
           workspaceId,
           userId,
         });
+        await this.emailVerifications.create({
+          id: verificationId,
+          userId,
+          workspaceId,
+          tokenHash: verification.hash,
+          expiresAt: verificationExpiresAt,
+        });
         await this.sessions.create({
           id: this.identifiers.create(),
           tokenHash: session.hash,
@@ -143,6 +165,13 @@ export class RegisterAccount {
           actorUserId: userId,
           action: 'account.registered',
           resourceId: userId,
+        });
+        await this.auditLog.append({
+          id: this.identifiers.create(),
+          workspaceId,
+          actorUserId: userId,
+          action: 'email.verification.requested',
+          resourceId: verificationId,
         });
       });
     } catch (error) {
@@ -165,6 +194,13 @@ export class RegisterAccount {
       .store(session.hash, { userId, workspaceId }, sessionExpiresAt)
       .catch(() => undefined);
 
+    const verificationEmailSent = await this.verificationDelivery.attempt({
+      verificationId,
+      email: normalizedEmail,
+      token: verification.raw,
+      expiresAt: verificationExpiresAt,
+    });
+
     return {
       userId,
       organizationId,
@@ -174,6 +210,8 @@ export class RegisterAccount {
       workspaceName: command.workspaceName,
       sessionToken: session.raw,
       sessionExpiresAt,
+      status: 'PENDING_VERIFICATION',
+      verificationEmailSent,
     };
   }
 }

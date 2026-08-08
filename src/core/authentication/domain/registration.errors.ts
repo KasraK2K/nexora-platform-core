@@ -53,3 +53,21 @@ export class AuthenticationInvalidError extends ApplicationError {
     super('Email or password is incorrect.');
   }
 }
+
+export class EmailVerificationInvalidError extends ApplicationError {
+  readonly code = 'EMAIL_VERIFICATION_INVALID';
+  readonly retryable = false;
+
+  constructor() {
+    super('The email verification link is invalid or has expired.');
+  }
+}
+
+export class EmailVerificationUnavailableError extends ApplicationError {
+  readonly code = 'EMAIL_VERIFICATION_UNAVAILABLE';
+  readonly retryable = true;
+
+  constructor() {
+    super('Email verification is temporarily unavailable.');
+  }
+}

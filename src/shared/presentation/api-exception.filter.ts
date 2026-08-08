@@ -103,6 +103,7 @@ function isSafeErrorBody(value: unknown): value is SafeErrorBody {
 function applicationErrorStatus(code: string): number {
   switch (code) {
     case 'REGISTRATION_INVALID':
+    case 'EMAIL_VERIFICATION_INVALID':
       return HttpStatus.BAD_REQUEST;
     case 'EMAIL_ALREADY_REGISTERED':
       return HttpStatus.CONFLICT;
@@ -111,6 +112,7 @@ function applicationErrorStatus(code: string): number {
       return HttpStatus.UNAUTHORIZED;
     case 'REGISTRATION_UNAVAILABLE':
     case 'AUTHENTICATION_UNAVAILABLE':
+    case 'EMAIL_VERIFICATION_UNAVAILABLE':
       return HttpStatus.SERVICE_UNAVAILABLE;
     default:
       return HttpStatus.INTERNAL_SERVER_ERROR;

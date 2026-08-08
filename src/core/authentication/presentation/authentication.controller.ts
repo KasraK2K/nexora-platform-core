@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBody,
+  ApiAcceptedResponse,
   ApiCookieAuth,
   ApiCreatedResponse,
   ApiNoContentResponse,
@@ -34,6 +35,16 @@ import { registrationRequestSchema } from './registration.contract';
 import type { RegistrationRequest } from './registration.contract';
 import { ZodValidationPipe } from '../../../shared/presentation/zod-validation.pipe';
 import { TrustedOriginGuard } from './trusted-origin.guard';
+import { RequestEmailVerification } from '../application/request-email-verification.use-case';
+import { VerifyEmail } from '../application/verify-email.use-case';
+import {
+  emailVerificationConfirmationSchema,
+  emailVerificationRequestSchema,
+  type EmailVerificationConfirmation,
+  type EmailVerificationRequest,
+} from './email-verification.contract';
+import { EmailVerificationRequestGuard } from './email-verification-request.guard';
+import { EmailVerificationConfirmationGuard } from './email-verification-confirmation.guard';
 
 @ApiTags('Authentication')
 @Controller('v1/auth')
@@ -44,6 +55,8 @@ export class AuthenticationController {
     private readonly getCurrentSession: GetCurrentSession,
     private readonly revokeCurrentSession: RevokeCurrentSession,
     private readonly revokeAllSessions: RevokeAllSessions,
+    private readonly requestEmailVerification: RequestEmailVerification,
+    private readonly verifyEmail: VerifyEmail,
     private readonly config: AppConfig,
   ) {}
 
@@ -97,7 +110,11 @@ export class AuthenticationController {
 
     return {
       data: {
-        user: { id: account.userId, displayName: account.displayName },
+        user: {
+          id: account.userId,
+          displayName: account.displayName,
+          status: account.status,
+        },
         organization: {
           id: account.organizationId,
           name: account.organizationName,
@@ -105,8 +122,42 @@ export class AuthenticationController {
         workspace: { id: account.workspaceId, name: account.workspaceName },
         membership: { role: 'OWNER' },
       },
-      meta: {},
+      meta: {
+        verificationRequired: true,
+        verificationEmailSent: account.verificationEmailSent,
+      },
     };
+  }
+
+  @Post('email-verification-requests')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @UseGuards(TrustedOriginGuard, EmailVerificationRequestGuard)
+  @ApiOperation({ summary: 'Request a replacement email verification link' })
+  @ApiAcceptedResponse({
+    description: 'The request is accepted regardless of account existence.',
+  })
+  async requestVerification(
+    @Body(new ZodValidationPipe(emailVerificationRequestSchema))
+    body: EmailVerificationRequest,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<unknown> {
+    setPrivateResponseHeaders(response);
+    await this.requestEmailVerification.execute(body.email);
+    return { data: null, meta: {} };
+  }
+
+  @Post('email-verifications')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(TrustedOriginGuard, EmailVerificationConfirmationGuard)
+  @ApiOperation({ summary: 'Confirm ownership of an email address' })
+  @ApiNoContentResponse({ description: 'Email address verified.' })
+  async confirmVerification(
+    @Body(new ZodValidationPipe(emailVerificationConfirmationSchema))
+    body: EmailVerificationConfirmation,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<void> {
+    setPrivateResponseHeaders(response);
+    await this.verifyEmail.execute(body.token);
   }
 
   @Post('sessions')

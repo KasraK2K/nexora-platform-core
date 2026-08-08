@@ -13,8 +13,23 @@ import { PASSWORD_HASHER } from '../src/core/authentication/application/password
 import type { PasswordHasher } from '../src/core/authentication/application/password-hasher.port';
 import { PasswordIdentityAuthentication } from '../src/core/identity/application/password-identity-authentication';
 import { AuthenticationRateLimiter } from '../src/core/authentication/infrastructure/authentication-rate-limiter';
+import {
+  EMAIL_VERIFICATION_SENDER,
+  type EmailVerificationSender,
+} from '../src/core/authentication/application/email-verification-sender.port';
 
 const ALLOWED_ORIGIN = 'http://localhost:3000';
+const verificationDeliveries: Array<{
+  to: string;
+  token: string;
+  expiresAt: Date;
+}> = [];
+const recordingEmailSender: EmailVerificationSender = {
+  send(input) {
+    verificationDeliveries.push(input);
+    return Promise.resolve();
+  },
+};
 
 describe('Nexora API (e2e)', () => {
   let app: NestExpressApplication;
@@ -29,7 +44,10 @@ describe('Nexora API (e2e)', () => {
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(EMAIL_VERIFICATION_SENDER)
+      .useValue(recordingEmailSender)
+      .compile();
 
     app = moduleFixture.createNestApplication<NestExpressApplication>();
     configureApp(app);
@@ -46,6 +64,7 @@ describe('Nexora API (e2e)', () => {
   beforeEach(async () => {
     await clearRegistrationData(prisma);
     await redis.client.flushDb();
+    verificationDeliveries.length = 0;
   });
 
   afterEach(() => {
@@ -148,6 +167,99 @@ describe('Nexora API (e2e)', () => {
     expect(readString(current.body as unknown, 'data', 'user', 'id')).toBe(
       user.id,
     );
+  });
+
+  it('requires email verification before login and rejects token replay', async () => {
+    const registration = await registerUnverified('verify-me@example.com');
+
+    expect(registration.status).toBe(201);
+    expect(registration.body).toMatchObject({
+      data: {
+        user: { status: 'PENDING_VERIFICATION' },
+      },
+      meta: {
+        verificationRequired: true,
+        verificationEmailSent: true,
+      },
+    });
+    await login('verify-me@example.com').then((response) =>
+      expect(response.status).toBe(401),
+    );
+
+    const token = await readVerificationToken('verify-me@example.com');
+    const stored = await prisma.emailVerification.findFirstOrThrow();
+    expect(stored.tokenHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(stored.tokenHash).not.toBe(token);
+
+    await confirmEmail(token).expect(204);
+    expect((await prisma.user.findFirstOrThrow()).status).toBe('ACTIVE');
+    expect(
+      (await prisma.emailVerification.findFirstOrThrow()).consumedAt,
+    ).not.toBeNull();
+    await confirmEmail(token).expect(400);
+    await login('verify-me@example.com').then((response) =>
+      expect(response.status).toBe(201),
+    );
+  });
+
+  it('returns a generic resend response and replaces earlier links', async () => {
+    await registerUnverified('resend@example.com');
+    const firstToken = await readVerificationToken('resend@example.com');
+
+    const missing = await request(app.getHttpServer())
+      .post('/v1/auth/email-verification-requests')
+      .set('Origin', ALLOWED_ORIGIN)
+      .send({ email: 'missing@example.com' });
+    const existing = await request(app.getHttpServer())
+      .post('/v1/auth/email-verification-requests')
+      .set('Origin', ALLOWED_ORIGIN)
+      .send({ email: ' RESEND@Example.com ' });
+
+    expect(missing.status).toBe(202);
+    expect(existing.status).toBe(202);
+    expect(existing.body).toEqual(missing.body);
+    const secondToken = await readVerificationToken(
+      'resend@example.com',
+      firstToken,
+    );
+    expect(secondToken).not.toBe(firstToken);
+    await confirmEmail(firstToken).expect(400);
+    await confirmEmail(secondToken).expect(204);
+    expect(
+      await prisma.emailVerification.count({
+        where: { invalidatedAt: { not: null } },
+      }),
+    ).toBe(1);
+  });
+
+  it('rejects an expired verification link without activating the user', async () => {
+    await registerUnverified('expired@example.com');
+    const token = await readVerificationToken('expired@example.com');
+    await prisma.emailVerification.updateMany({
+      data: { expiresAt: new Date(Date.now() - 1_000) },
+    });
+
+    await confirmEmail(token).expect(400);
+    expect((await prisma.user.findFirstOrThrow()).status).toBe(
+      'PENDING_VERIFICATION',
+    );
+  });
+
+  it('commits registration and records a failed delivery attempt', async () => {
+    jest
+      .spyOn(recordingEmailSender, 'send')
+      .mockRejectedValueOnce(new Error('smtp unavailable'));
+
+    const response = await registerUnverified('delivery-failed@example.com');
+
+    expect(response.status).toBe(201);
+    expect(response.body).toMatchObject({
+      data: { user: { status: 'PENDING_VERIFICATION' } },
+      meta: { verificationEmailSent: false },
+    });
+    expect(
+      (await prisma.emailVerification.findFirstOrThrow()).deliveryStatus,
+    ).toBe('FAILED');
   });
 
   it('rejects equivalent duplicate emails and remains race-safe', async () => {
@@ -657,7 +769,15 @@ describe('Nexora API (e2e)', () => {
     await app.close();
   });
 
-  function register(email: string) {
+  async function register(email: string) {
+    const response = await registerUnverified(email);
+    if (response.status === 201) {
+      await confirmEmail(await readVerificationToken(email)).expect(204);
+    }
+    return response;
+  }
+
+  function registerUnverified(email: string) {
     return request(app.getHttpServer())
       .post('/v1/auth/registrations')
       .set('Origin', ALLOWED_ORIGIN)
@@ -669,6 +789,13 @@ describe('Nexora API (e2e)', () => {
       .post('/v1/auth/sessions')
       .set('Origin', ALLOWED_ORIGIN)
       .send(loginBody(email, password));
+  }
+
+  function confirmEmail(token: string) {
+    return request(app.getHttpServer())
+      .post('/v1/auth/email-verifications')
+      .set('Origin', ALLOWED_ORIGIN)
+      .send({ token });
   }
 });
 
@@ -703,12 +830,31 @@ function readCookieHeader(response: {
 async function clearRegistrationData(prisma: PrismaService): Promise<void> {
   await prisma.auditLog.deleteMany();
   await prisma.session.deleteMany();
+  await prisma.emailVerification.deleteMany();
   await prisma.membership.deleteMany();
   await prisma.workspace.deleteMany();
   await prisma.organization.deleteMany();
   await prisma.user.deleteMany();
   await prisma.passwordCredential.deleteMany();
   await prisma.identity.deleteMany();
+}
+
+function readVerificationToken(
+  email: string,
+  excludedToken?: string,
+): Promise<string> {
+  const normalizedEmail = email.trim().toLocaleLowerCase('en-US');
+  for (const delivery of [...verificationDeliveries].reverse()) {
+    if (
+      delivery.to.toLowerCase() === normalizedEmail &&
+      delivery.token !== excludedToken
+    ) {
+      return delivery.token;
+    }
+  }
+  throw new Error(
+    `Verification email was not delivered to ${normalizedEmail}.`,
+  );
 }
 
 function readString(value: unknown, ...path: string[]): string {

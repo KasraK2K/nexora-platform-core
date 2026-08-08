@@ -137,8 +137,14 @@ function createFixture(options?: {
   const users = new Users({
     create: () => Promise.resolve(),
     findById: () => Promise.resolve(null),
+    findByIdentityId: () => Promise.resolve(null),
     findActiveByIdentityId: () =>
-      Promise.resolve({ id: 'user-id', displayName: 'Person' }),
+      Promise.resolve({
+        id: 'user-id',
+        displayName: 'Person',
+        status: 'ACTIVE',
+      }),
+    activate: () => Promise.resolve(false),
   });
   const memberships = new Memberships({
     createOwner: () => Promise.resolve(),

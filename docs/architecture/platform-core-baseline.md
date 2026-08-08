@@ -25,6 +25,9 @@ The repository is currently one NestJS modular monolith. It implements:
 - user, organization, workspace, and OWNER membership creation;
 - opaque server sessions backed authoritatively by PostgreSQL with Redis cache;
 - returning-user login, current-session resolution, logout, and revoke-all;
+- pending-account email verification with hashed, expiring, replaceable,
+  single-use tokens and enumeration-resistant resend behavior;
+- provider-neutral SMTP delivery with a local Mailpit development adapter;
 - origin checks, authentication rate limiting, compromised-password screening;
 - audit records, request IDs, Zod transport validation, and OpenAPI generation.
 
@@ -299,7 +302,7 @@ prove a stable shared contract.
 
 ## Platform roadmap
 
-1. Complete account lifecycle: email verification, password reset/change, and
+1. Complete the remaining account lifecycle: password reset/change and
    session-management policy.
 2. Complete tenant foundation: actor/workspace context, base RBAC, invitations,
    workspace switching, ownership transfer, and tenant isolation tests.
@@ -333,7 +336,7 @@ Resolve these only when their phase begins:
 
 - multi-workspace selection and tenant-resolver precedence;
 - production cookie, Origin, CORS, and trusted-proxy topology;
-- email provider and reliable delivery mechanism;
+- production SMTP provider and reliable asynchronous delivery/retry mechanism;
 - base roles, permissions, invitations, and ownership-transfer policy;
 - whether and when to enable PostgreSQL RLS;
 - billing provider, plan, credit, entitlement, and refund policy if commercial

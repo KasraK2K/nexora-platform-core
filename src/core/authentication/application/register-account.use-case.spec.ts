@@ -22,6 +22,13 @@ import type { PasswordHasher } from './password-hasher.port';
 import { RegisterAccount } from './register-account.use-case';
 import type { SessionCachePort } from './session-cache.port';
 import { SessionTokenService } from './session-token.service';
+import type { EmailVerificationSender } from './email-verification-sender.port';
+import { EmailVerificationDelivery } from './email-verification-delivery';
+import { EmailVerificationTokenService } from './email-verification-token.service';
+import {
+  EmailVerifications,
+  type EmailVerificationsRepository,
+} from './email-verifications';
 
 class RecordingHasher implements PasswordHasher {
   received: string[] = [];
@@ -68,6 +75,46 @@ class RecordingSessionCache implements SessionCachePort {
   }
 }
 
+class RecordingEmailSender implements EmailVerificationSender {
+  deliveries: Array<{ to: string; token: string; expiresAt: Date }> = [];
+  failure: Error | undefined;
+
+  send(input: { to: string; token: string; expiresAt: Date }): Promise<void> {
+    this.deliveries.push(input);
+    return this.failure ? Promise.reject(this.failure) : Promise.resolve();
+  }
+}
+
+class RecordingEmailVerifications implements EmailVerificationsRepository {
+  writes: Array<{
+    id: string;
+    userId: string;
+    workspaceId: string;
+    tokenHash: string;
+    expiresAt: Date;
+  }> = [];
+
+  create(input: (typeof this.writes)[number]): Promise<void> {
+    this.writes.push(input);
+    return Promise.resolve();
+  }
+  invalidateOpenForUser(): Promise<void> {
+    return Promise.resolve();
+  }
+  findUsableByTokenHash(): Promise<null> {
+    return Promise.resolve(null);
+  }
+  findLatestForUser(): Promise<null> {
+    return Promise.resolve(null);
+  }
+  consume(): Promise<boolean> {
+    return Promise.resolve(false);
+  }
+  markDelivery(): Promise<void> {
+    return Promise.resolve();
+  }
+}
+
 describe('RegisterAccount', () => {
   beforeAll(() => {
     process.env.NODE_ENV = 'test';
@@ -103,6 +150,14 @@ describe('RegisterAccount', () => {
     ]);
     expect(fixture.identityWrites[0]).not.toHaveProperty('password');
     expect(fixture.sessionCache.stores).toHaveLength(1);
+    expect(fixture.emailVerifications.writes).toHaveLength(1);
+    expect(fixture.emailVerifications.writes[0].tokenHash).toMatch(
+      /^[a-f0-9]{64}$/,
+    );
+    expect(fixture.emailSender.deliveries).toEqual([
+      expect.objectContaining({ to: 'person@example.com' }),
+    ]);
+    expect(result.status).toBe('PENDING_VERIFICATION');
     expect(result.sessionExpiresAt).toEqual(
       new Date('2026-07-21T01:00:00.000Z'),
     );
@@ -157,6 +212,23 @@ describe('RegisterAccount', () => {
     expect(fixture.hasher.received).toHaveLength(0);
     expect(fixture.identityWrites).toHaveLength(0);
   });
+
+  it('keeps the committed account pending when delivery fails', async () => {
+    const fixture = createFixture();
+    fixture.emailSender.failure = new Error('smtp unavailable');
+
+    const result = await fixture.useCase.execute({
+      email: 'person@example.com',
+      password: 'A secure passphrase 123',
+      displayName: 'Person',
+      organizationName: 'Example Org',
+      workspaceName: 'Main Workspace',
+    });
+
+    expect(result.verificationEmailSent).toBe(false);
+    expect(result.status).toBe('PENDING_VERIFICATION');
+    expect(fixture.emailVerifications.writes).toHaveLength(1);
+  });
 });
 
 function createFixture(): {
@@ -165,11 +237,18 @@ function createFixture(): {
   passwordCompromiseChecker: RecordingPasswordCompromiseChecker;
   identityWrites: CreatePasswordIdentity[];
   sessionCache: RecordingSessionCache;
+  emailVerifications: RecordingEmailVerifications;
+  emailSender: RecordingEmailSender;
 } {
   const identityWrites: CreatePasswordIdentity[] = [];
   const hasher = new RecordingHasher();
   const passwordCompromiseChecker = new RecordingPasswordCompromiseChecker();
   const sessionCache = new RecordingSessionCache();
+  const emailVerificationRepository = new RecordingEmailVerifications();
+  const emailVerifications = new EmailVerifications(
+    emailVerificationRepository,
+  );
+  const emailSender = new RecordingEmailSender();
   const clock = new Clock();
   jest
     .spyOn(clock, 'now')
@@ -184,7 +263,9 @@ function createFixture(): {
   const users = new Users({
     create: () => Promise.resolve(),
     findById: () => Promise.resolve(null),
+    findByIdentityId: () => Promise.resolve(null),
     findActiveByIdentityId: () => Promise.resolve(null),
+    activate: () => Promise.resolve(false),
   });
   const organizations = new Organizations({
     create: () => Promise.resolve(),
@@ -212,6 +293,8 @@ function createFixture(): {
     passwordCompromiseChecker,
     identityWrites,
     sessionCache,
+    emailVerifications: emailVerificationRepository,
+    emailSender,
     useCase: new RegisterAccount(
       hasher,
       passwordCompromiseChecker,
@@ -226,6 +309,9 @@ function createFixture(): {
       sessionCache,
       new PasswordPolicy(),
       new SessionTokenService(),
+      new EmailVerificationTokenService(),
+      emailVerifications,
+      new EmailVerificationDelivery(emailSender, emailVerifications, clock),
       new IdentifierFactory(),
       clock,
       new AppConfig(),

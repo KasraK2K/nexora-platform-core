@@ -36,6 +36,31 @@ export class AuthenticationRateLimiter implements AuthenticationRateLimitPort {
     return this.check('login', clientIp, normalizedEmail, 20, 10);
   }
 
+  async checkEmailVerificationRequest(
+    clientIp: string,
+    normalizedEmail?: string,
+  ): Promise<RateLimitDecision> {
+    return this.check(
+      'email-verification-request',
+      clientIp,
+      normalizedEmail,
+      20,
+      5,
+    );
+  }
+
+  async checkEmailVerificationConfirmation(
+    clientIp: string,
+  ): Promise<RateLimitDecision> {
+    return this.check(
+      'email-verification-confirmation',
+      clientIp,
+      undefined,
+      30,
+      30,
+    );
+  }
+
   private async check(
     scope: string,
     clientIp: string,

@@ -28,6 +28,17 @@ services:
     volumes:
       - nexora-redis:/data
 
+  mailpit:
+    image: axllent/mailpit:v1.30.0
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
 volumes:
   nexora-postgres:
   nexora-redis:

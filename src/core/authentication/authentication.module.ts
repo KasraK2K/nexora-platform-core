@@ -32,6 +32,19 @@ import { AuthenticationController } from './presentation/authentication.controll
 import { RegistrationRequestGuard } from './presentation/registration-request.guard';
 import { LoginRequestGuard } from './presentation/login-request.guard';
 import { TrustedOriginGuard } from './presentation/trusted-origin.guard';
+import { EMAIL_VERIFICATION_SENDER } from './application/email-verification-sender.port';
+import { EmailVerificationTokenService } from './application/email-verification-token.service';
+import {
+  EMAIL_VERIFICATIONS_REPOSITORY,
+  EmailVerifications,
+} from './application/email-verifications';
+import { EmailVerificationDelivery } from './application/email-verification-delivery';
+import { RequestEmailVerification } from './application/request-email-verification.use-case';
+import { VerifyEmail } from './application/verify-email.use-case';
+import { PrismaEmailVerificationsRepository } from './infrastructure/prisma-email-verifications.repository';
+import { SmtpEmailVerificationSender } from './infrastructure/smtp-email-verification.sender';
+import { EmailVerificationRequestGuard } from './presentation/email-verification-request.guard';
+import { EmailVerificationConfirmationGuard } from './presentation/email-verification-confirmation.guard';
 
 @Module({
   imports: [
@@ -49,6 +62,9 @@ import { TrustedOriginGuard } from './presentation/trusted-origin.guard';
     IdentifierFactory,
     PasswordPolicy,
     SessionTokenService,
+    EmailVerificationTokenService,
+    EmailVerifications,
+    EmailVerificationDelivery,
     SessionCache,
     AuthenticationRateLimiter,
     {
@@ -57,22 +73,36 @@ import { TrustedOriginGuard } from './presentation/trusted-origin.guard';
     },
     RegistrationRequestGuard,
     LoginRequestGuard,
+    EmailVerificationRequestGuard,
+    EmailVerificationConfirmationGuard,
     TrustedOriginGuard,
     RegisterAccount,
     CreateSession,
     GetCurrentSession,
     RevokeCurrentSession,
     RevokeAllSessions,
+    RequestEmailVerification,
+    VerifyEmail,
     AuthenticationSessions,
     Argon2PasswordHasher,
     PwnedPasswordsCompromiseChecker,
     PrismaAuthenticationSessionsRepository,
+    PrismaEmailVerificationsRepository,
+    SmtpEmailVerificationSender,
     { provide: PASSWORD_HASHER, useExisting: Argon2PasswordHasher },
     {
       provide: PASSWORD_COMPROMISE_CHECKER,
       useExisting: PwnedPasswordsCompromiseChecker,
     },
     { provide: SESSION_CACHE, useExisting: SessionCache },
+    {
+      provide: EMAIL_VERIFICATION_SENDER,
+      useExisting: SmtpEmailVerificationSender,
+    },
+    {
+      provide: EMAIL_VERIFICATIONS_REPOSITORY,
+      useExisting: PrismaEmailVerificationsRepository,
+    },
     {
       provide: AUTHENTICATION_SESSIONS_REPOSITORY,
       useExisting: PrismaAuthenticationSessionsRepository,
