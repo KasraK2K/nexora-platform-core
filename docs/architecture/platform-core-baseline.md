@@ -34,6 +34,9 @@ The repository is currently one NestJS modular monolith. It implements:
   rotation without extending its absolute expiry;
 - immutable authenticated actor/workspace context resolved from the opaque
   session and authoritative membership, never from client tenant headers;
+- deny-by-default route admission with explicit public, context-authenticated,
+  or application-authenticated metadata, active-user defaults, pending-user
+  opt-in, and trusted-origin ordering;
 - provider-neutral SMTP delivery with a local Mailpit development adapter;
 - origin checks, authentication rate limiting, compromised-password screening;
 - audit records, request IDs, Zod transport validation, and OpenAPI generation.
@@ -139,12 +142,14 @@ commands until the explicit migration is implemented and verified.
 - Organizations: commercial ownership boundary.
 - Workspaces: operational tenant boundary.
 - Memberships: users connected to workspaces.
+- Authorization: explicit deny-by-default route admission and authenticated
+  active-user policy.
 - Audit: append-oriented sensitive-action records.
 - Configuration, persistence, Redis, and shared primitives.
 
 ### Planned foundation
 
-- Authorization plus base OWNER, ADMIN, and MEMBER roles.
+- Permission authorization plus base OWNER, ADMIN, and MEMBER roles.
 - Invitations, ownership transfer, workspace switching, and last-owner safety.
 - User and workspace lifecycle operations.
 - Tenant-isolation matrices at repository and API boundaries.
@@ -332,6 +337,9 @@ repository owns its own roadmap.
 - Opaque server sessions.
 - Authenticated password changes revoke all existing sessions, rotate the
   current session token, and preserve its absolute expiry.
+- Every Nest route declares public, context-authenticated, or
+  application-authenticated admission; unclassified routes are denied, and
+  context-authenticated tenant routes require active users by default.
 - REST/OpenAPI, with SSE only for demonstrated streaming needs.
 - pnpm workspaces and Turborepo as an explicit long-term repository target.
 - Product-neutral Platform Core with downstream product repositories.

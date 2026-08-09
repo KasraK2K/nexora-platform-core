@@ -146,6 +146,6 @@ import { AuthenticatedRequestContextGuard } from './presentation/authenticated-r
       useExisting: PrismaAuthenticationSessionsRepository,
     },
   ],
-  exports: [AuthenticatedRequestContextGuard],
+  exports: [AuthenticatedRequestContextGuard, TrustedOriginGuard],
 })
 export class AuthenticationModule {}

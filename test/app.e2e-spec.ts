@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { Controller, Get } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { verify } from 'argon2';
 import { randomUUID } from 'node:crypto';
@@ -23,6 +24,9 @@ import {
   PASSWORD_RESET_SENDER,
   type PasswordResetSender,
 } from '../src/core/authentication/application/password-reset-sender.port';
+import { AuthenticatedRoute } from '../src/core/authorization/presentation/route-admission';
+import { CurrentAuthenticatedContext } from '../src/core/authentication/presentation/authenticated-request-context';
+import type { AuthenticatedRequestContext } from '../src/core/authentication/application/authenticated-request-context';
 
 const ALLOWED_ORIGIN = 'http://localhost:3000';
 const verificationDeliveries: Array<{
@@ -47,6 +51,32 @@ const recordingPasswordResetSender: PasswordResetSender = {
     return Promise.resolve();
   },
 };
+let unclassifiedRouteExecutions = 0;
+
+@Controller('__test/route-admission')
+class RouteAdmissionProbeController {
+  @Get('unclassified')
+  unclassified(): string {
+    unclassifiedRouteExecutions += 1;
+    return 'must not execute';
+  }
+
+  @Get('active')
+  @AuthenticatedRoute()
+  active(
+    @CurrentAuthenticatedContext() context: AuthenticatedRequestContext,
+  ): AuthenticatedRequestContext {
+    return context;
+  }
+
+  @Get('pending')
+  @AuthenticatedRoute({ allowPendingVerification: true })
+  pending(
+    @CurrentAuthenticatedContext() context: AuthenticatedRequestContext,
+  ): AuthenticatedRequestContext {
+    return context;
+  }
+}
 
 describe('Nexora API (e2e)', () => {
   let app: NestExpressApplication;
@@ -62,6 +92,7 @@ describe('Nexora API (e2e)', () => {
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
+      controllers: [RouteAdmissionProbeController],
     })
       .overrideProvider(EMAIL_VERIFICATION_SENDER)
       .useValue(recordingEmailSender)
@@ -87,6 +118,7 @@ describe('Nexora API (e2e)', () => {
     await redis.client.flushDb();
     verificationDeliveries.length = 0;
     resetDeliveries.length = 0;
+    unclassifiedRouteExecutions = 0;
   });
 
   afterEach(() => {
@@ -98,6 +130,82 @@ describe('Nexora API (e2e)', () => {
       .get('/')
       .expect(200)
       .expect('Hello World!');
+  });
+
+  it('keeps the adapter-mounted OpenAPI UI public in development', async () => {
+    await request(app.getHttpServer()).get('/docs/').expect(200);
+  });
+
+  it('denies unclassified routes by default without exposing internals', async () => {
+    const response = await request(app.getHttpServer()).get(
+      '/__test/route-admission/unclassified',
+    );
+
+    expect(response.status).toBe(403);
+    expect(response.headers['cache-control']).toBe('no-store');
+    expect(response.body).toMatchObject({
+      error: {
+        code: 'ROUTE_ACCESS_DENIED',
+        message: 'Access to this route is denied.',
+        retryable: false,
+      },
+    });
+    expect(unclassifiedRouteExecutions).toBe(0);
+  });
+
+  it('requires active status by default and permits pending users only by explicit policy', async () => {
+    const email = 'route-admission@example.com';
+    const registration = await registerUnverified(email);
+    const cookie = readCookieHeader(registration);
+
+    const pendingAllowed = await request(app.getHttpServer())
+      .get('/__test/route-admission/pending')
+      .set('Cookie', cookie)
+      .expect(200);
+    expect(pendingAllowed.body).toMatchObject({
+      actorUserId: readString(
+        registration.body as unknown,
+        'data',
+        'user',
+        'id',
+      ),
+      userStatus: 'PENDING_VERIFICATION',
+      workspaceId: readString(
+        registration.body as unknown,
+        'data',
+        'workspace',
+        'id',
+      ),
+    });
+
+    const activeOnly = await request(app.getHttpServer())
+      .get('/__test/route-admission/active')
+      .set('Cookie', cookie)
+      .set('X-User-Status', 'ACTIVE');
+    expect(activeOnly.status).toBe(403);
+    expect(activeOnly.headers['cache-control']).toBe('no-store');
+    expect(readString(activeOnly.body as unknown, 'error', 'code')).toBe(
+      'EMAIL_VERIFICATION_REQUIRED',
+    );
+
+    await confirmEmail(await readVerificationToken(email)).expect(204);
+    const active = await request(app.getHttpServer())
+      .get('/__test/route-admission/active')
+      .set('Cookie', cookie)
+      .expect(200);
+    expect(active.body).toMatchObject({ userStatus: 'ACTIVE' });
+  });
+
+  it('requires a valid opaque session for every authenticated route', async () => {
+    const response = await request(app.getHttpServer()).get(
+      '/__test/route-admission/active',
+    );
+
+    expect(response.status).toBe(401);
+    expect(readString(response.body as unknown, 'error', 'code')).toBe(
+      'AUTHENTICATION_REQUIRED',
+    );
+    expect(response.headers['cache-control']).toBe('no-store');
   });
 
   it('registers one complete account graph and resolves its trusted workspace', async () => {
@@ -593,6 +701,35 @@ describe('Nexora API (e2e)', () => {
     );
   });
 
+  it('keeps pending accounts out of authenticated password change without writes', async () => {
+    const registration = await registerUnverified(
+      'password-change-pending@example.com',
+    );
+    const cookie = readCookieHeader(registration);
+    const credentialBefore = await prisma.passwordCredential.findFirstOrThrow();
+    const sessionCount = await prisma.session.count();
+
+    const response = await changePassword(
+      cookie,
+      'A secure passphrase 123',
+      'A replacement passphrase 456',
+    );
+
+    expect(response.status).toBe(401);
+    expect(readString(response.body as unknown, 'error', 'code')).toBe(
+      'AUTHENTICATION_REQUIRED',
+    );
+    expect(
+      (await prisma.passwordCredential.findFirstOrThrow()).passwordHash,
+    ).toBe(credentialBefore.passwordHash);
+    expect(await prisma.session.count()).toBe(sessionCount);
+    expect(
+      await prisma.auditLog.count({
+        where: { action: 'password.change.completed' },
+      }),
+    ).toBe(0);
+  });
+
   it('rejects wrong, unchanged, compromised, injected, and cross-origin password changes without writes', async () => {
     const account = await register('password-change-invalid@example.com');
     const cookie = readCookieHeader(account);
@@ -632,6 +769,7 @@ describe('Nexora API (e2e)', () => {
       'PASSWORD_CHANGE_INVALID_PASSWORD',
     );
 
+    const findSession = jest.spyOn(prisma.session, 'findUnique');
     await request(app.getHttpServer())
       .put('/v1/auth/password')
       .set('Origin', ALLOWED_ORIGIN)
@@ -652,6 +790,7 @@ describe('Nexora API (e2e)', () => {
         newPassword: 'A replacement passphrase 456',
       })
       .expect(403);
+    expect(findSession).not.toHaveBeenCalled();
 
     expect(
       (await prisma.passwordCredential.findFirstOrThrow()).passwordHash,
@@ -1094,6 +1233,11 @@ describe('Nexora API (e2e)', () => {
       .set('Origin', ALLOWED_ORIGIN)
       .set('Cookie', authenticatedCookie)
       .expect(204);
+    const anonymousLogout = await request(app.getHttpServer())
+      .delete('/v1/auth/session')
+      .set('Origin', ALLOWED_ORIGIN)
+      .expect(204);
+    expect(readSetCookie(anonymousLogout)).toContain('__Host-nexora_session=;');
     expect(
       await prisma.auditLog.count({
         where: { action: 'auth.session.revoked' },
@@ -1150,6 +1294,28 @@ describe('Nexora API (e2e)', () => {
         where: { action: 'auth.sessions.revoked_all', actorUserId: userA },
       }),
     ).toBe(1);
+  });
+
+  it('allows a pending user to revoke every session without full tenant admission', async () => {
+    const registration = await registerUnverified(
+      'revoke-all-pending@example.com',
+    );
+    const userId = readString(
+      registration.body as unknown,
+      'data',
+      'user',
+      'id',
+    );
+
+    await request(app.getHttpServer())
+      .delete('/v1/auth/sessions')
+      .set('Origin', ALLOWED_ORIGIN)
+      .set('Cookie', readCookieHeader(registration))
+      .expect(204);
+
+    expect(
+      await prisma.session.count({ where: { userId, revokedAt: null } }),
+    ).toBe(0);
   });
 
   it('does not allow one session to resolve another workspace', async () => {

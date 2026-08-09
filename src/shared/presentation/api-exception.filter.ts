@@ -114,6 +114,9 @@ function applicationErrorStatus(code: string): number {
     case 'AUTHENTICATION_INVALID':
     case 'PASSWORD_CHANGE_INVALID_CURRENT_PASSWORD':
       return HttpStatus.UNAUTHORIZED;
+    case 'ROUTE_ACCESS_DENIED':
+    case 'EMAIL_VERIFICATION_REQUIRED':
+      return HttpStatus.FORBIDDEN;
     case 'REGISTRATION_UNAVAILABLE':
     case 'AUTHENTICATION_UNAVAILABLE':
     case 'EMAIL_VERIFICATION_UNAVAILABLE':

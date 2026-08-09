@@ -34,7 +34,6 @@ import { RegistrationRequestGuard } from './registration-request.guard';
 import { registrationRequestSchema } from './registration.contract';
 import type { RegistrationRequest } from './registration.contract';
 import { ZodValidationPipe } from '../../../shared/presentation/zod-validation.pipe';
-import { TrustedOriginGuard } from './trusted-origin.guard';
 import { RequestEmailVerification } from '../application/request-email-verification.use-case';
 import { VerifyEmail } from '../application/verify-email.use-case';
 import {
@@ -63,9 +62,13 @@ import {
 import { PasswordChangeRequestGuard } from './password-change-request.guard';
 import { setPrivateResponseHeaders } from './private-response-headers';
 import { readCookie } from './session-cookie';
-import { AuthenticatedRequestContextGuard } from './authenticated-request-context.guard';
 import { CurrentAuthenticatedSession } from './authenticated-request-context';
 import type { CurrentSession } from '../application/get-current-session.use-case';
+import {
+  ApplicationAuthenticatedRoute,
+  AuthenticatedRoute,
+  PublicRoute,
+} from '../../authorization/presentation/route-admission';
 
 @ApiTags('Authentication')
 @Controller('v1/auth')
@@ -85,7 +88,8 @@ export class AuthenticationController {
 
   @Post('registrations')
   @HttpCode(HttpStatus.CREATED)
-  @UseGuards(TrustedOriginGuard, RegistrationRequestGuard)
+  @PublicRoute({ requireTrustedOrigin: true })
+  @UseGuards(RegistrationRequestGuard)
   @ApiOperation({
     summary: 'Create an account and its initial organization and workspace',
   })
@@ -154,7 +158,8 @@ export class AuthenticationController {
 
   @Post('email-verification-requests')
   @HttpCode(HttpStatus.ACCEPTED)
-  @UseGuards(TrustedOriginGuard, EmailVerificationRequestGuard)
+  @PublicRoute({ requireTrustedOrigin: true })
+  @UseGuards(EmailVerificationRequestGuard)
   @ApiOperation({ summary: 'Request a replacement email verification link' })
   @ApiAcceptedResponse({
     description: 'The request is accepted regardless of account existence.',
@@ -171,7 +176,8 @@ export class AuthenticationController {
 
   @Post('email-verifications')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @UseGuards(TrustedOriginGuard, EmailVerificationConfirmationGuard)
+  @PublicRoute({ requireTrustedOrigin: true })
+  @UseGuards(EmailVerificationConfirmationGuard)
   @ApiOperation({ summary: 'Confirm ownership of an email address' })
   @ApiNoContentResponse({ description: 'Email address verified.' })
   async confirmVerification(
@@ -185,7 +191,8 @@ export class AuthenticationController {
 
   @Post('password-reset-requests')
   @HttpCode(HttpStatus.ACCEPTED)
-  @UseGuards(TrustedOriginGuard, PasswordResetRequestGuard)
+  @PublicRoute({ requireTrustedOrigin: true })
+  @UseGuards(PasswordResetRequestGuard)
   @ApiOperation({ summary: 'Request a password reset link' })
   @ApiBody({
     schema: {
@@ -212,7 +219,8 @@ export class AuthenticationController {
 
   @Post('password-resets')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @UseGuards(TrustedOriginGuard, PasswordResetConfirmationGuard)
+  @PublicRoute({ requireTrustedOrigin: true })
+  @UseGuards(PasswordResetConfirmationGuard)
   @ApiOperation({ summary: 'Replace a password using a reset token' })
   @ApiBody({
     schema: {
@@ -253,7 +261,8 @@ export class AuthenticationController {
 
   @Put('password')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @UseGuards(TrustedOriginGuard, PasswordChangeRequestGuard)
+  @ApplicationAuthenticatedRoute({ requireTrustedOrigin: true })
+  @UseGuards(PasswordChangeRequestGuard)
   @ApiCookieAuth()
   @ApiOperation({ summary: 'Change the current user password' })
   @ApiBody({
@@ -306,7 +315,8 @@ export class AuthenticationController {
 
   @Post('sessions')
   @HttpCode(HttpStatus.CREATED)
-  @UseGuards(TrustedOriginGuard, LoginRequestGuard)
+  @PublicRoute({ requireTrustedOrigin: true })
+  @UseGuards(LoginRequestGuard)
   @ApiOperation({ summary: 'Authenticate and create a new session' })
   @ApiBody({
     schema: {
@@ -350,7 +360,7 @@ export class AuthenticationController {
   }
 
   @Get('session')
-  @UseGuards(AuthenticatedRequestContextGuard)
+  @AuthenticatedRoute({ allowPendingVerification: true })
   @ApiCookieAuth()
   @ApiOperation({
     summary: 'Resolve the current user and trusted active workspace',
@@ -364,7 +374,7 @@ export class AuthenticationController {
 
   @Delete('session')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @UseGuards(TrustedOriginGuard)
+  @PublicRoute({ requireTrustedOrigin: true })
   @ApiCookieAuth()
   @ApiOperation({ summary: 'Revoke the current session' })
   @ApiNoContentResponse({ description: 'Current session revoked.' })
@@ -381,7 +391,7 @@ export class AuthenticationController {
 
   @Delete('sessions')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @UseGuards(TrustedOriginGuard)
+  @ApplicationAuthenticatedRoute({ requireTrustedOrigin: true })
   @ApiCookieAuth()
   @ApiOperation({ summary: 'Revoke every session for the current user' })
   @ApiNoContentResponse({ description: 'All user sessions revoked.' })

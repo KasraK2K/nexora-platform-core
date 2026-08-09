@@ -38,6 +38,12 @@ repository or changing runtime identifiers inherited from this base.
   guard attaches minimal server-resolved IDs and user status as an immutable
   actor/workspace context for protected Platform Core and downstream routes;
   client identity, workspace, and role headers are ignored.
+- The Authorization module denies every Nest route until it explicitly
+  declares public, context-authenticated, or application-authenticated
+  admission. Context-authenticated routes require an active user by default;
+  account and session operations must explicitly opt in when pending
+  verification users are allowed. Exact-origin checks execute before session
+  resolution on protected browser mutations.
 - `POST /v1/auth/sessions` verifies a returning user's password and issues a
   fresh opaque session without accepting a client-selected workspace.
 - `DELETE /v1/auth/session` idempotently revokes the presented session;
@@ -58,11 +64,12 @@ repository or changing runtime identifiers inherited from this base.
 - OpenAPI UI is served at `/docs` while the application is running.
 
 Authorization roles beyond the current OWNER membership, invitations, and
-additional workspace membership management are not implemented. Login refuses unverified accounts
-and accounts with more than one eligible workspace until the multi-workspace
-selection contract is defined. The session issued at registration is restricted
-to the existing account/session endpoints until later authorization middleware
-defines broader actor policy.
+additional workspace membership management are not implemented. Login refuses
+unverified accounts and accounts with more than one eligible workspace until
+the multi-workspace selection contract is defined. The session issued at
+registration is restricted to routes that explicitly permit
+pending-verification users. Base role permissions and resource authorization
+remain deferred until a concrete privileged Core operation is implemented.
 
 ## Product extension model
 

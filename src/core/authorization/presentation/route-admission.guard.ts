@@ -1,0 +1,108 @@
+import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import type { Request, Response } from 'express';
+import { readAuthenticatedRequestContext } from '../../authentication/presentation/authenticated-request-context';
+import { AuthenticatedRequestContextGuard } from '../../authentication/presentation/authenticated-request-context.guard';
+import { setPrivateResponseHeaders } from '../../authentication/presentation/private-response-headers';
+import { TrustedOriginGuard } from '../../authentication/presentation/trusted-origin.guard';
+import {
+  EmailVerificationRequiredError,
+  RouteAccessDeniedError,
+} from '../domain/route-admission.errors';
+import { RouteAdmission, type RouteAdmissionPolicy } from './route-admission';
+
+@Injectable()
+export class RouteAdmissionGuard implements CanActivate {
+  private readonly logger = new Logger(RouteAdmissionGuard.name);
+
+  constructor(
+    private readonly reflector: Reflector,
+    private readonly trustedOrigin: TrustedOriginGuard,
+    private readonly authenticatedRequest: AuthenticatedRequestContextGuard,
+  ) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const policy = this.reflector.get(RouteAdmission, context.getHandler());
+
+    if (!isRouteAdmissionPolicy(policy)) {
+      setPrivateResponseHeaders(context.switchToHttp().getResponse<Response>());
+      this.logger.error(
+        JSON.stringify({
+          event: 'http.route_admission_unclassified',
+          controller: context.getClass().name,
+          handler: context.getHandler().name,
+        }),
+      );
+      throw new RouteAccessDeniedError();
+    }
+
+    if (policy.requireTrustedOrigin) {
+      const originAllowed = await Promise.resolve(
+        this.trustedOrigin.canActivate(context),
+      );
+      if (!originAllowed) {
+        throw new RouteAccessDeniedError();
+      }
+    }
+
+    if (policy.access !== 'authenticated') {
+      return true;
+    }
+
+    const authenticatedAllowed =
+      await this.authenticatedRequest.canActivate(context);
+    if (!authenticatedAllowed) {
+      throw new RouteAccessDeniedError();
+    }
+    const authenticated = readAuthenticatedRequestContext(
+      context.switchToHttp().getRequest<Request>(),
+    );
+    if (!authenticated) {
+      throw new RouteAccessDeniedError();
+    }
+    const { userStatus } = authenticated.context;
+    if (userStatus === 'PENDING_VERIFICATION') {
+      if (policy.allowPendingVerification) {
+        return true;
+      }
+
+      throw new EmailVerificationRequiredError();
+    }
+    if (userStatus !== 'ACTIVE') {
+      throw new RouteAccessDeniedError();
+    }
+
+    return true;
+  }
+}
+
+function isRouteAdmissionPolicy(value: unknown): value is RouteAdmissionPolicy {
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    !('access' in value) ||
+    !('requireTrustedOrigin' in value) ||
+    typeof value.requireTrustedOrigin !== 'boolean'
+  ) {
+    return false;
+  }
+
+  if (
+    value.access === 'public' ||
+    value.access === 'application-authenticated'
+  ) {
+    return Object.keys(value).length === 2;
+  }
+
+  return (
+    value.access === 'authenticated' &&
+    'allowPendingVerification' in value &&
+    typeof value.allowPendingVerification === 'boolean' &&
+    Object.keys(value).length === 3
+  );
+}
