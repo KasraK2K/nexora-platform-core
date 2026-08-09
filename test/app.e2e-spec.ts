@@ -1175,6 +1175,9 @@ describe('Nexora API (e2e)', () => {
     const current = await request(app.getHttpServer())
       .get('/v1/auth/session')
       .set('Cookie', cookieA)
+      .set('X-User-Id', randomUUID())
+      .set('X-Workspace-Id', workspaceB)
+      .set('X-Membership-Role', 'OWNER')
       .expect(200);
     expect(readString(current.body as unknown, 'data', 'workspace', 'id')).toBe(
       workspaceA,
@@ -1258,6 +1261,29 @@ describe('Nexora API (e2e)', () => {
       .get('/v1/auth/session')
       .set('Cookie', cookie)
       .expect(200);
+  });
+
+  it('keeps current-session authentication failures private and non-cacheable', async () => {
+    const missing = await request(app.getHttpServer()).get('/v1/auth/session');
+    expect(missing.status).toBe(401);
+    expect(missing.headers['cache-control']).toBe('no-store');
+    expect(missing.headers.pragma).toBe('no-cache');
+
+    const registration = await register('session-database-outage@example.com');
+    const cookie = readCookieHeader(registration);
+    jest
+      .spyOn(prisma.session, 'findUnique')
+      .mockRejectedValueOnce(new Error('database unavailable'));
+
+    const unavailable = await request(app.getHttpServer())
+      .get('/v1/auth/session')
+      .set('Cookie', cookie);
+    expect(unavailable.status).toBe(503);
+    expect(readString(unavailable.body as unknown, 'error', 'code')).toBe(
+      'AUTHENTICATION_UNAVAILABLE',
+    );
+    expect(unavailable.headers['cache-control']).toBe('no-store');
+    expect(unavailable.headers.pragma).toBe('no-cache');
   });
 
   it('replaces an attacker-supplied session cookie during registration', async () => {

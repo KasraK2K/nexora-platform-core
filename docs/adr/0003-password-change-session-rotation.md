@@ -135,6 +135,7 @@ committed before rollback remain intentionally changed.
 
 ## Follow-up work
 
-- [ ] Introduce immutable authenticated actor/workspace context and base RBAC.
+- [x] Introduce immutable authenticated actor/workspace context.
+- [ ] Add deny-by-default route eligibility and base RBAC.
 - [ ] Add invitations, workspace switching, ownership transfer, and broader
   tenant-isolation matrices.

@@ -32,6 +32,8 @@ The repository is currently one NestJS modular monolith. It implements:
 - authenticated password change with current-password proof, optimistic
   credential replacement, reset-link invalidation, and current-session
   rotation without extending its absolute expiry;
+- immutable authenticated actor/workspace context resolved from the opaque
+  session and authoritative membership, never from client tenant headers;
 - provider-neutral SMTP delivery with a local Mailpit development adapter;
 - origin checks, authentication rate limiting, compromised-password screening;
 - audit records, request IDs, Zod transport validation, and OpenAPI generation.
@@ -142,7 +144,6 @@ commands until the explicit migration is implemented and verified.
 
 ### Planned foundation
 
-- Immutable authenticated actor and workspace context.
 - Authorization plus base OWNER, ADMIN, and MEMBER roles.
 - Invitations, ownership transfer, workspace switching, and last-owner safety.
 - User and workspace lifecycle operations.
@@ -307,8 +308,8 @@ prove a stable shared contract.
 
 ## Platform roadmap
 
-1. Complete tenant foundation: actor/workspace context, base RBAC, invitations,
-   workspace switching, ownership transfer, and tenant isolation tests.
+1. Complete tenant foundation: base RBAC, invitations, workspace switching,
+   ownership transfer, and tenant isolation tests.
 2. Complete repository foundation through explicit changes: monorepo decision,
    strict TypeScript plan, contract gates, seeds, and CI.
 3. Add optional reusable capabilities only when a downstream product proves the

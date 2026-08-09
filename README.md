@@ -34,7 +34,10 @@ repository or changing runtime identifiers inherited from this base.
   session, and creates one rotated current session atomically. The replacement
   token preserves the previous session's absolute expiry.
 - `GET /v1/auth/session` resolves the authenticated user and server-trusted
-  active workspace from the opaque session cookie.
+  active workspace from the opaque session cookie. The exported authentication
+  guard attaches minimal server-resolved IDs and user status as an immutable
+  actor/workspace context for protected Platform Core and downstream routes;
+  client identity, workspace, and role headers are ignored.
 - `POST /v1/auth/sessions` verifies a returning user's password and issues a
   fresh opaque session without accepting a client-selected workspace.
 - `DELETE /v1/auth/session` idempotently revokes the presented session;
@@ -54,8 +57,8 @@ repository or changing runtime identifiers inherited from this base.
   returned by the API, or stored in PostgreSQL.
 - OpenAPI UI is served at `/docs` while the application is running.
 
-Invitations, authorization roles, and additional workspace membership
-management are not implemented. Login refuses unverified accounts
+Authorization roles beyond the current OWNER membership, invitations, and
+additional workspace membership management are not implemented. Login refuses unverified accounts
 and accounts with more than one eligible workspace until the multi-workspace
 selection contract is defined. The session issued at registration is restricted
 to the existing account/session endpoints until later authorization middleware

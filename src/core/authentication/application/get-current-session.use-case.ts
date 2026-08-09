@@ -11,17 +11,26 @@ import { AuthenticationSessions } from './authentication-sessions';
 import { SESSION_CACHE } from './session-cache.port';
 import type { SessionCachePort } from './session-cache.port';
 import { SessionTokenService } from './session-token.service';
+import {
+  createAuthenticatedRequestContext,
+  type AuthenticatedRequestContext,
+} from './authenticated-request-context';
 
-export type CurrentSession = {
-  user: {
+export type CurrentSession = Readonly<{
+  user: Readonly<{
     id: string;
     displayName: string;
     status: 'PENDING_VERIFICATION' | 'ACTIVE';
-  };
-  organization: { id: string; name: string };
-  workspace: { id: string; name: string };
-  membership: { role: 'OWNER' };
-};
+  }>;
+  organization: Readonly<{ id: string; name: string }>;
+  workspace: Readonly<{ id: string; name: string }>;
+  membership: Readonly<{ role: 'OWNER' }>;
+}>;
+
+export type ResolvedAuthenticatedRequest = Readonly<{
+  context: AuthenticatedRequestContext;
+  currentSession: CurrentSession;
+}>;
 
 @Injectable()
 export class GetCurrentSession {
@@ -36,28 +45,34 @@ export class GetCurrentSession {
   ) {}
 
   async execute(rawToken: string | undefined): Promise<CurrentSession> {
+    return (await this.resolveAuthenticatedRequest(rawToken)).currentSession;
+  }
+
+  async resolveAuthenticatedRequest(
+    rawToken: string | undefined,
+  ): Promise<ResolvedAuthenticatedRequest> {
     const tokenHash = this.sessionTokens.hashIfValid(rawToken);
     if (!tokenHash) {
       throw new AuthenticationRequiredError();
     }
-    let currentSession: CurrentSession | undefined;
+    let authenticated: ResolvedAuthenticatedRequest | undefined;
     try {
-      currentSession = await this.resolveCurrentSession(tokenHash);
+      authenticated = await this.resolveCurrentSession(tokenHash);
     } catch {
       throw new AuthenticationUnavailableError();
     }
 
-    if (!currentSession) {
+    if (!authenticated) {
       await this.removeCacheBestEffort(tokenHash);
       throw new AuthenticationRequiredError();
     }
 
-    return currentSession;
+    return authenticated;
   }
 
   private async resolveCurrentSession(
     tokenHash: string,
-  ): Promise<CurrentSession | undefined> {
+  ): Promise<ResolvedAuthenticatedRequest | undefined> {
     const session = await this.sessions.findByTokenHash(tokenHash);
     if (
       !session ||
@@ -92,12 +107,21 @@ export class GetCurrentSession {
       session.expiresAt,
     );
 
-    return {
-      user,
-      organization,
-      workspace: { id: workspace.id, name: workspace.name },
-      membership: { role: 'OWNER' },
-    };
+    return Object.freeze({
+      context: createAuthenticatedRequestContext({
+        sessionId: session.id,
+        actorUserId: user.id,
+        userStatus: user.status,
+        organizationId: organization.id,
+        workspaceId: workspace.id,
+      }),
+      currentSession: Object.freeze({
+        user: Object.freeze({ ...user }),
+        organization: Object.freeze({ ...organization }),
+        workspace: Object.freeze({ id: workspace.id, name: workspace.name }),
+        membership: Object.freeze({ role: 'OWNER' as const }),
+      }),
+    });
   }
 
   private async refreshCacheBestEffort(

@@ -61,6 +61,7 @@ import { PasswordResetRequestGuard } from './presentation/password-reset-request
 import { PasswordResetConfirmationGuard } from './presentation/password-reset-confirmation.guard';
 import { ChangePassword } from './application/change-password.use-case';
 import { PasswordChangeRequestGuard } from './presentation/password-change-request.guard';
+import { AuthenticatedRequestContextGuard } from './presentation/authenticated-request-context.guard';
 
 @Module({
   imports: [
@@ -97,6 +98,7 @@ import { PasswordChangeRequestGuard } from './presentation/password-change-reque
     PasswordResetRequestGuard,
     PasswordResetConfirmationGuard,
     PasswordChangeRequestGuard,
+    AuthenticatedRequestContextGuard,
     TrustedOriginGuard,
     RegisterAccount,
     CreateSession,
@@ -144,5 +146,6 @@ import { PasswordChangeRequestGuard } from './presentation/password-change-reque
       useExisting: PrismaAuthenticationSessionsRepository,
     },
   ],
+  exports: [AuthenticatedRequestContextGuard],
 })
 export class AuthenticationModule {}

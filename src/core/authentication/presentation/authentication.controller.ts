@@ -23,7 +23,6 @@ import {
 } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { AppConfig } from '../../configuration/app-config';
-import { GetCurrentSession } from '../application/get-current-session.use-case';
 import { RegisterAccount } from '../application/register-account.use-case';
 import { CreateSession } from '../application/create-session.use-case';
 import { RevokeAllSessions } from '../application/revoke-all-sessions.use-case';
@@ -62,7 +61,11 @@ import {
   type PasswordChangeRequest,
 } from './password-change.contract';
 import { PasswordChangeRequestGuard } from './password-change-request.guard';
+import { setPrivateResponseHeaders } from './private-response-headers';
 import { readCookie } from './session-cookie';
+import { AuthenticatedRequestContextGuard } from './authenticated-request-context.guard';
+import { CurrentAuthenticatedSession } from './authenticated-request-context';
+import type { CurrentSession } from '../application/get-current-session.use-case';
 
 @ApiTags('Authentication')
 @Controller('v1/auth')
@@ -70,7 +73,6 @@ export class AuthenticationController {
   constructor(
     private readonly registerAccount: RegisterAccount,
     private readonly createSession: CreateSession,
-    private readonly getCurrentSession: GetCurrentSession,
     private readonly revokeCurrentSession: RevokeCurrentSession,
     private readonly revokeAllSessions: RevokeAllSessions,
     private readonly requestEmailVerification: RequestEmailVerification,
@@ -348,19 +350,15 @@ export class AuthenticationController {
   }
 
   @Get('session')
+  @UseGuards(AuthenticatedRequestContextGuard)
   @ApiCookieAuth()
   @ApiOperation({
     summary: 'Resolve the current user and trusted active workspace',
   })
   @ApiOkResponse({ description: 'Current authenticated session.' })
-  async currentSession(
-    @Req() request: Request,
-    @Res({ passthrough: true }) response: Response,
-  ): Promise<unknown> {
-    setPrivateResponseHeaders(response);
-    const session = await this.getCurrentSession.execute(
-      readCookie(request.header('cookie'), this.config.sessionCookieName),
-    );
+  currentSession(
+    @CurrentAuthenticatedSession() session: CurrentSession,
+  ): unknown {
     return { data: session, meta: {} };
   }
 
@@ -423,9 +421,4 @@ function clearSessionCookie(response: Response, config: AppConfig): void {
     expires: new Date(0),
     maxAge: 0,
   });
-}
-
-function setPrivateResponseHeaders(response: Response): void {
-  response.setHeader('cache-control', 'no-store');
-  response.setHeader('pragma', 'no-cache');
 }
