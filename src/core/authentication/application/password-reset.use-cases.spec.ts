@@ -301,6 +301,7 @@ function activeUsers(): Users {
         displayName: 'Person',
         status: 'ACTIVE',
       }),
+    findAuthenticationReferenceById: () => Promise.resolve(null),
     findByIdentityId: () =>
       Promise.resolve({
         id: 'user-id',

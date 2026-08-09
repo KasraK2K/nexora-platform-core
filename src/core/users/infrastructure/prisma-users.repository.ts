@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseContext } from '../../persistence/database-context';
-import type { UserSummary, UsersRepository } from '../application/users';
+import type {
+  UserAuthenticationReference,
+  UserSummary,
+  UsersRepository,
+} from '../application/users';
 
 @Injectable()
 export class PrismaUsersRepository implements UsersRepository {
@@ -19,6 +23,15 @@ export class PrismaUsersRepository implements UsersRepository {
     return this.database.client.user.findUnique({
       where: { id },
       select: { id: true, displayName: true, status: true },
+    });
+  }
+
+  findAuthenticationReferenceById(
+    id: string,
+  ): Promise<UserAuthenticationReference | null> {
+    return this.database.client.user.findUnique({
+      where: { id },
+      select: { id: true, identityId: true, status: true },
     });
   }
 

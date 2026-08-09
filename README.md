@@ -29,6 +29,10 @@ repository or changing runtime identifiers inherited from this base.
   accounts. `POST /v1/auth/password-resets` consumes the hashed token,
   replaces the Argon2id credential, revokes every session, and audits the
   completed reset in one PostgreSQL transaction.
+- `PUT /v1/auth/password` verifies the current password, screens and replaces
+  the credential, invalidates open reset links, revokes every existing
+  session, and creates one rotated current session atomically. The replacement
+  token preserves the previous session's absolute expiry.
 - `GET /v1/auth/session` resolves the authenticated user and server-trusted
   active workspace from the opaque session cookie.
 - `POST /v1/auth/sessions` verifies a returning user's password and issues a
@@ -43,14 +47,15 @@ repository or changing runtime identifiers inherited from this base.
 - Session-creating and session-revoking requests validate the exact browser
   Origin. Registration and login use separate Redis-backed IP and
   normalized-email rate limits before expensive password work. Verification
-  request and confirmation routes have separate limits.
+  request, confirmation, and authenticated password-change routes have
+  separate limits.
 - Email delivery uses a provider-neutral SMTP port. Local development includes
   Mailpit; raw verification tokens are delivered by email and are never logged,
   returned by the API, or stored in PostgreSQL.
 - OpenAPI UI is served at `/docs` while the application is running.
 
-Authenticated password change, invitations, authorization roles, and
-additional workspace membership management are not implemented. Login refuses unverified accounts
+Invitations, authorization roles, and additional workspace membership
+management are not implemented. Login refuses unverified accounts
 and accounts with more than one eligible workspace until the multi-workspace
 selection contract is defined. The session issued at registration is restricted
 to the existing account/session endpoints until later authorization middleware

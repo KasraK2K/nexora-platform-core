@@ -85,6 +85,7 @@ function createFixture(options?: { expired?: boolean }) {
     create: () => Promise.resolve(),
     findById: () =>
       Promise.resolve({ id: 'user-id', displayName: 'Person', status }),
+    findAuthenticationReferenceById: () => Promise.resolve(null),
     findByIdentityId: () => Promise.resolve(null),
     findActiveByIdentityId: () => Promise.resolve(null),
     activate: () => {

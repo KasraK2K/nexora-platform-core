@@ -59,6 +59,8 @@ import { SmtpMailTransport } from './infrastructure/smtp-mail.transport';
 import { SmtpPasswordResetSender } from './infrastructure/smtp-password-reset.sender';
 import { PasswordResetRequestGuard } from './presentation/password-reset-request.guard';
 import { PasswordResetConfirmationGuard } from './presentation/password-reset-confirmation.guard';
+import { ChangePassword } from './application/change-password.use-case';
+import { PasswordChangeRequestGuard } from './presentation/password-change-request.guard';
 
 @Module({
   imports: [
@@ -94,6 +96,7 @@ import { PasswordResetConfirmationGuard } from './presentation/password-reset-co
     EmailVerificationConfirmationGuard,
     PasswordResetRequestGuard,
     PasswordResetConfirmationGuard,
+    PasswordChangeRequestGuard,
     TrustedOriginGuard,
     RegisterAccount,
     CreateSession,
@@ -104,6 +107,7 @@ import { PasswordResetConfirmationGuard } from './presentation/password-reset-co
     VerifyEmail,
     RequestPasswordReset,
     ResetPassword,
+    ChangePassword,
     AuthenticationSessions,
     Argon2PasswordHasher,
     PwnedPasswordsCompromiseChecker,

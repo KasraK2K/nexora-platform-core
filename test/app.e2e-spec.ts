@@ -12,7 +12,9 @@ import { AuditLog } from '../src/core/audit/application/audit-log';
 import { PASSWORD_HASHER } from '../src/core/authentication/application/password-hasher.port';
 import type { PasswordHasher } from '../src/core/authentication/application/password-hasher.port';
 import { PasswordIdentityAuthentication } from '../src/core/identity/application/password-identity-authentication';
+import { PasswordCredentialVerification } from '../src/core/identity/application/password-credential-verification';
 import { AuthenticationRateLimiter } from '../src/core/authentication/infrastructure/authentication-rate-limiter';
+import { SessionTokenService } from '../src/core/authentication/application/session-token.service';
 import {
   EMAIL_VERIFICATION_SENDER,
   type EmailVerificationSender,
@@ -54,6 +56,7 @@ describe('Nexora API (e2e)', () => {
   let auditLog: AuditLog;
   let passwordHasher: PasswordHasher;
   let passwordIdentities: PasswordIdentityAuthentication;
+  let passwordCredentialVerification: PasswordCredentialVerification;
   let authenticationRateLimiter: AuthenticationRateLimiter;
 
   beforeAll(async () => {
@@ -75,6 +78,7 @@ describe('Nexora API (e2e)', () => {
     auditLog = app.get(AuditLog);
     passwordHasher = app.get<PasswordHasher>(PASSWORD_HASHER);
     passwordIdentities = app.get(PasswordIdentityAuthentication);
+    passwordCredentialVerification = app.get(PasswordCredentialVerification);
     authenticationRateLimiter = app.get(AuthenticationRateLimiter);
   });
 
@@ -410,6 +414,359 @@ describe('Nexora API (e2e)', () => {
     expect(
       (await prisma.passwordResetToken.findFirstOrThrow()).deliveryStatus,
     ).toBe('FAILED');
+  });
+
+  it('changes the password, invalidates reset links, and rotates only the current user sessions', async () => {
+    const accountA = await register('password-change-a@example.com');
+    const firstCookie = readCookieHeader(accountA);
+    const secondSessionA = await login('password-change-a@example.com');
+    const secondCookie = readCookieHeader(secondSessionA);
+    const userA = readString(accountA.body as unknown, 'data', 'user', 'id');
+    const workspaceA = readString(
+      accountA.body as unknown,
+      'data',
+      'workspace',
+      'id',
+    );
+    const originalSession = await prisma.session.findFirstOrThrow({
+      where: {
+        tokenHash: new SessionTokenService().hash(
+          firstCookie.slice(firstCookie.indexOf('=') + 1),
+        ),
+      },
+    });
+    await requestPasswordReset('password-change-a@example.com');
+    const oldResetToken = readPasswordResetToken(
+      'password-change-a@example.com',
+    );
+
+    const accountB = await register('password-change-b@example.com');
+    const userB = readString(accountB.body as unknown, 'data', 'user', 'id');
+    const activeSessionsB = await prisma.session.count({
+      where: { userId: userB, revokedAt: null },
+    });
+
+    const changed = await changePassword(
+      firstCookie,
+      'A secure passphrase 123',
+      'A replacement passphrase 456',
+    );
+
+    expect(changed.status).toBe(204);
+    expect(changed.headers['cache-control']).toBe('no-store');
+    const rotatedCookie = readCookieHeader(changed);
+    expect(rotatedCookie).not.toBe(firstCookie);
+    expect(readSetCookie(changed)).toContain('HttpOnly');
+    expect(readSetCookie(changed)).toContain('Secure');
+    expect(readSetCookie(changed)).toContain('SameSite=Lax');
+    expect(readSetCookie(changed)).toContain('Path=/');
+    expect(readSetCookie(changed)).not.toContain('Domain=');
+
+    const activeSessionsA = await prisma.session.findMany({
+      where: { userId: userA, revokedAt: null },
+    });
+    expect(activeSessionsA).toHaveLength(1);
+    expect(activeSessionsA[0]).toMatchObject({
+      activeWorkspaceId: workspaceA,
+      expiresAt: originalSession.expiresAt,
+    });
+    expect(
+      await prisma.session.count({ where: { userId: userB, revokedAt: null } }),
+    ).toBe(activeSessionsB);
+    expect(
+      await prisma.passwordResetToken.count({
+        where: { userId: userA, invalidatedAt: { not: null } },
+      }),
+    ).toBe(1);
+    expect(
+      await prisma.auditLog.count({
+        where: {
+          action: 'password.change.completed',
+          actorUserId: userA,
+          workspaceId: workspaceA,
+        },
+      }),
+    ).toBe(1);
+
+    await request(app.getHttpServer())
+      .get('/v1/auth/session')
+      .set('Cookie', firstCookie)
+      .expect(401);
+    await request(app.getHttpServer())
+      .get('/v1/auth/session')
+      .set('Cookie', secondCookie)
+      .expect(401);
+    await request(app.getHttpServer())
+      .get('/v1/auth/session')
+      .set('Cookie', rotatedCookie)
+      .expect(200);
+    expect((await login('password-change-a@example.com')).status).toBe(401);
+    expect(
+      (
+        await login(
+          'password-change-a@example.com',
+          'A replacement passphrase 456',
+        )
+      ).status,
+    ).toBe(201);
+    await confirmPasswordReset(
+      oldResetToken,
+      'Another replacement passphrase 789',
+    ).expect(400);
+  });
+
+  it('accepts normalized Unicode passwords up to the domain code-point limit', async () => {
+    const currentPassword = '😀'.repeat(70);
+    const decomposedReplacement = 'A re\u0301placement passphrase 456';
+    const account = await registerWithPassword(
+      'password-change-unicode@example.com',
+      currentPassword,
+    );
+
+    const changed = await changePassword(
+      readCookieHeader(account),
+      currentPassword,
+      decomposedReplacement,
+    );
+
+    expect(changed.status).toBe(204);
+    expect(
+      (
+        await login(
+          'password-change-unicode@example.com',
+          decomposedReplacement.normalize('NFC'),
+        )
+      ).status,
+    ).toBe(201);
+  });
+
+  it('requires a present, unexpired, and unrevoked session for password change', async () => {
+    const missing = await request(app.getHttpServer())
+      .put('/v1/auth/password')
+      .set('Origin', ALLOWED_ORIGIN)
+      .send({
+        currentPassword: 'A secure passphrase 123',
+        newPassword: 'A replacement passphrase 456',
+      });
+    expect(missing.status).toBe(401);
+    expect(missing.headers['set-cookie']).toBeUndefined();
+
+    const account = await register('password-change-session@example.com');
+    const expiredCookie = readCookieHeader(account);
+    await prisma.session.update({
+      where: {
+        tokenHash: new SessionTokenService().hash(
+          expiredCookie.slice(expiredCookie.indexOf('=') + 1),
+        ),
+      },
+      data: { expiresAt: new Date(Date.now() - 1_000) },
+    });
+    const expired = await changePassword(
+      expiredCookie,
+      'A secure passphrase 123',
+      'A replacement passphrase 456',
+    );
+    expect(expired.status).toBe(401);
+    expect(expired.headers['set-cookie']).toBeUndefined();
+
+    const signedIn = await login('password-change-session@example.com');
+    const revokedCookie = readCookieHeader(signedIn);
+    await request(app.getHttpServer())
+      .delete('/v1/auth/session')
+      .set('Origin', ALLOWED_ORIGIN)
+      .set('Cookie', revokedCookie)
+      .expect(204);
+    const revoked = await changePassword(
+      revokedCookie,
+      'A secure passphrase 123',
+      'A replacement passphrase 456',
+    );
+    expect(revoked.status).toBe(401);
+    expect(revoked.headers['set-cookie']).toBeUndefined();
+    expect(
+      await prisma.auditLog.count({
+        where: { action: 'password.change.completed' },
+      }),
+    ).toBe(0);
+    expect((await login('password-change-session@example.com')).status).toBe(
+      201,
+    );
+  });
+
+  it('rejects wrong, unchanged, compromised, injected, and cross-origin password changes without writes', async () => {
+    const account = await register('password-change-invalid@example.com');
+    const cookie = readCookieHeader(account);
+    const credentialBefore = await prisma.passwordCredential.findFirstOrThrow();
+    const sessionCount = await prisma.session.count();
+    const auditCount = await prisma.auditLog.count({
+      where: { action: 'password.change.completed' },
+    });
+
+    const wrong = await changePassword(
+      cookie,
+      'A wrong passphrase 123',
+      'A replacement passphrase 456',
+    );
+    expect(wrong.status).toBe(401);
+    expect(readString(wrong.body as unknown, 'error', 'code')).toBe(
+      'PASSWORD_CHANGE_INVALID_CURRENT_PASSWORD',
+    );
+
+    const unchanged = await changePassword(
+      cookie,
+      'A secure passphrase 123',
+      'A secure passphrase 123',
+    );
+    expect(unchanged.status).toBe(400);
+    expect(readString(unchanged.body as unknown, 'error', 'code')).toBe(
+      'PASSWORD_CHANGE_INVALID_PASSWORD',
+    );
+
+    const compromised = await changePassword(
+      cookie,
+      'A secure passphrase 123',
+      '123456789012345',
+    );
+    expect(compromised.status).toBe(400);
+    expect(readString(compromised.body as unknown, 'error', 'code')).toBe(
+      'PASSWORD_CHANGE_INVALID_PASSWORD',
+    );
+
+    await request(app.getHttpServer())
+      .put('/v1/auth/password')
+      .set('Origin', ALLOWED_ORIGIN)
+      .set('Cookie', cookie)
+      .send({
+        currentPassword: 'A secure passphrase 123',
+        newPassword: 'A replacement passphrase 456',
+        workspaceId: randomUUID(),
+        role: 'OWNER',
+      })
+      .expect(400);
+    await request(app.getHttpServer())
+      .put('/v1/auth/password')
+      .set('Origin', 'https://attacker.example')
+      .set('Cookie', cookie)
+      .send({
+        currentPassword: 'A secure passphrase 123',
+        newPassword: 'A replacement passphrase 456',
+      })
+      .expect(403);
+
+    expect(
+      (await prisma.passwordCredential.findFirstOrThrow()).passwordHash,
+    ).toBe(credentialBefore.passwordHash);
+    expect(await prisma.session.count()).toBe(sessionCount);
+    expect(
+      await prisma.auditLog.count({
+        where: { action: 'password.change.completed' },
+      }),
+    ).toBe(auditCount);
+  });
+
+  it('rolls back password change and emits no cookie when audit persistence fails', async () => {
+    const account = await register('password-change-rollback@example.com');
+    const cookie = readCookieHeader(account);
+    await requestPasswordReset('password-change-rollback@example.com');
+    const credentialBefore = await prisma.passwordCredential.findFirstOrThrow();
+    const activeSessionsBefore = await prisma.session.count({
+      where: { revokedAt: null },
+    });
+    jest
+      .spyOn(auditLog, 'append')
+      .mockRejectedValueOnce(new Error('audit unavailable'));
+
+    const response = await changePassword(
+      cookie,
+      'A secure passphrase 123',
+      'A replacement passphrase 456',
+    );
+
+    expect(response.status).toBe(503);
+    expect(response.headers['set-cookie']).toBeUndefined();
+    expect(
+      (await prisma.passwordCredential.findFirstOrThrow()).passwordHash,
+    ).toBe(credentialBefore.passwordHash);
+    expect(await prisma.session.count({ where: { revokedAt: null } })).toBe(
+      activeSessionsBefore,
+    );
+    expect(
+      (await prisma.passwordResetToken.findFirstOrThrow()).invalidatedAt,
+    ).toBeNull();
+    await request(app.getHttpServer())
+      .get('/v1/auth/session')
+      .set('Cookie', cookie)
+      .expect(200);
+  });
+
+  it('allows only one concurrent change to reuse the old password', async () => {
+    const account = await register('password-change-race@example.com');
+    const cookie = readCookieHeader(account);
+    const [first, second] = await Promise.all([
+      changePassword(
+        cookie,
+        'A secure passphrase 123',
+        'First concurrent replacement 456',
+      ),
+      changePassword(
+        cookie,
+        'A secure passphrase 123',
+        'Second concurrent replacement 789',
+      ),
+    ]);
+
+    expect([first.status, second.status].sort()).toEqual([204, 401]);
+    const winningPassword =
+      first.status === 204
+        ? 'First concurrent replacement 456'
+        : 'Second concurrent replacement 789';
+    const losingPassword =
+      first.status === 204
+        ? 'Second concurrent replacement 789'
+        : 'First concurrent replacement 456';
+    expect(
+      (await login('password-change-race@example.com', winningPassword)).status,
+    ).toBe(201);
+    expect(
+      (await login('password-change-race@example.com', losingPassword)).status,
+    ).toBe(401);
+  });
+
+  it('rate-limits password changes before current-password verification and fails closed', async () => {
+    const account = await register('password-change-limited@example.com');
+    const cookie = readCookieHeader(account);
+    const verifyCurrent = jest.spyOn(passwordCredentialVerification, 'verify');
+    jest
+      .spyOn(authenticationRateLimiter, 'checkPasswordChange')
+      .mockResolvedValueOnce({ allowed: false, retryAfterSeconds: 60 });
+
+    const limited = await changePassword(
+      cookie,
+      'A secure passphrase 123',
+      'A replacement passphrase 456',
+    );
+    expect(limited.status).toBe(429);
+    expect(limited.headers['retry-after']).toBe('60');
+    expect(verifyCurrent).not.toHaveBeenCalled();
+
+    jest.restoreAllMocks();
+    const verifyAfterRestore = jest.spyOn(
+      passwordCredentialVerification,
+      'verify',
+    );
+    jest
+      .spyOn(authenticationRateLimiter, 'checkPasswordChange')
+      .mockRejectedValueOnce(new Error('redis unavailable'));
+    const unavailable = await changePassword(
+      cookie,
+      'A secure passphrase 123',
+      'A replacement passphrase 456',
+    );
+    expect(unavailable.status).toBe(503);
+    expect(readString(unavailable.body as unknown, 'error', 'code')).toBe(
+      'PASSWORD_CHANGE_UNAVAILABLE',
+    );
+    expect(verifyAfterRestore).not.toHaveBeenCalled();
   });
 
   it('rejects equivalent duplicate emails and remains race-safe', async () => {
@@ -927,6 +1284,17 @@ describe('Nexora API (e2e)', () => {
     return response;
   }
 
+  async function registerWithPassword(email: string, password: string) {
+    const response = await request(app.getHttpServer())
+      .post('/v1/auth/registrations')
+      .set('Origin', ALLOWED_ORIGIN)
+      .send({ ...registrationBody(email), password });
+    if (response.status === 201) {
+      await confirmEmail(await readVerificationToken(email)).expect(204);
+    }
+    return response;
+  }
+
   function registerUnverified(email: string) {
     return request(app.getHttpServer())
       .post('/v1/auth/registrations')
@@ -960,6 +1328,18 @@ describe('Nexora API (e2e)', () => {
       .post('/v1/auth/password-resets')
       .set('Origin', ALLOWED_ORIGIN)
       .send({ token, newPassword });
+  }
+
+  function changePassword(
+    cookie: string,
+    currentPassword: string,
+    newPassword: string,
+  ) {
+    return request(app.getHttpServer())
+      .put('/v1/auth/password')
+      .set('Origin', ALLOWED_ORIGIN)
+      .set('Cookie', cookie)
+      .send({ currentPassword, newPassword });
   }
 });
 

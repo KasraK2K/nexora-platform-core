@@ -100,3 +100,32 @@ export class PasswordResetUnavailableError extends ApplicationError {
     super('Password reset is temporarily unavailable.');
   }
 }
+
+export class PasswordChangeInvalidCurrentPasswordError extends ApplicationError {
+  readonly code = 'PASSWORD_CHANGE_INVALID_CURRENT_PASSWORD';
+  readonly retryable = false;
+
+  constructor() {
+    super('The current password is incorrect.');
+  }
+}
+
+export class InvalidPasswordChangePasswordError extends ApplicationError {
+  readonly code = 'PASSWORD_CHANGE_INVALID_PASSWORD';
+  readonly retryable = false;
+
+  constructor(
+    message = 'Password must contain between 15 and 128 Unicode characters.',
+  ) {
+    super(message);
+  }
+}
+
+export class PasswordChangeUnavailableError extends ApplicationError {
+  readonly code = 'PASSWORD_CHANGE_UNAVAILABLE';
+  readonly retryable = true;
+
+  constructor() {
+    super('Password change is temporarily unavailable.');
+  }
+}

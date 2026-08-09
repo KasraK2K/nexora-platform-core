@@ -29,6 +29,9 @@ The repository is currently one NestJS modular monolith. It implements:
   single-use tokens and enumeration-resistant resend behavior;
 - password reset with hashed, expiring, replaceable, single-use tokens,
   compromised-password screening, and transactional session revocation;
+- authenticated password change with current-password proof, optimistic
+  credential replacement, reset-link invalidation, and current-session
+  rotation without extending its absolute expiry;
 - provider-neutral SMTP delivery with a local Mailpit development adapter;
 - origin checks, authentication rate limiting, compromised-password screening;
 - audit records, request IDs, Zod transport validation, and OpenAPI generation.
@@ -128,7 +131,8 @@ commands until the explicit migration is implemented and verified.
 ### Implemented foundation
 
 - Identity: stable principals and authentication methods.
-- Authentication: registration, login, opaque sessions, and revocation.
+- Authentication: registration, verification/reset, login, password change,
+  opaque sessions, and revocation.
 - Users: profile and lifecycle data.
 - Organizations: commercial ownership boundary.
 - Workspaces: operational tenant boundary.
@@ -138,7 +142,6 @@ commands until the explicit migration is implemented and verified.
 
 ### Planned foundation
 
-- Email verification and password reset.
 - Immutable authenticated actor and workspace context.
 - Authorization plus base OWNER, ADMIN, and MEMBER roles.
 - Invitations, ownership transfer, workspace switching, and last-owner safety.
@@ -304,15 +307,13 @@ prove a stable shared contract.
 
 ## Platform roadmap
 
-1. Complete the remaining account lifecycle: authenticated password change and
-   session-management policy.
-2. Complete tenant foundation: actor/workspace context, base RBAC, invitations,
+1. Complete tenant foundation: actor/workspace context, base RBAC, invitations,
    workspace switching, ownership transfer, and tenant isolation tests.
-3. Complete repository foundation through explicit changes: monorepo decision,
+2. Complete repository foundation through explicit changes: monorepo decision,
    strict TypeScript plan, contract gates, seeds, and CI.
-4. Add optional reusable capabilities only when a downstream product proves the
+3. Add optional reusable capabilities only when a downstream product proves the
    need.
-5. Prepare production operations: deployment, observability, privacy,
+4. Prepare production operations: deployment, observability, privacy,
    backup/restore, security testing, and migration transition.
 
 No named product appears in the Platform Core roadmap. Each downstream product
@@ -328,6 +329,8 @@ repository owns its own roadmap.
   ownership.
 - Workspace-scoped row isolation.
 - Opaque server sessions.
+- Authenticated password changes revoke all existing sessions, rotate the
+  current session token, and preserve its absolute expiry.
 - REST/OpenAPI, with SSE only for demonstrated streaming needs.
 - pnpm workspaces and Turborepo as an explicit long-term repository target.
 - Product-neutral Platform Core with downstream product repositories.

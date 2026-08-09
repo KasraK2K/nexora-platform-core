@@ -1,4 +1,5 @@
 import {
+  InvalidPasswordChangePasswordError,
   InvalidPasswordResetPasswordError,
   InvalidRegistrationError,
 } from './registration.errors';
@@ -18,6 +19,13 @@ export class PasswordPolicy {
     return this.validate(
       password,
       () => new InvalidPasswordResetPasswordError(),
+    );
+  }
+
+  validateChangedPassword(password: string): string {
+    return this.validate(
+      password,
+      () => new InvalidPasswordChangePasswordError(),
     );
   }
 

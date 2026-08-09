@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Put,
   Req,
   Res,
   UseGuards,
@@ -55,6 +56,13 @@ import {
 } from './password-reset.contract';
 import { PasswordResetRequestGuard } from './password-reset-request.guard';
 import { PasswordResetConfirmationGuard } from './password-reset-confirmation.guard';
+import { ChangePassword } from '../application/change-password.use-case';
+import {
+  passwordChangeSchema,
+  type PasswordChangeRequest,
+} from './password-change.contract';
+import { PasswordChangeRequestGuard } from './password-change-request.guard';
+import { readCookie } from './session-cookie';
 
 @ApiTags('Authentication')
 @Controller('v1/auth')
@@ -69,6 +77,7 @@ export class AuthenticationController {
     private readonly verifyEmail: VerifyEmail,
     private readonly requestPasswordReset: RequestPasswordReset,
     private readonly resetPassword: ResetPassword,
+    private readonly changePassword: ChangePassword,
     private readonly config: AppConfig,
   ) {}
 
@@ -240,6 +249,59 @@ export class AuthenticationController {
     clearSessionCookie(response, this.config);
   }
 
+  @Put('password')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(TrustedOriginGuard, PasswordChangeRequestGuard)
+  @ApiCookieAuth()
+  @ApiOperation({ summary: 'Change the current user password' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['currentPassword', 'newPassword'],
+      properties: {
+        currentPassword: {
+          type: 'string',
+          minLength: 1,
+          maxLength: 128,
+          writeOnly: true,
+        },
+        newPassword: {
+          type: 'string',
+          minLength: 15,
+          maxLength: 128,
+          writeOnly: true,
+        },
+      },
+    },
+  })
+  @ApiNoContentResponse({
+    description:
+      'Password changed, existing sessions revoked, and current session rotated.',
+  })
+  async changeAuthenticatedPassword(
+    @Body(new ZodValidationPipe(passwordChangeSchema))
+    body: PasswordChangeRequest,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<void> {
+    setPrivateResponseHeaders(response);
+    const changed = await this.changePassword.execute({
+      rawSessionToken: readCookie(
+        request.header('cookie'),
+        this.config.sessionCookieName,
+      ),
+      currentPassword: body.currentPassword,
+      newPassword: body.newPassword,
+    });
+    setSessionCookie(
+      response,
+      this.config,
+      changed.sessionToken,
+      changed.sessionExpiresAt,
+    );
+  }
+
   @Post('sessions')
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(TrustedOriginGuard, LoginRequestGuard)
@@ -366,28 +428,4 @@ function clearSessionCookie(response: Response, config: AppConfig): void {
 function setPrivateResponseHeaders(response: Response): void {
   response.setHeader('cache-control', 'no-store');
   response.setHeader('pragma', 'no-cache');
-}
-
-function readCookie(
-  header: string | undefined,
-  name: string,
-): string | undefined {
-  if (!header) {
-    return undefined;
-  }
-
-  for (const part of header.split(';')) {
-    const separator = part.indexOf('=');
-    if (separator < 0 || part.slice(0, separator).trim() !== name) {
-      continue;
-    }
-
-    try {
-      return decodeURIComponent(part.slice(separator + 1).trim());
-    } catch {
-      return undefined;
-    }
-  }
-
-  return undefined;
 }

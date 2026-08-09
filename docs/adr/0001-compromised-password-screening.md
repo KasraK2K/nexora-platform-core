@@ -122,5 +122,5 @@ data migration.
 ## Follow-up work
 
 - [ ] Establish a quarterly blocklist refresh and source-review owner.
-- [ ] Reuse the same checker when password reset/change flows are implemented.
-
+- [x] Reuse the same checker for password reset and authenticated password
+  change flows.

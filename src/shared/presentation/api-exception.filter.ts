@@ -106,16 +106,19 @@ function applicationErrorStatus(code: string): number {
     case 'EMAIL_VERIFICATION_INVALID':
     case 'PASSWORD_RESET_INVALID':
     case 'PASSWORD_RESET_INVALID_PASSWORD':
+    case 'PASSWORD_CHANGE_INVALID_PASSWORD':
       return HttpStatus.BAD_REQUEST;
     case 'EMAIL_ALREADY_REGISTERED':
       return HttpStatus.CONFLICT;
     case 'AUTHENTICATION_REQUIRED':
     case 'AUTHENTICATION_INVALID':
+    case 'PASSWORD_CHANGE_INVALID_CURRENT_PASSWORD':
       return HttpStatus.UNAUTHORIZED;
     case 'REGISTRATION_UNAVAILABLE':
     case 'AUTHENTICATION_UNAVAILABLE':
     case 'EMAIL_VERIFICATION_UNAVAILABLE':
     case 'PASSWORD_RESET_UNAVAILABLE':
+    case 'PASSWORD_CHANGE_UNAVAILABLE':
       return HttpStatus.SERVICE_UNAVAILABLE;
     default:
       return HttpStatus.INTERNAL_SERVER_ERROR;

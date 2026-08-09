@@ -137,6 +137,7 @@ function createFixture(options?: {
   const users = new Users({
     create: () => Promise.resolve(),
     findById: () => Promise.resolve(null),
+    findAuthenticationReferenceById: () => Promise.resolve(null),
     findByIdentityId: () => Promise.resolve(null),
     findActiveByIdentityId: () =>
       Promise.resolve({

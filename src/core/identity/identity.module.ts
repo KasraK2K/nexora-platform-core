@@ -21,6 +21,10 @@ import {
   PASSWORD_CREDENTIAL_MANAGEMENT_REPOSITORY,
   PasswordCredentialManagement,
 } from './application/password-credential-management';
+import {
+  PASSWORD_CREDENTIAL_VERIFICATION_REPOSITORY,
+  PasswordCredentialVerification,
+} from './application/password-credential-verification';
 
 @Module({
   imports: [CoreInfrastructureModule],
@@ -33,6 +37,7 @@ import {
     IdentityLookup,
     PrismaIdentityLookupRepository,
     PasswordCredentialManagement,
+    PasswordCredentialVerification,
     {
       provide: IDENTITY_REGISTRATION_REPOSITORY,
       useExisting: PrismaIdentityRegistrationRepository,
@@ -50,12 +55,17 @@ import {
       provide: PASSWORD_CREDENTIAL_MANAGEMENT_REPOSITORY,
       useExisting: PrismaPasswordIdentityRepository,
     },
+    {
+      provide: PASSWORD_CREDENTIAL_VERIFICATION_REPOSITORY,
+      useExisting: PrismaPasswordIdentityRepository,
+    },
   ],
   exports: [
     IdentityRegistration,
     PasswordIdentityAuthentication,
     IdentityLookup,
     PasswordCredentialManagement,
+    PasswordCredentialVerification,
   ],
 })
 export class IdentityModule {}

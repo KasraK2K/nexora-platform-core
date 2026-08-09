@@ -86,6 +86,24 @@ export class AuthenticationRateLimiter implements AuthenticationRateLimitPort {
     );
   }
 
+  async checkPasswordChange(
+    clientIp: string,
+    sessionToken?: string,
+  ): Promise<RateLimitDecision> {
+    const ipDecision = await this.increment(
+      `auth:password-change:ip:${this.digest(clientIp)}`,
+      10,
+    );
+    if (!ipDecision.allowed || !sessionToken) {
+      return ipDecision;
+    }
+
+    return this.increment(
+      `auth:password-change:session:${this.digest(sessionToken)}`,
+      5,
+    );
+  }
+
   private async check(
     scope: string,
     clientIp: string,

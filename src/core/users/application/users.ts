@@ -9,6 +9,12 @@ export type UserSummary = {
   status: UserStatus;
 };
 
+export type UserAuthenticationReference = {
+  id: string;
+  identityId: string;
+  status: UserStatus;
+};
+
 export interface UsersRepository {
   create(input: {
     id: string;
@@ -17,6 +23,9 @@ export interface UsersRepository {
     status: UserStatus;
   }): Promise<void>;
   findById(id: string): Promise<UserSummary | null>;
+  findAuthenticationReferenceById(
+    id: string,
+  ): Promise<UserAuthenticationReference | null>;
   findByIdentityId(identityId: string): Promise<UserSummary | null>;
   findActiveByIdentityId(identityId: string): Promise<UserSummary | null>;
   activate(id: string): Promise<boolean>;
@@ -39,6 +48,12 @@ export class Users {
 
   findById(id: string): Promise<UserSummary | null> {
     return this.repository.findById(id);
+  }
+
+  findAuthenticationReferenceById(
+    id: string,
+  ): Promise<UserAuthenticationReference | null> {
+    return this.repository.findAuthenticationReferenceById(id);
   }
 
   findByIdentityId(identityId: string): Promise<UserSummary | null> {

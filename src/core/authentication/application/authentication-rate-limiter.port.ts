@@ -28,4 +28,8 @@ export interface AuthenticationRateLimitPort {
     normalizedEmail?: string,
   ): Promise<RateLimitDecision>;
   checkPasswordResetConfirmation(clientIp: string): Promise<RateLimitDecision>;
+  checkPasswordChange(
+    clientIp: string,
+    sessionToken?: string,
+  ): Promise<RateLimitDecision>;
 }
