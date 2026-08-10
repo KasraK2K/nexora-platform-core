@@ -271,14 +271,17 @@ function createFixture(): {
   const organizations = new Organizations({
     create: () => Promise.resolve(),
     findById: () => Promise.resolve(null),
+    findByIds: () => Promise.resolve([]),
   });
   const workspaces = new Workspaces({
     create: () => Promise.resolve(),
     findById: () => Promise.resolve(null),
+    findByIds: () => Promise.resolve([]),
   });
   const memberships = new Memberships({
     createOwner: () => Promise.resolve(),
     find: () => Promise.resolve(null),
+    listForUser: () => Promise.resolve([]),
     resolveLoginWorkspace: () => Promise.resolve({ kind: 'none' }),
   });
   const sessions = new AuthenticationSessions({

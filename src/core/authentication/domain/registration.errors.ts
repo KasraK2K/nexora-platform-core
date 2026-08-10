@@ -54,6 +54,45 @@ export class AuthenticationInvalidError extends ApplicationError {
   }
 }
 
+export type WorkspaceSelectionOption = Readonly<{
+  organization: Readonly<{ id: string; name: string }>;
+  workspace: Readonly<{ id: string; name: string }>;
+  membership: Readonly<{ role: 'OWNER' }>;
+}>;
+
+export class WorkspaceSelectionRequiredError extends ApplicationError {
+  readonly code = 'WORKSPACE_SELECTION_REQUIRED';
+  readonly retryable = false;
+  readonly details: Readonly<{
+    availableWorkspaces: readonly WorkspaceSelectionOption[];
+  }>;
+
+  constructor(availableWorkspaces: readonly WorkspaceSelectionOption[]) {
+    super('Select a workspace to continue.');
+    this.details = Object.freeze({
+      availableWorkspaces: Object.freeze([...availableWorkspaces]),
+    });
+  }
+}
+
+export class WorkspaceAccessDeniedError extends ApplicationError {
+  readonly code = 'WORKSPACE_ACCESS_DENIED';
+  readonly retryable = false;
+
+  constructor() {
+    super('The requested workspace is not available to this user.');
+  }
+}
+
+export class WorkspaceSwitchUnavailableError extends ApplicationError {
+  readonly code = 'WORKSPACE_SWITCH_UNAVAILABLE';
+  readonly retryable = true;
+
+  constructor() {
+    super('Workspace switching is temporarily unavailable.');
+  }
+}
+
 export class EmailVerificationInvalidError extends ApplicationError {
   readonly code = 'EMAIL_VERIFICATION_INVALID';
   readonly retryable = false;

@@ -18,6 +18,7 @@ export const loginRequestSchema = z
           });
         }
       }),
+    workspaceId: z.uuid().optional(),
   })
   .strict();
 

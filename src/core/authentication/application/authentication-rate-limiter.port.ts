@@ -32,4 +32,8 @@ export interface AuthenticationRateLimitPort {
     clientIp: string,
     sessionToken?: string,
   ): Promise<RateLimitDecision>;
+  checkWorkspaceSwitch(
+    clientIp: string,
+    sessionToken?: string,
+  ): Promise<RateLimitDecision>;
 }

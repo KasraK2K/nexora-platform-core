@@ -23,4 +23,11 @@ export class PrismaOrganizationsRepository implements OrganizationsRepository {
       select: { id: true, name: true },
     });
   }
+
+  findByIds(ids: readonly string[]): Promise<OrganizationSummary[]> {
+    return this.database.client.organization.findMany({
+      where: { id: { in: [...ids] } },
+      select: { id: true, name: true },
+    });
+  }
 }

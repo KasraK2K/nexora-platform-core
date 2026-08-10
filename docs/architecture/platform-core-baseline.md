@@ -144,13 +144,15 @@ commands until the explicit migration is implemented and verified.
 - Memberships: users connected to workspaces.
 - Authorization: explicit deny-by-default route admission and authenticated
   active-user policy.
+- Multi-workspace session selection: bounded credentialed choices, actor-only
+  membership listing, and audited per-session workspace switching.
 - Audit: append-oriented sensitive-action records.
 - Configuration, persistence, Redis, and shared primitives.
 
 ### Planned foundation
 
 - Permission authorization plus base OWNER, ADMIN, and MEMBER roles.
-- Invitations, ownership transfer, workspace switching, and last-owner safety.
+- Invitations, ownership transfer, and last-owner safety.
 - User and workspace lifecycle operations.
 - Tenant-isolation matrices at repository and API boundaries.
 
@@ -313,8 +315,8 @@ prove a stable shared contract.
 
 ## Platform roadmap
 
-1. Complete tenant foundation: base RBAC, invitations, workspace switching,
-   ownership transfer, and tenant isolation tests.
+1. Complete tenant foundation: base RBAC, invitations, ownership transfer,
+   and tenant isolation tests.
 2. Complete repository foundation through explicit changes: monorepo decision,
    strict TypeScript plan, contract gates, seeds, and CI.
 3. Add optional reusable capabilities only when a downstream product proves the
@@ -337,6 +339,9 @@ repository owns its own roadmap.
 - Opaque server sessions.
 - Authenticated password changes revoke all existing sessions, rotate the
   current session token, and preserve its absolute expiry.
+- Multi-workspace login uses an explicit validated selector when more than one
+  membership exists; a real session workspace switch rotates the opaque token,
+  preserves absolute expiry, and audits both workspace scopes.
 - Every Nest route declares public, context-authenticated, or
   application-authenticated admission; unclassified routes are denied, and
   context-authenticated tenant routes require active users by default.
@@ -348,7 +353,6 @@ repository owns its own roadmap.
 
 Resolve these only when their phase begins:
 
-- multi-workspace selection and tenant-resolver precedence;
 - production cookie, Origin, CORS, and trusted-proxy topology;
 - production SMTP provider and reliable asynchronous delivery/retry mechanism;
 - base roles, permissions, invitations, and ownership-transfer policy;

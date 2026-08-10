@@ -104,6 +104,24 @@ export class AuthenticationRateLimiter implements AuthenticationRateLimitPort {
     );
   }
 
+  async checkWorkspaceSwitch(
+    clientIp: string,
+    sessionToken?: string,
+  ): Promise<RateLimitDecision> {
+    const ipDecision = await this.increment(
+      `auth:workspace-switch:ip:${this.digest(clientIp)}`,
+      30,
+    );
+    if (!ipDecision.allowed || !sessionToken) {
+      return ipDecision;
+    }
+
+    return this.increment(
+      `auth:workspace-switch:session:${this.digest(sessionToken)}`,
+      10,
+    );
+  }
+
   private async check(
     scope: string,
     clientIp: string,

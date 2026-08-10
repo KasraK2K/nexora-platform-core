@@ -23,6 +23,7 @@ export interface MembershipsRepository {
     workspaceId: string;
     userId: string;
   }): Promise<MembershipSummary | null>;
+  listForUser(userId: string, limit: number): Promise<MembershipSummary[]>;
   resolveLoginWorkspace(userId: string): Promise<LoginWorkspaceResolution>;
 }
 
@@ -46,6 +47,10 @@ export class Memberships {
     userId: string;
   }): Promise<MembershipSummary | null> {
     return this.repository.find(input);
+  }
+
+  listForUser(userId: string, limit: number): Promise<MembershipSummary[]> {
+    return this.repository.listForUser(userId, limit);
   }
 
   resolveLoginWorkspace(userId: string): Promise<LoginWorkspaceResolution> {

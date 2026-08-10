@@ -24,9 +24,13 @@ import {
   PASSWORD_RESET_SENDER,
   type PasswordResetSender,
 } from '../src/core/authentication/application/password-reset-sender.port';
-import { AuthenticatedRoute } from '../src/core/authorization/presentation/route-admission';
+import {
+  AuthenticatedRoute,
+  PublicRoute,
+} from '../src/core/authorization/presentation/route-admission';
 import { CurrentAuthenticatedContext } from '../src/core/authentication/presentation/authenticated-request-context';
 import type { AuthenticatedRequestContext } from '../src/core/authentication/application/authenticated-request-context';
+import { ApplicationError } from '../src/shared/domain/application-error';
 
 const ALLOWED_ORIGIN = 'http://localhost:3000';
 const verificationDeliveries: Array<{
@@ -75,6 +79,48 @@ class RouteAdmissionProbeController {
     @CurrentAuthenticatedContext() context: AuthenticatedRequestContext,
   ): AuthenticatedRequestContext {
     return context;
+  }
+
+  @Get('unsafe-error-details')
+  @PublicRoute()
+  unsafeErrorDetails(): never {
+    throw new UnsafeDetailsError();
+  }
+
+  @Get('unsafe-workspace-selection-details')
+  @PublicRoute()
+  unsafeWorkspaceSelectionDetails(): never {
+    throw new UnsafeWorkspaceSelectionDetailsError();
+  }
+}
+
+class UnsafeDetailsError extends ApplicationError {
+  readonly code = 'UNSAFE_DETAILS_TEST';
+  readonly retryable = false;
+  readonly details = { secret: 'must-not-leak', sql: 'select sensitive' };
+
+  constructor() {
+    super('Safe public message.');
+  }
+}
+
+class UnsafeWorkspaceSelectionDetailsError extends ApplicationError {
+  readonly code = 'WORKSPACE_SELECTION_REQUIRED';
+  readonly retryable = false;
+  readonly details = {
+    availableWorkspaces: [
+      {
+        organization: { id: 'organization-id', name: 'Organization' },
+        workspace: { id: 'workspace-id', name: 'Workspace' },
+        membership: { role: 'OWNER' },
+        secret: 'must-not-leak',
+      },
+    ],
+    sql: 'select sensitive',
+  };
+
+  constructor() {
+    super('Select a workspace to continue.');
   }
 }
 
@@ -151,6 +197,42 @@ describe('Nexora API (e2e)', () => {
       },
     });
     expect(unclassifiedRouteExecutions).toBe(0);
+  });
+
+  it('does not serialize arbitrary application-error details', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/__test/route-admission/unsafe-error-details')
+      .expect(500);
+
+    expect(response.body).toMatchObject({
+      error: {
+        code: 'UNSAFE_DETAILS_TEST',
+        message: 'Safe public message.',
+        retryable: false,
+      },
+    });
+    expect(hasPath(response.body as unknown, 'error', 'details')).toBe(false);
+    expect(JSON.stringify(response.body)).not.toContain('must-not-leak');
+    expect(JSON.stringify(response.body)).not.toContain('select sensitive');
+
+    const selection = await request(app.getHttpServer())
+      .get('/__test/route-admission/unsafe-workspace-selection-details')
+      .expect(409);
+    expect(selection.body).toMatchObject({
+      error: {
+        details: {
+          availableWorkspaces: [
+            {
+              organization: { id: 'organization-id', name: 'Organization' },
+              workspace: { id: 'workspace-id', name: 'Workspace' },
+              membership: { role: 'OWNER' },
+            },
+          ],
+        },
+      },
+    });
+    expect(JSON.stringify(selection.body)).not.toContain('must-not-leak');
+    expect(JSON.stringify(selection.body)).not.toContain('select sensitive');
   });
 
   it('requires active status by default and permits pending users only by explicit policy', async () => {
@@ -1102,7 +1184,7 @@ describe('Nexora API (e2e)', () => {
     ).toBe(0);
   });
 
-  it('rejects tenant injection, disallowed origins, and ambiguous workspace selection during login', async () => {
+  it('requires an explicit authorized workspace for multi-workspace login', async () => {
     const registration = await register('workspace-choice@example.com');
     const userId = readString(
       registration.body as unknown,
@@ -1110,13 +1192,25 @@ describe('Nexora API (e2e)', () => {
       'user',
       'id',
     );
+    const initialWorkspaceId = readString(
+      registration.body as unknown,
+      'data',
+      'workspace',
+      'id',
+    );
+    const second = await createWorkspaceMembership(
+      prisma,
+      userId,
+      'Second Org',
+      'Second Workspace',
+    );
 
     const injected = await request(app.getHttpServer())
       .post('/v1/auth/sessions')
       .set('Origin', ALLOWED_ORIGIN)
       .send({
         ...loginBody('workspace-choice@example.com'),
-        workspaceId: randomUUID(),
+        workspaceId: second.workspaceId,
         role: 'OWNER',
       });
     expect(injected.status).toBe(400);
@@ -1127,29 +1221,304 @@ describe('Nexora API (e2e)', () => {
       .send(loginBody('workspace-choice@example.com'));
     expect(crossOrigin.status).toBe(403);
 
-    const organizationId = randomUUID();
-    const workspaceId = randomUUID();
-    await prisma.organization.create({
-      data: { id: organizationId, ownerUserId: userId, name: 'Second Org' },
-    });
-    await prisma.workspace.create({
-      data: { id: workspaceId, organizationId, name: 'Second Workspace' },
-    });
-    await prisma.membership.create({
-      data: {
-        id: randomUUID(),
-        workspaceId,
-        userId,
-        role: 'OWNER',
+    const ambiguous = await login('workspace-choice@example.com');
+    expect(ambiguous.status).toBe(409);
+    expect(readString(ambiguous.body as unknown, 'error', 'code')).toBe(
+      'WORKSPACE_SELECTION_REQUIRED',
+    );
+    expect(ambiguous.headers['set-cookie']).toBeUndefined();
+    expect(ambiguous.body).toMatchObject({
+      error: {
+        details: {
+          availableWorkspaces: [
+            { workspace: { id: initialWorkspaceId } },
+            { workspace: { id: second.workspaceId } },
+          ],
+        },
       },
     });
+    expect(await prisma.session.count()).toBe(1);
 
-    const ambiguous = await login('workspace-choice@example.com');
-    expect(ambiguous.status).toBe(401);
-    expect(readString(ambiguous.body as unknown, 'error', 'code')).toBe(
+    const inaccessible = await login(
+      'workspace-choice@example.com',
+      'A secure passphrase 123',
+      randomUUID(),
+    );
+    expect(inaccessible.status).toBe(401);
+    expect(readString(inaccessible.body as unknown, 'error', 'code')).toBe(
       'AUTHENTICATION_INVALID',
     );
-    expect(await prisma.session.count()).toBe(1);
+    expect(inaccessible.headers['set-cookie']).toBeUndefined();
+
+    const selected = await login(
+      'workspace-choice@example.com',
+      'A secure passphrase 123',
+      second.workspaceId,
+    );
+    expect(selected.status).toBe(201);
+    expect(
+      readString(selected.body as unknown, 'data', 'workspace', 'id'),
+    ).toBe(second.workspaceId);
+    await request(app.getHttpServer())
+      .get('/v1/auth/session')
+      .set('Cookie', readCookieHeader(selected))
+      .expect(200)
+      .expect(({ body }) => {
+        expect(readString(body as unknown, 'data', 'workspace', 'id')).toBe(
+          second.workspaceId,
+        );
+      });
+  });
+
+  it('lists only the actor workspaces and rotates one session when switching', async () => {
+    const registration = await register('workspace-switch@example.com');
+    const userId = readString(
+      registration.body as unknown,
+      'data',
+      'user',
+      'id',
+    );
+    const initialWorkspaceId = readString(
+      registration.body as unknown,
+      'data',
+      'workspace',
+      'id',
+    );
+    const second = await createWorkspaceMembership(
+      prisma,
+      userId,
+      'Second Org',
+      'Second Workspace',
+    );
+    const selectedLogin = await login(
+      'workspace-switch@example.com',
+      'A secure passphrase 123',
+      second.workspaceId,
+    );
+    const selectedCookie = readCookieHeader(selectedLogin);
+    const selectedTokenHash = new SessionTokenService().hash(
+      selectedCookie.slice(selectedCookie.indexOf('=') + 1),
+    );
+    const selectedSession = await prisma.session.findUniqueOrThrow({
+      where: { tokenHash: selectedTokenHash },
+    });
+
+    const otherAccount = await register('workspace-switch-other@example.com');
+    const otherWorkspaceId = readString(
+      otherAccount.body as unknown,
+      'data',
+      'workspace',
+      'id',
+    );
+    const listed = await request(app.getHttpServer())
+      .get('/v1/auth/session/workspaces')
+      .set('Cookie', selectedCookie)
+      .set('X-Workspace-Id', otherWorkspaceId)
+      .expect(200);
+    const listedIds = readArray(listed.body as unknown, 'data').map((value) =>
+      readString(value, 'workspace', 'id'),
+    );
+    expect(listedIds).toEqual([initialWorkspaceId, second.workspaceId]);
+    expect(listedIds).not.toContain(otherWorkspaceId);
+    expect(
+      readString(listed.body as unknown, 'meta', 'activeWorkspaceId'),
+    ).toBe(second.workspaceId);
+
+    const sessionCount = await prisma.session.count();
+    const auditCount = await prisma.auditLog.count();
+    const crossOrigin = await request(app.getHttpServer())
+      .put('/v1/auth/session/workspace')
+      .set('Origin', 'https://attacker.example')
+      .set('Cookie', selectedCookie)
+      .send({ workspaceId: initialWorkspaceId });
+    expect(crossOrigin.status).toBe(403);
+    const injected = await request(app.getHttpServer())
+      .put('/v1/auth/session/workspace')
+      .set('Origin', ALLOWED_ORIGIN)
+      .set('Cookie', selectedCookie)
+      .send({ workspaceId: initialWorkspaceId, role: 'OWNER' });
+    expect(injected.status).toBe(400);
+    expect(await prisma.session.count()).toBe(sessionCount);
+    expect(await prisma.auditLog.count()).toBe(auditCount);
+
+    const denied = await switchWorkspace(selectedCookie, otherWorkspaceId);
+    expect(denied.status).toBe(403);
+    expect(readString(denied.body as unknown, 'error', 'code')).toBe(
+      'WORKSPACE_ACCESS_DENIED',
+    );
+    expect(await prisma.session.count()).toBe(sessionCount);
+    expect(await prisma.auditLog.count()).toBe(auditCount);
+
+    const unchanged = await switchWorkspace(selectedCookie, second.workspaceId);
+    expect(unchanged.status).toBe(200);
+    expect(readCookieHeader(unchanged)).toBe(selectedCookie);
+    expect(unchanged.body).toMatchObject({ meta: { sessionRotated: false } });
+    expect(await prisma.auditLog.count()).toBe(auditCount);
+
+    const switched = await switchWorkspace(selectedCookie, initialWorkspaceId);
+    expect(switched.status).toBe(200);
+    expect(switched.body).toMatchObject({
+      data: { workspace: { id: initialWorkspaceId } },
+      meta: { sessionRotated: true },
+    });
+    const switchedCookie = readCookieHeader(switched);
+    expect(switchedCookie).not.toBe(selectedCookie);
+    await request(app.getHttpServer())
+      .get('/v1/auth/session')
+      .set('Cookie', selectedCookie)
+      .expect(401);
+    await request(app.getHttpServer())
+      .get('/v1/auth/session')
+      .set('Cookie', switchedCookie)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(readString(body as unknown, 'data', 'workspace', 'id')).toBe(
+          initialWorkspaceId,
+        );
+      });
+
+    const replacementHash = new SessionTokenService().hash(
+      switchedCookie.slice(switchedCookie.indexOf('=') + 1),
+    );
+    const replacement = await prisma.session.findUniqueOrThrow({
+      where: { tokenHash: replacementHash },
+    });
+    expect(replacement.expiresAt).toEqual(selectedSession.expiresAt);
+    expect(replacement.activeWorkspaceId).toBe(initialWorkspaceId);
+    expect(
+      await prisma.auditLog.findMany({
+        where: { action: 'auth.workspace.switched', actorUserId: userId },
+        orderBy: { workspaceId: 'asc' },
+        select: { workspaceId: true },
+      }),
+    ).toEqual(
+      [initialWorkspaceId, second.workspaceId]
+        .sort()
+        .map((workspaceId) => ({ workspaceId })),
+    );
+  });
+
+  it('does not allow pending users to list or switch workspaces', async () => {
+    const registration = await registerUnverified(
+      'workspace-switch-pending@example.com',
+    );
+    const cookie = readCookieHeader(registration);
+    const workspaceId = readString(
+      registration.body as unknown,
+      'data',
+      'workspace',
+      'id',
+    );
+
+    await request(app.getHttpServer())
+      .get('/v1/auth/session/workspaces')
+      .set('Cookie', cookie)
+      .expect(403);
+    await switchWorkspace(cookie, workspaceId).expect(403);
+  });
+
+  it('rolls back switching on audit failure and fails closed on limiter failure', async () => {
+    const registration = await register('workspace-switch-failure@example.com');
+    const userId = readString(
+      registration.body as unknown,
+      'data',
+      'user',
+      'id',
+    );
+    const initialWorkspaceId = readString(
+      registration.body as unknown,
+      'data',
+      'workspace',
+      'id',
+    );
+    const second = await createWorkspaceMembership(
+      prisma,
+      userId,
+      'Second Org',
+      'Second Workspace',
+    );
+    const selected = await login(
+      'workspace-switch-failure@example.com',
+      'A secure passphrase 123',
+      second.workspaceId,
+    );
+    const cookie = readCookieHeader(selected);
+    const sessionCount = await prisma.session.count();
+    const auditCount = await prisma.auditLog.count();
+
+    jest
+      .spyOn(auditLog, 'append')
+      .mockRejectedValueOnce(new Error('audit unavailable'));
+    const failed = await switchWorkspace(cookie, initialWorkspaceId);
+    expect(failed.status).toBe(503);
+    expect(failed.headers['set-cookie']).toBeUndefined();
+    expect(await prisma.session.count()).toBe(sessionCount);
+    expect(await prisma.auditLog.count()).toBe(auditCount);
+    await request(app.getHttpServer())
+      .get('/v1/auth/session')
+      .set('Cookie', cookie)
+      .expect(200);
+
+    jest.restoreAllMocks();
+    jest
+      .spyOn(authenticationRateLimiter, 'checkWorkspaceSwitch')
+      .mockResolvedValueOnce({ allowed: false, retryAfterSeconds: 30 });
+    const limited = await switchWorkspace(cookie, initialWorkspaceId);
+    expect(limited.status).toBe(429);
+    expect(limited.headers['retry-after']).toBe('30');
+    expect(await prisma.session.count()).toBe(sessionCount);
+    expect(await prisma.auditLog.count()).toBe(auditCount);
+
+    jest
+      .spyOn(authenticationRateLimiter, 'checkWorkspaceSwitch')
+      .mockRejectedValueOnce(new Error('redis unavailable'));
+    const unavailable = await switchWorkspace(cookie, initialWorkspaceId);
+    expect(unavailable.status).toBe(503);
+    expect(await prisma.session.count()).toBe(sessionCount);
+    expect(await prisma.auditLog.count()).toBe(auditCount);
+  });
+
+  it('allows only one concurrent switch for the same presented session', async () => {
+    const registration = await register('workspace-switch-race@example.com');
+    const userId = readString(
+      registration.body as unknown,
+      'data',
+      'user',
+      'id',
+    );
+    const initialWorkspaceId = readString(
+      registration.body as unknown,
+      'data',
+      'workspace',
+      'id',
+    );
+    const second = await createWorkspaceMembership(
+      prisma,
+      userId,
+      'Second Org',
+      'Second Workspace',
+    );
+    const selected = await login(
+      'workspace-switch-race@example.com',
+      'A secure passphrase 123',
+      second.workspaceId,
+    );
+    const cookie = readCookieHeader(selected);
+
+    const responses = await Promise.all([
+      switchWorkspace(cookie, initialWorkspaceId),
+      switchWorkspace(cookie, initialWorkspaceId),
+    ]);
+
+    expect(responses.map(({ status }) => status).sort()).toEqual([200, 401]);
+    expect(
+      await prisma.session.count({ where: { userId, revokedAt: null } }),
+    ).toBe(2);
+    expect(
+      await prisma.auditLog.count({
+        where: { action: 'auth.workspace.switched', actorUserId: userId },
+      }),
+    ).toBe(2);
   });
 
   it('rate-limits login before credential verification and fails safely when enforcement is unavailable', async () => {
@@ -1494,11 +1863,15 @@ describe('Nexora API (e2e)', () => {
       .send(registrationBody(email));
   }
 
-  function login(email: string, password = 'A secure passphrase 123') {
+  function login(
+    email: string,
+    password = 'A secure passphrase 123',
+    workspaceId?: string,
+  ) {
     return request(app.getHttpServer())
       .post('/v1/auth/sessions')
       .set('Origin', ALLOWED_ORIGIN)
-      .send(loginBody(email, password));
+      .send(loginBody(email, password, workspaceId));
   }
 
   function confirmEmail(token: string) {
@@ -1533,6 +1906,14 @@ describe('Nexora API (e2e)', () => {
       .set('Cookie', cookie)
       .send({ currentPassword, newPassword });
   }
+
+  function switchWorkspace(cookie: string, workspaceId: string) {
+    return request(app.getHttpServer())
+      .put('/v1/auth/session/workspace')
+      .set('Origin', ALLOWED_ORIGIN)
+      .set('Cookie', cookie)
+      .send({ workspaceId });
+  }
 });
 
 function registrationBody(email: string) {
@@ -1545,8 +1926,12 @@ function registrationBody(email: string) {
   };
 }
 
-function loginBody(email: string, password = 'A secure passphrase 123') {
-  return { email, password };
+function loginBody(
+  email: string,
+  password = 'A secure passphrase 123',
+  workspaceId?: string,
+) {
+  return workspaceId ? { email, password, workspaceId } : { email, password };
 }
 
 function readSetCookie(response: { headers: Record<string, unknown> }): string {
@@ -1574,6 +1959,26 @@ async function clearRegistrationData(prisma: PrismaService): Promise<void> {
   await prisma.user.deleteMany();
   await prisma.passwordCredential.deleteMany();
   await prisma.identity.deleteMany();
+}
+
+async function createWorkspaceMembership(
+  prisma: PrismaService,
+  userId: string,
+  organizationName: string,
+  workspaceName: string,
+): Promise<{ organizationId: string; workspaceId: string }> {
+  const organizationId = randomUUID();
+  const workspaceId = randomUUID();
+  await prisma.organization.create({
+    data: { id: organizationId, ownerUserId: userId, name: organizationName },
+  });
+  await prisma.workspace.create({
+    data: { id: workspaceId, organizationId, name: workspaceName },
+  });
+  await prisma.membership.create({
+    data: { id: randomUUID(), workspaceId, userId, role: 'OWNER' },
+  });
+  return { organizationId, workspaceId };
 }
 
 function readVerificationToken(
@@ -1624,4 +2029,31 @@ function readString(value: unknown, ...path: string[]): string {
   }
 
   return current;
+}
+
+function readArray(value: unknown, ...path: string[]): unknown[] {
+  let current = value;
+
+  for (const key of path) {
+    if (typeof current !== 'object' || current === null || !(key in current)) {
+      throw new Error(`Expected response path: ${path.join('.')}`);
+    }
+    current = current[key as keyof typeof current];
+  }
+
+  if (!Array.isArray(current)) {
+    throw new Error(`Expected array response path: ${path.join('.')}`);
+  }
+  return current;
+}
+
+function hasPath(value: unknown, ...path: string[]): boolean {
+  let current = value;
+  for (const key of path) {
+    if (typeof current !== 'object' || current === null || !(key in current)) {
+      return false;
+    }
+    current = current[key as keyof typeof current];
+  }
+  return true;
 }

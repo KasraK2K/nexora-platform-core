@@ -15,7 +15,9 @@ import {
   ApiBody,
   ApiAcceptedResponse,
   ApiCookieAuth,
+  ApiConflictResponse,
   ApiCreatedResponse,
+  ApiForbiddenResponse,
   ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
@@ -63,12 +65,21 @@ import { PasswordChangeRequestGuard } from './password-change-request.guard';
 import { setPrivateResponseHeaders } from './private-response-headers';
 import { readCookie } from './session-cookie';
 import { CurrentAuthenticatedSession } from './authenticated-request-context';
+import { CurrentAuthenticatedContext } from './authenticated-request-context';
+import type { AuthenticatedRequestContext } from '../application/authenticated-request-context';
 import type { CurrentSession } from '../application/get-current-session.use-case';
 import {
   ApplicationAuthenticatedRoute,
   AuthenticatedRoute,
   PublicRoute,
 } from '../../authorization/presentation/route-admission';
+import { ListSessionWorkspaces } from '../application/list-session-workspaces.use-case';
+import { SwitchWorkspace } from '../application/switch-workspace.use-case';
+import {
+  workspaceSwitchSchema,
+  type WorkspaceSwitchRequest,
+} from './workspace-switch.contract';
+import { WorkspaceSwitchRequestGuard } from './workspace-switch-request.guard';
 
 @ApiTags('Authentication')
 @Controller('v1/auth')
@@ -83,6 +94,8 @@ export class AuthenticationController {
     private readonly requestPasswordReset: RequestPasswordReset,
     private readonly resetPassword: ResetPassword,
     private readonly changePassword: ChangePassword,
+    private readonly listSessionWorkspaces: ListSessionWorkspaces,
+    private readonly switchWorkspace: SwitchWorkspace,
     private readonly config: AppConfig,
   ) {}
 
@@ -331,10 +344,15 @@ export class AuthenticationController {
           maxLength: 128,
           writeOnly: true,
         },
+        workspaceId: { type: 'string', format: 'uuid' },
       },
     },
   })
   @ApiCreatedResponse({ description: 'Session created and cookie issued.' })
+  @ApiConflictResponse({
+    description:
+      'Valid credentials require an explicit choice from the returned workspaces.',
+  })
   async login(
     @Body(new ZodValidationPipe(loginRequestSchema)) body: LoginRequest,
     @Res({ passthrough: true }) response: Response,
@@ -370,6 +388,67 @@ export class AuthenticationController {
     @CurrentAuthenticatedSession() session: CurrentSession,
   ): unknown {
     return { data: session, meta: {} };
+  }
+
+  @Get('session/workspaces')
+  @AuthenticatedRoute()
+  @ApiCookieAuth()
+  @ApiOperation({ summary: 'List workspaces available to the current user' })
+  @ApiOkResponse({ description: 'Current workspace memberships.' })
+  async availableWorkspaces(
+    @CurrentAuthenticatedContext() context: AuthenticatedRequestContext,
+  ): Promise<unknown> {
+    return {
+      data: await this.listSessionWorkspaces.execute(context.actorUserId),
+      meta: { activeWorkspaceId: context.workspaceId },
+    };
+  }
+
+  @Put('session/workspace')
+  @AuthenticatedRoute({ requireTrustedOrigin: true })
+  @UseGuards(WorkspaceSwitchRequestGuard)
+  @ApiCookieAuth()
+  @ApiOperation({ summary: 'Switch the active workspace for this session' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['workspaceId'],
+      properties: { workspaceId: { type: 'string', format: 'uuid' } },
+    },
+  })
+  @ApiOkResponse({
+    description:
+      'Active workspace switched and the opaque session cookie rotated.',
+  })
+  @ApiForbiddenResponse({
+    description: 'The requested workspace is not available to this user.',
+  })
+  async selectWorkspace(
+    @Body(new ZodValidationPipe(workspaceSwitchSchema))
+    body: WorkspaceSwitchRequest,
+    @CurrentAuthenticatedContext() context: AuthenticatedRequestContext,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<unknown> {
+    const switched = await this.switchWorkspace.execute({
+      rawSessionToken: readCookie(
+        request.header('cookie'),
+        this.config.sessionCookieName,
+      ),
+      expectedContext: context,
+      workspaceId: body.workspaceId,
+    });
+    setSessionCookie(
+      response,
+      this.config,
+      switched.sessionToken,
+      switched.sessionExpiresAt,
+    );
+    return {
+      data: switched.currentSession,
+      meta: { sessionRotated: switched.rotated },
+    };
   }
 
   @Delete('session')

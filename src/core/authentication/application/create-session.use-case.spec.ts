@@ -6,7 +6,7 @@ import { AppConfig } from '../../configuration/app-config';
 import { PasswordIdentityAuthentication } from '../../identity/application/password-identity-authentication';
 import {
   Memberships,
-  type LoginWorkspaceResolution,
+  type MembershipSummary,
 } from '../../memberships/application/memberships';
 import { Organizations } from '../../organizations/application/organizations';
 import { Users } from '../../users/application/users';
@@ -14,7 +14,12 @@ import { Workspaces } from '../../workspaces/application/workspaces';
 import { Clock } from '../../../shared/application/clock';
 import { IdentifierFactory } from '../../../shared/application/identifier-factory';
 import type { TransactionManager } from '../../../shared/application/transaction-manager.port';
-import { AuthenticationInvalidError } from '../domain/registration.errors';
+import {
+  AuthenticationInvalidError,
+  AuthenticationUnavailableError,
+  WorkspaceSelectionRequiredError,
+} from '../domain/registration.errors';
+import { AccessibleWorkspaces } from './accessible-workspaces';
 import { AuthenticationSessions } from './authentication-sessions';
 import { CreateSession } from './create-session.use-case';
 import type { SessionCachePort } from './session-cache.port';
@@ -85,9 +90,12 @@ describe('CreateSession', () => {
     });
   });
 
-  it('returns the generic credential failure when workspace selection is ambiguous', async () => {
+  it('returns available workspaces after valid credentials require selection', async () => {
     const fixture = createFixture({
-      membershipResolution: { kind: 'ambiguous' },
+      memberships: [
+        { userId: 'user-id', workspaceId: 'workspace-id', role: 'OWNER' },
+        { userId: 'user-id', workspaceId: 'workspace-2', role: 'OWNER' },
+      ],
     });
 
     await expect(
@@ -95,15 +103,75 @@ describe('CreateSession', () => {
         email: 'person@example.com',
         password: 'A secure passphrase 123',
       }),
-    ).rejects.toBeInstanceOf(AuthenticationInvalidError);
+    ).rejects.toMatchObject({
+      code: 'WORKSPACE_SELECTION_REQUIRED',
+      details: {
+        availableWorkspaces: [
+          { workspace: { id: 'workspace-id' } },
+          { workspace: { id: 'workspace-2' } },
+        ],
+      },
+    } satisfies Partial<WorkspaceSelectionRequiredError>);
     expect(fixture.sessionWrites).toHaveLength(0);
     expect(fixture.audits).toHaveLength(0);
   });
+
+  it('creates a session only for an explicitly selected membership', async () => {
+    const fixture = createFixture({
+      memberships: [
+        { userId: 'user-id', workspaceId: 'workspace-id', role: 'OWNER' },
+        { userId: 'user-id', workspaceId: 'workspace-2', role: 'OWNER' },
+      ],
+    });
+
+    const result = await fixture.useCase.execute({
+      email: 'person@example.com',
+      password: 'A secure passphrase 123',
+      workspaceId: 'workspace-2',
+    });
+
+    expect(result.workspace).toEqual({
+      id: 'workspace-2',
+      name: 'Workspace 2',
+    });
+    expect(fixture.sessionWrites[0]).toMatchObject({
+      activeWorkspaceId: 'workspace-2',
+    });
+  });
+
+  it('keeps an unauthorized workspace selector indistinguishable from invalid credentials', async () => {
+    const fixture = createFixture();
+
+    await expect(
+      fixture.useCase.execute({
+        email: 'person@example.com',
+        password: 'A secure passphrase 123',
+        workspaceId: 'workspace-not-owned',
+      }),
+    ).rejects.toBeInstanceOf(AuthenticationInvalidError);
+    expect(fixture.sessionWrites).toHaveLength(0);
+  });
+
+  it('fails safely instead of enumerating an unbounded workspace list', async () => {
+    const fixture = createFixture({
+      memberships: Array.from({ length: 101 }, (_, index) => ({
+        userId: 'user-id',
+        workspaceId: `workspace-${index}`,
+        role: 'OWNER' as const,
+      })),
+    });
+
+    await expect(
+      fixture.useCase.execute({
+        email: 'person@example.com',
+        password: 'A secure passphrase 123',
+      }),
+    ).rejects.toBeInstanceOf(AuthenticationUnavailableError);
+    expect(fixture.sessionWrites).toHaveLength(0);
+  });
 });
 
-function createFixture(options?: {
-  membershipResolution?: LoginWorkspaceResolution;
-}): {
+function createFixture(options?: { memberships?: MembershipSummary[] }): {
   useCase: CreateSession;
   sessionWrites: Array<{
     id: string;
@@ -124,6 +192,9 @@ function createFixture(options?: {
   }> = [];
   const audits: AppendAuditLog[] = [];
   const sessionCache = new RecordingSessionCache();
+  const membershipRecords = options?.memberships ?? [
+    { userId: 'user-id', workspaceId: 'workspace-id', role: 'OWNER' as const },
+  ];
   const passwordIdentities = new PasswordIdentityAuthentication(
     {
       findByNormalizedEmail: () =>
@@ -149,38 +220,75 @@ function createFixture(options?: {
   });
   const memberships = new Memberships({
     createOwner: () => Promise.resolve(),
-    find: () =>
-      Promise.resolve({
-        userId: 'user-id',
-        workspaceId: 'workspace-id',
-        role: 'OWNER',
-      }),
+    find: (input) =>
+      Promise.resolve(
+        membershipRecords.find(
+          ({ userId, workspaceId }) =>
+            userId === input.userId && workspaceId === input.workspaceId,
+        ) ?? null,
+      ),
+    listForUser: () => Promise.resolve(membershipRecords),
     resolveLoginWorkspace: () =>
       Promise.resolve(
-        options?.membershipResolution ?? {
-          kind: 'selected',
-          membership: {
-            userId: 'user-id',
-            workspaceId: 'workspace-id',
-            role: 'OWNER',
-          },
-        },
+        membershipRecords.length === 1
+          ? { kind: 'selected', membership: membershipRecords[0] as const }
+          : { kind: 'ambiguous' },
       ),
   });
   const workspaces = new Workspaces({
     create: () => Promise.resolve(),
-    findById: () =>
-      Promise.resolve({
-        id: 'workspace-id',
-        organizationId: 'organization-id',
-        name: 'Main Workspace',
-      }),
+    findById: (id) =>
+      Promise.resolve(
+        id === 'workspace-id'
+          ? {
+              id,
+              organizationId: 'organization-id',
+              name: 'Main Workspace',
+            }
+          : id === 'workspace-2'
+            ? { id, organizationId: 'organization-2', name: 'Workspace 2' }
+            : null,
+      ),
+    findByIds: (ids) =>
+      Promise.all(
+        ids.map((id) =>
+          id === 'workspace-id'
+            ? Promise.resolve({
+                id,
+                organizationId: 'organization-id',
+                name: 'Main Workspace',
+              })
+            : Promise.resolve({
+                id,
+                organizationId: 'organization-2',
+                name: 'Workspace 2',
+              }),
+        ),
+      ),
   });
   const organizations = new Organizations({
     create: () => Promise.resolve(),
-    findById: () =>
-      Promise.resolve({ id: 'organization-id', name: 'Example Org' }),
+    findById: (id) =>
+      Promise.resolve(
+        id === 'organization-id'
+          ? { id, name: 'Example Org' }
+          : id === 'organization-2'
+            ? { id, name: 'Example Org 2' }
+            : null,
+      ),
+    findByIds: (ids) =>
+      Promise.resolve(
+        ids.map((id) => ({
+          id,
+          name: id === 'organization-id' ? 'Example Org' : 'Example Org 2',
+        })),
+      ),
   });
+  const accessibleWorkspaces = new AccessibleWorkspaces(
+    memberships,
+    workspaces,
+    organizations,
+  );
   const sessions = new AuthenticationSessions({
     create: (input) => {
       sessionWrites.push(input);
@@ -208,8 +316,7 @@ function createFixture(options?: {
       passwordIdentities,
       users,
       memberships,
-      workspaces,
-      organizations,
+      accessibleWorkspaces,
       sessions,
       auditLog,
       new InlineTransactionManager(),

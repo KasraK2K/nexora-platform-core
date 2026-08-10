@@ -30,6 +30,15 @@ export class PrismaMembershipsRepository implements MembershipsRepository {
     });
   }
 
+  listForUser(userId: string, limit: number): Promise<MembershipSummary[]> {
+    return this.database.client.membership.findMany({
+      where: { userId },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      take: limit,
+      select: { userId: true, workspaceId: true, role: true },
+    });
+  }
+
   async resolveLoginWorkspace(
     userId: string,
   ): Promise<LoginWorkspaceResolution> {

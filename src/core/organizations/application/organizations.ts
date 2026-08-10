@@ -11,6 +11,7 @@ export interface OrganizationsRepository {
     name: string;
   }): Promise<void>;
   findById(id: string): Promise<OrganizationSummary | null>;
+  findByIds(ids: readonly string[]): Promise<OrganizationSummary[]>;
 }
 
 @Injectable()
@@ -30,5 +31,9 @@ export class Organizations {
 
   findById(id: string): Promise<OrganizationSummary | null> {
     return this.repository.findById(id);
+  }
+
+  findByIds(ids: readonly string[]): Promise<OrganizationSummary[]> {
+    return this.repository.findByIds(ids);
   }
 }

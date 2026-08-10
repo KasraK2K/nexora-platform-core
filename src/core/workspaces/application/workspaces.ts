@@ -15,6 +15,7 @@ export interface WorkspacesRepository {
     name: string;
   }): Promise<void>;
   findById(id: string): Promise<WorkspaceSummary | null>;
+  findByIds(ids: readonly string[]): Promise<WorkspaceSummary[]>;
 }
 
 @Injectable()
@@ -34,5 +35,9 @@ export class Workspaces {
 
   findById(id: string): Promise<WorkspaceSummary | null> {
     return this.repository.findById(id);
+  }
+
+  findByIds(ids: readonly string[]): Promise<WorkspaceSummary[]> {
+    return this.repository.findByIds(ids);
   }
 }

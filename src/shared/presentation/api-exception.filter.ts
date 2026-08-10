@@ -56,6 +56,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
           code: exception.code,
           message: exception.message,
           retryable: exception.retryable,
+          ...readApplicationErrorDetails(exception),
         },
       };
     }
@@ -109,6 +110,7 @@ function applicationErrorStatus(code: string): number {
     case 'PASSWORD_CHANGE_INVALID_PASSWORD':
       return HttpStatus.BAD_REQUEST;
     case 'EMAIL_ALREADY_REGISTERED':
+    case 'WORKSPACE_SELECTION_REQUIRED':
       return HttpStatus.CONFLICT;
     case 'AUTHENTICATION_REQUIRED':
     case 'AUTHENTICATION_INVALID':
@@ -116,14 +118,89 @@ function applicationErrorStatus(code: string): number {
       return HttpStatus.UNAUTHORIZED;
     case 'ROUTE_ACCESS_DENIED':
     case 'EMAIL_VERIFICATION_REQUIRED':
+    case 'WORKSPACE_ACCESS_DENIED':
       return HttpStatus.FORBIDDEN;
     case 'REGISTRATION_UNAVAILABLE':
     case 'AUTHENTICATION_UNAVAILABLE':
     case 'EMAIL_VERIFICATION_UNAVAILABLE':
     case 'PASSWORD_RESET_UNAVAILABLE':
     case 'PASSWORD_CHANGE_UNAVAILABLE':
+    case 'WORKSPACE_SWITCH_UNAVAILABLE':
       return HttpStatus.SERVICE_UNAVAILABLE;
     default:
       return HttpStatus.INTERNAL_SERVER_ERROR;
   }
+}
+
+function readApplicationErrorDetails(
+  error: ApplicationError,
+): Pick<SafeErrorBody, 'details'> | Record<string, never> {
+  if (error.code !== 'WORKSPACE_SELECTION_REQUIRED' || !('details' in error)) {
+    return {};
+  }
+  const details = serializeWorkspaceSelectionDetails(error.details);
+  return details ? { details } : {};
+}
+
+function serializeWorkspaceSelectionDetails(value: unknown):
+  | {
+      availableWorkspaces: Array<{
+        organization: { id: string; name: string };
+        workspace: { id: string; name: string };
+        membership: { role: 'OWNER' };
+      }>;
+    }
+  | undefined {
+  if (!isUnknownRecord(value)) {
+    return undefined;
+  }
+  const candidateOptions: unknown = value.availableWorkspaces;
+  if (!Array.isArray(candidateOptions)) return undefined;
+  const options: unknown[] = candidateOptions;
+  if (options.length > 100) return undefined;
+
+  const availableWorkspaces: Array<{
+    organization: { id: string; name: string };
+    workspace: { id: string; name: string };
+    membership: { role: 'OWNER' };
+  }> = [];
+  for (const option of options) {
+    if (!isUnknownRecord(option)) return undefined;
+    const organization = readIdAndName(option, 'organization');
+    const workspace = readIdAndName(option, 'workspace');
+    const membership: unknown = option.membership;
+    if (
+      !organization ||
+      !workspace ||
+      !isUnknownRecord(membership) ||
+      membership.role !== 'OWNER'
+    ) {
+      return undefined;
+    }
+    availableWorkspaces.push({
+      organization,
+      workspace,
+      membership: { role: 'OWNER' as const },
+    });
+  }
+  return { availableWorkspaces };
+}
+
+function readIdAndName(
+  value: Record<string, unknown>,
+  key: 'organization' | 'workspace',
+): { id: string; name: string } | undefined {
+  const nested: unknown = value[key];
+  if (
+    isUnknownRecord(nested) &&
+    typeof nested.id === 'string' &&
+    typeof nested.name === 'string'
+  ) {
+    return { id: nested.id, name: nested.name };
+  }
+  return undefined;
+}
+
+function isUnknownRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
 }

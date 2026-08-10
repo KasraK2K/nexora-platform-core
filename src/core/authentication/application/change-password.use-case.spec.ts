@@ -365,6 +365,7 @@ function createFixture(options?: {
           ? null
           : { ...input, role: 'OWNER' },
       ),
+    listForUser: () => Promise.resolve([]),
     resolveLoginWorkspace: () => Promise.resolve({ kind: 'none' }),
   });
   const credentialsRepository = new RecordingCredentialRepository();

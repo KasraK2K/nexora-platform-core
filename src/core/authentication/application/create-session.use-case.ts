@@ -3,9 +3,7 @@ import { AuditLog } from '../../audit/application/audit-log';
 import { AppConfig } from '../../configuration/app-config';
 import { PasswordIdentityAuthentication } from '../../identity/application/password-identity-authentication';
 import { Memberships } from '../../memberships/application/memberships';
-import { Organizations } from '../../organizations/application/organizations';
 import { Users } from '../../users/application/users';
-import { Workspaces } from '../../workspaces/application/workspaces';
 import { Clock } from '../../../shared/application/clock';
 import { IdentifierFactory } from '../../../shared/application/identifier-factory';
 import { TRANSACTION_MANAGER } from '../../../shared/application/transaction-manager.port';
@@ -13,13 +11,19 @@ import type { TransactionManager } from '../../../shared/application/transaction
 import {
   AuthenticationInvalidError,
   AuthenticationUnavailableError,
+  WorkspaceSelectionRequiredError,
 } from '../domain/registration.errors';
+import { AccessibleWorkspaces } from './accessible-workspaces';
 import { AuthenticationSessions } from './authentication-sessions';
 import { SESSION_CACHE } from './session-cache.port';
 import type { SessionCachePort } from './session-cache.port';
 import { SessionTokenService } from './session-token.service';
 
-export type CreateSessionCommand = { email: string; password: string };
+export type CreateSessionCommand = {
+  email: string;
+  password: string;
+  workspaceId?: string;
+};
 
 export type CreatedSession = {
   user: { id: string; displayName: string };
@@ -38,8 +42,7 @@ export class CreateSession {
     private readonly passwordIdentities: PasswordIdentityAuthentication,
     private readonly users: Users,
     private readonly memberships: Memberships,
-    private readonly workspaces: Workspaces,
-    private readonly organizations: Organizations,
+    private readonly accessibleWorkspaces: AccessibleWorkspaces,
     private readonly sessions: AuthenticationSessions,
     private readonly auditLog: AuditLog,
     @Inject(TRANSACTION_MANAGER)
@@ -121,32 +124,36 @@ export class CreateSession {
         throw new AuthenticationInvalidError();
       }
 
-      const resolution = await this.memberships.resolveLoginWorkspace(user.id);
-      if (resolution.kind !== 'selected') {
-        throw new AuthenticationInvalidError();
+      const selected = command.workspaceId
+        ? await this.accessibleWorkspaces.findForUser({
+            userId: user.id,
+            workspaceId: command.workspaceId,
+          })
+        : undefined;
+      const availableWorkspaces = command.workspaceId
+        ? []
+        : await this.accessibleWorkspaces.listForUser(user.id);
+      const resolved =
+        selected ??
+        (availableWorkspaces.length === 1 ? availableWorkspaces[0] : undefined);
+      if (!command.workspaceId && availableWorkspaces.length > 1) {
+        throw new WorkspaceSelectionRequiredError(availableWorkspaces);
       }
-
-      const workspace = await this.workspaces.findById(
-        resolution.membership.workspaceId,
-      );
-      if (!workspace) {
-        throw new AuthenticationInvalidError();
-      }
-      const organization = await this.organizations.findById(
-        workspace.organizationId,
-      );
-      if (!organization) {
+      if (!resolved) {
         throw new AuthenticationInvalidError();
       }
 
       return {
         user,
-        organization,
-        workspace: { id: workspace.id, name: workspace.name },
-        membership: { role: 'OWNER' },
+        organization: resolved.organization,
+        workspace: resolved.workspace,
+        membership: resolved.membership,
       };
     } catch (error) {
-      if (error instanceof AuthenticationInvalidError) {
+      if (
+        error instanceof AuthenticationInvalidError ||
+        error instanceof WorkspaceSelectionRequiredError
+      ) {
         throw error;
       }
       this.logFailure('authentication.credential_check_failed', error);

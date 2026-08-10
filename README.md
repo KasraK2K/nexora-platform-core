@@ -45,7 +45,13 @@ repository or changing runtime identifiers inherited from this base.
   verification users are allowed. Exact-origin checks execute before session
   resolution on protected browser mutations.
 - `POST /v1/auth/sessions` verifies a returning user's password and issues a
-  fresh opaque session without accepting a client-selected workspace.
+  fresh opaque session. Multi-workspace users may provide a workspace selector;
+  otherwise valid credentials receive a bounded `409` choice response without
+  creating a session.
+- `GET /v1/auth/session/workspaces` lists the current actor's server-resolved
+  workspace memberships. `PUT /v1/auth/session/workspace` revalidates source
+  and target membership, atomically rotates that session into the selected
+  workspace without extending its expiry, and audits both tenant scopes.
 - `DELETE /v1/auth/session` idempotently revokes the presented session;
   `DELETE /v1/auth/sessions` revokes every session for the current user.
 - Passwords use Argon2id. Only a SHA-256 session-token digest is stored;
@@ -55,7 +61,8 @@ repository or changing runtime identifiers inherited from this base.
   or complete password hashes.
 - Session-creating and session-revoking requests validate the exact browser
   Origin. Registration and login use separate Redis-backed IP and
-  normalized-email rate limits before expensive password work. Verification
+  normalized-email rate limits before expensive password work. Workspace
+  switching uses a separate IP and keyed-session rate limit. Verification
   request, confirmation, and authenticated password-change routes have
   separate limits.
 - Email delivery uses a provider-neutral SMTP port. Local development includes
@@ -64,10 +71,8 @@ repository or changing runtime identifiers inherited from this base.
 - OpenAPI UI is served at `/docs` while the application is running.
 
 Authorization roles beyond the current OWNER membership, invitations, and
-additional workspace membership management are not implemented. Login refuses
-unverified accounts and accounts with more than one eligible workspace until
-the multi-workspace selection contract is defined. The session issued at
-registration is restricted to routes that explicitly permit
+additional workspace membership management are not implemented. The session
+issued at registration is restricted to routes that explicitly permit
 pending-verification users. Base role permissions and resource authorization
 remain deferred until a concrete privileged Core operation is implemented.
 

@@ -23,4 +23,11 @@ export class PrismaWorkspacesRepository implements WorkspacesRepository {
       select: { id: true, organizationId: true, name: true },
     });
   }
+
+  findByIds(ids: readonly string[]): Promise<WorkspaceSummary[]> {
+    return this.database.client.workspace.findMany({
+      where: { id: { in: [...ids] } },
+      select: { id: true, organizationId: true, name: true },
+    });
+  }
 }

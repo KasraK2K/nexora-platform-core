@@ -62,6 +62,10 @@ import { PasswordResetConfirmationGuard } from './presentation/password-reset-co
 import { ChangePassword } from './application/change-password.use-case';
 import { PasswordChangeRequestGuard } from './presentation/password-change-request.guard';
 import { AuthenticatedRequestContextGuard } from './presentation/authenticated-request-context.guard';
+import { AccessibleWorkspaces } from './application/accessible-workspaces';
+import { ListSessionWorkspaces } from './application/list-session-workspaces.use-case';
+import { SwitchWorkspace } from './application/switch-workspace.use-case';
+import { WorkspaceSwitchRequestGuard } from './presentation/workspace-switch-request.guard';
 
 @Module({
   imports: [
@@ -100,6 +104,8 @@ import { AuthenticatedRequestContextGuard } from './presentation/authenticated-r
     PasswordChangeRequestGuard,
     AuthenticatedRequestContextGuard,
     TrustedOriginGuard,
+    WorkspaceSwitchRequestGuard,
+    AccessibleWorkspaces,
     RegisterAccount,
     CreateSession,
     GetCurrentSession,
@@ -110,6 +116,8 @@ import { AuthenticatedRequestContextGuard } from './presentation/authenticated-r
     RequestPasswordReset,
     ResetPassword,
     ChangePassword,
+    ListSessionWorkspaces,
+    SwitchWorkspace,
     AuthenticationSessions,
     Argon2PasswordHasher,
     PwnedPasswordsCompromiseChecker,
