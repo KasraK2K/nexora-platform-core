@@ -130,6 +130,6 @@ sessions and API responses remain compatible.
 
 - [x] Add deny-by-default route eligibility metadata and enforcement through
   ADR-0005.
-- [ ] Introduce base RBAC with the first concrete privileged Core operation.
+- [x] Introduce base RBAC with membership invitations through ADR-0007.
 - [x] Add multi-workspace selection and switching through ADR-0006.
-- [ ] Add invitations, ownership transfer, and last-owner protection.
+- [ ] Add ownership transfer and last-owner protection.

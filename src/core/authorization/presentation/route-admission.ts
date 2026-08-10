@@ -1,4 +1,5 @@
 import { Reflector } from '@nestjs/core';
+import type { Permission } from '../application/authorization-policy';
 
 export type PublicRouteOptions = Readonly<{
   requireTrustedOrigin?: boolean;
@@ -7,6 +8,7 @@ export type PublicRouteOptions = Readonly<{
 export type AuthenticatedRouteOptions = Readonly<{
   allowPendingVerification?: boolean;
   requireTrustedOrigin?: boolean;
+  permission?: Permission;
 }>;
 
 export type ApplicationAuthenticatedRouteOptions = Readonly<{
@@ -22,6 +24,7 @@ export type RouteAdmissionPolicy = Readonly<
       access: 'authenticated';
       allowPendingVerification: boolean;
       requireTrustedOrigin: boolean;
+      permission: Permission | null;
     }
   | {
       access: 'application-authenticated';
@@ -50,6 +53,7 @@ export function AuthenticatedRoute(
       access: 'authenticated' as const,
       allowPendingVerification: options.allowPendingVerification ?? false,
       requireTrustedOrigin: options.requireTrustedOrigin ?? false,
+      permission: options.permission ?? null,
     }),
   );
 }

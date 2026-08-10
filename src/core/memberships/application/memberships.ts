@@ -1,11 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
+import type { MembershipRole } from './membership-role';
 
 export const MEMBERSHIPS_REPOSITORY = Symbol('MEMBERSHIPS_REPOSITORY');
 
 export type MembershipSummary = {
   userId: string;
   workspaceId: string;
-  role: 'OWNER';
+  role: MembershipRole;
 };
 
 export type LoginWorkspaceResolution =
@@ -23,6 +24,12 @@ export interface MembershipsRepository {
     workspaceId: string;
     userId: string;
   }): Promise<MembershipSummary | null>;
+  createInvited(input: {
+    id: string;
+    workspaceId: string;
+    userId: string;
+    role: Exclude<MembershipRole, 'OWNER'>;
+  }): Promise<void>;
   listForUser(userId: string, limit: number): Promise<MembershipSummary[]>;
   resolveLoginWorkspace(userId: string): Promise<LoginWorkspaceResolution>;
 }

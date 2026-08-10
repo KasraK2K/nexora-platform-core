@@ -10,6 +10,8 @@ import {
   EmailVerificationRequiredError,
   RouteAccessDeniedError,
 } from '../domain/route-admission.errors';
+import { AuthorizationPolicy } from '../application/authorization-policy';
+import { AuthorizationDeniedError } from '../application/authorization-denied.error';
 import {
   ApplicationAuthenticatedRoute,
   AuthenticatedRoute,
@@ -30,6 +32,15 @@ class RouteAdmissionExamples {
 
   @AuthenticatedRoute({ allowPendingVerification: true })
   pendingAllowed(): void {}
+
+  @AuthenticatedRoute({ permission: 'membership-invitation:create' })
+  invitationCreate(): void {}
+
+  @AuthenticatedRoute({
+    allowPendingVerification: true,
+    permission: 'membership-invitation:create',
+  })
+  malformedPendingPermission(): void {}
 
   @ApplicationAuthenticatedRoute({ requireTrustedOrigin: true })
   applicationAuthenticated(): void {}
@@ -116,6 +127,34 @@ describe('RouteAdmissionGuard', () => {
     );
   });
 
+  it('enforces a declared permission from the authoritative current membership', async () => {
+    const admin = createFixture(
+      'invitationCreate',
+      authenticatedRequest('ACTIVE', 'ADMIN'),
+    );
+    await expect(admin.guard.canActivate(admin.context)).resolves.toBe(true);
+
+    const member = createFixture(
+      'invitationCreate',
+      authenticatedRequest('ACTIVE', 'MEMBER'),
+    );
+    await expect(member.guard.canActivate(member.context)).rejects.toThrow(
+      AuthorizationDeniedError,
+    );
+  });
+
+  it('fails closed when pending admission is combined with a permission', async () => {
+    const fixture = createFixture(
+      'malformedPendingPermission',
+      authenticatedRequest('PENDING_VERIFICATION', 'OWNER'),
+    );
+
+    await expect(fixture.guard.canActivate(fixture.context)).rejects.toThrow(
+      RouteAccessDeniedError,
+    );
+    expect(fixture.authenticatedRequest.canActivate).not.toHaveBeenCalled();
+  });
+
   it('fails closed for an unknown future account status', async () => {
     const fixture = createFixture('pendingAllowed', unknownStatusRequest());
 
@@ -170,6 +209,7 @@ function createFixture(
       new Reflector(),
       trustedOrigin as unknown as TrustedOriginGuard,
       authenticatedRequest as unknown as AuthenticatedRequestContextGuard,
+      new AuthorizationPolicy(),
     ),
     context,
     response,
@@ -180,6 +220,7 @@ function createFixture(
 
 function authenticatedRequest(
   userStatus: 'PENDING_VERIFICATION' | 'ACTIVE',
+  role: 'OWNER' | 'ADMIN' | 'MEMBER' = 'OWNER',
 ): ResolvedAuthenticatedRequest {
   return Object.freeze({
     context: createAuthenticatedRequestContext({
@@ -203,7 +244,7 @@ function authenticatedRequest(
         id: '01911457-e820-7b71-b695-a07fb242b8ec',
         name: 'Workspace',
       }),
-      membership: Object.freeze({ role: 'OWNER' as const }),
+      membership: Object.freeze({ role }),
     }),
   });
 }

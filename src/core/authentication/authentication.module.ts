@@ -6,6 +6,7 @@ import { OrganizationsModule } from '../organizations/organizations.module';
 import { UsersModule } from '../users/users.module';
 import { WorkspacesModule } from '../workspaces/workspaces.module';
 import { CoreInfrastructureModule } from '../core-infrastructure.module';
+import { MailModule } from '../mail/mail.module';
 import { Clock } from '../../shared/application/clock';
 import { IdentifierFactory } from '../../shared/application/identifier-factory';
 import {
@@ -55,7 +56,6 @@ import { PASSWORD_RESET_SENDER } from './application/password-reset-sender.port'
 import { RequestPasswordReset } from './application/request-password-reset.use-case';
 import { ResetPassword } from './application/reset-password.use-case';
 import { PrismaPasswordResetTokensRepository } from './infrastructure/prisma-password-reset-tokens.repository';
-import { SmtpMailTransport } from './infrastructure/smtp-mail.transport';
 import { SmtpPasswordResetSender } from './infrastructure/smtp-password-reset.sender';
 import { PasswordResetRequestGuard } from './presentation/password-reset-request.guard';
 import { PasswordResetConfirmationGuard } from './presentation/password-reset-confirmation.guard';
@@ -76,6 +76,7 @@ import { WorkspaceSwitchRequestGuard } from './presentation/workspace-switch-req
     WorkspacesModule,
     MembershipsModule,
     AuditModule,
+    MailModule,
   ],
   controllers: [AuthenticationController],
   providers: [
@@ -124,7 +125,6 @@ import { WorkspaceSwitchRequestGuard } from './presentation/workspace-switch-req
     PrismaAuthenticationSessionsRepository,
     PrismaEmailVerificationsRepository,
     PrismaPasswordResetTokensRepository,
-    SmtpMailTransport,
     SmtpEmailVerificationSender,
     SmtpPasswordResetSender,
     { provide: PASSWORD_HASHER, useExisting: Argon2PasswordHasher },

@@ -18,6 +18,7 @@ import { AuthenticationSessions } from './authentication-sessions';
 import { SESSION_CACHE } from './session-cache.port';
 import type { SessionCachePort } from './session-cache.port';
 import { SessionTokenService } from './session-token.service';
+import type { MembershipRole } from '../../memberships/application/membership-role';
 
 export type CreateSessionCommand = {
   email: string;
@@ -29,7 +30,7 @@ export type CreatedSession = {
   user: { id: string; displayName: string };
   organization: { id: string; name: string };
   workspace: { id: string; name: string };
-  membership: { role: 'OWNER' };
+  membership: { role: MembershipRole };
   sessionToken: string;
   sessionExpiresAt: Date;
 };
@@ -68,7 +69,7 @@ export class CreateSession {
           workspaceId: context.workspace.id,
           userId: context.user.id,
         });
-        if (!membership || membership.role !== 'OWNER') {
+        if (!membership || membership.role !== context.membership.role) {
           throw new LoginContextChangedError();
         }
 

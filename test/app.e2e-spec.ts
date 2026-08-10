@@ -25,6 +25,12 @@ import {
   type PasswordResetSender,
 } from '../src/core/authentication/application/password-reset-sender.port';
 import {
+  MEMBERSHIP_INVITATION_SENDER,
+  type MembershipInvitationSender,
+} from '../src/core/memberships/application/membership-invitation-sender.port';
+import { MembershipInvitationRateLimiter } from '../src/core/memberships/infrastructure/membership-invitation-rate-limiter';
+import { PrismaMembershipInvitationsRepository } from '../src/core/memberships/infrastructure/prisma-membership-invitations.repository';
+import {
   AuthenticatedRoute,
   PublicRoute,
 } from '../src/core/authorization/presentation/route-admission';
@@ -52,6 +58,18 @@ const resetDeliveries: Array<{
 const recordingPasswordResetSender: PasswordResetSender = {
   send(input) {
     resetDeliveries.push(input);
+    return Promise.resolve();
+  },
+};
+const invitationDeliveries: Array<{
+  to: string;
+  token: string;
+  role: 'ADMIN' | 'MEMBER';
+  expiresAt: Date;
+}> = [];
+const recordingMembershipInvitationSender: MembershipInvitationSender = {
+  send(input) {
+    invitationDeliveries.push(input);
     return Promise.resolve();
   },
 };
@@ -134,6 +152,7 @@ describe('Nexora API (e2e)', () => {
   let passwordIdentities: PasswordIdentityAuthentication;
   let passwordCredentialVerification: PasswordCredentialVerification;
   let authenticationRateLimiter: AuthenticationRateLimiter;
+  let membershipInvitationRateLimiter: MembershipInvitationRateLimiter;
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -144,6 +163,8 @@ describe('Nexora API (e2e)', () => {
       .useValue(recordingEmailSender)
       .overrideProvider(PASSWORD_RESET_SENDER)
       .useValue(recordingPasswordResetSender)
+      .overrideProvider(MEMBERSHIP_INVITATION_SENDER)
+      .useValue(recordingMembershipInvitationSender)
       .compile();
 
     app = moduleFixture.createNestApplication<NestExpressApplication>();
@@ -157,6 +178,7 @@ describe('Nexora API (e2e)', () => {
     passwordIdentities = app.get(PasswordIdentityAuthentication);
     passwordCredentialVerification = app.get(PasswordCredentialVerification);
     authenticationRateLimiter = app.get(AuthenticationRateLimiter);
+    membershipInvitationRateLimiter = app.get(MembershipInvitationRateLimiter);
   });
 
   beforeEach(async () => {
@@ -164,6 +186,7 @@ describe('Nexora API (e2e)', () => {
     await redis.client.flushDb();
     verificationDeliveries.length = 0;
     resetDeliveries.length = 0;
+    invitationDeliveries.length = 0;
     unclassifiedRouteExecutions = 0;
   });
 
@@ -1521,6 +1544,669 @@ describe('Nexora API (e2e)', () => {
     ).toBe(2);
   });
 
+  it('applies OWNER, ADMIN, and MEMBER invitation permissions end to end', async () => {
+    const owner = await register('rbac-owner@example.com');
+    const ownerCookie = readCookieHeader(owner);
+    const ownerWorkspaceId = readString(
+      owner.body as unknown,
+      'data',
+      'workspace',
+      'id',
+    );
+    const admin = await register('rbac-admin@example.com');
+    const adminCookie = readCookieHeader(admin);
+
+    const injected = await request(app.getHttpServer())
+      .post('/v1/membership-invitations')
+      .set('Origin', ALLOWED_ORIGIN)
+      .set('Cookie', ownerCookie)
+      .set('X-Workspace-Id', randomUUID())
+      .send({
+        email: 'rbac-admin@example.com',
+        role: 'ADMIN',
+        workspaceId: randomUUID(),
+      });
+    expect(injected.status).toBe(400);
+    expect(invitationDeliveries).toHaveLength(0);
+
+    const issued = await createInvitation(
+      ownerCookie,
+      'RBAC-Admin@Example.com',
+      'ADMIN',
+    );
+    expect(issued.status).toBe(201);
+    expect(issued.body).toMatchObject({
+      data: {
+        workspaceId: ownerWorkspaceId,
+        email: 'rbac-admin@example.com',
+        role: 'ADMIN',
+      },
+      meta: { invitationEmailSent: true },
+    });
+    const adminToken = readInvitationToken('rbac-admin@example.com');
+    const persisted = await prisma.membershipInvitation.findFirstOrThrow();
+    expect(persisted.tokenHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(persisted.tokenHash).not.toBe(adminToken);
+    expect(JSON.stringify(issued.body)).not.toContain(adminToken);
+
+    await acceptInvitation(adminCookie, adminToken).expect(204);
+    const adminUserId = readString(admin.body as unknown, 'data', 'user', 'id');
+    await expect(
+      prisma.membership.findUniqueOrThrow({
+        where: {
+          workspaceId_userId: {
+            workspaceId: ownerWorkspaceId,
+            userId: adminUserId,
+          },
+        },
+      }),
+    ).resolves.toMatchObject({ role: 'ADMIN' });
+
+    const ambiguousAdmin = await login('rbac-admin@example.com');
+    expect(ambiguousAdmin.status).toBe(409);
+    expect(
+      readArray(
+        ambiguousAdmin.body as unknown,
+        'error',
+        'details',
+        'availableWorkspaces',
+      ),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ membership: { role: 'ADMIN' } }),
+      ]),
+    );
+
+    const adminWorkspaces = await request(app.getHttpServer())
+      .get('/v1/auth/session/workspaces')
+      .set('Cookie', adminCookie)
+      .expect(200);
+    expect(readArray(adminWorkspaces.body as unknown, 'data')).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ membership: { role: 'ADMIN' } }),
+      ]),
+    );
+    const switchedAdmin = await switchWorkspace(adminCookie, ownerWorkspaceId);
+    expect(switchedAdmin.status).toBe(200);
+    expect(switchedAdmin.body).toMatchObject({
+      data: { membership: { role: 'ADMIN' } },
+    });
+
+    const selectedAdmin = await login(
+      'rbac-admin@example.com',
+      'A secure passphrase 123',
+      ownerWorkspaceId,
+    );
+    expect(selectedAdmin.status).toBe(201);
+    expect(selectedAdmin.body).toMatchObject({
+      data: { membership: { role: 'ADMIN' } },
+    });
+    const selectedAdminCookie = readCookieHeader(selectedAdmin);
+    await request(app.getHttpServer())
+      .get('/v1/auth/session')
+      .set('Cookie', selectedAdminCookie)
+      .expect(200)
+      .expect(({ body }) =>
+        expect(body).toMatchObject({
+          data: { membership: { role: 'ADMIN' } },
+        }),
+      );
+
+    const member = await register('rbac-member@example.com');
+    const memberCookie = readCookieHeader(member);
+    const memberInvite = await createInvitation(
+      selectedAdminCookie,
+      'rbac-member@example.com',
+      'MEMBER',
+    );
+    expect(memberInvite.status).toBe(201);
+    await acceptInvitation(
+      memberCookie,
+      readInvitationToken('rbac-member@example.com'),
+    ).expect(204);
+
+    const selectedMember = await login(
+      'rbac-member@example.com',
+      'A secure passphrase 123',
+      ownerWorkspaceId,
+    );
+    expect(selectedMember.status).toBe(201);
+    expect(selectedMember.body).toMatchObject({
+      data: { membership: { role: 'MEMBER' } },
+    });
+    await request(app.getHttpServer())
+      .get('/v1/auth/session')
+      .set('Cookie', readCookieHeader(selectedMember))
+      .expect(200)
+      .expect(({ body }) =>
+        expect(body).toMatchObject({
+          data: { membership: { role: 'MEMBER' } },
+        }),
+      );
+    const memberDenied = await createInvitation(
+      readCookieHeader(selectedMember),
+      'someone@example.com',
+      'MEMBER',
+    );
+    expect(memberDenied.status).toBe(403);
+    expect(readString(memberDenied.body as unknown, 'error', 'code')).toBe(
+      'AUTHORIZATION_DENIED',
+    );
+
+    const adminEscalationDenied = await createInvitation(
+      selectedAdminCookie,
+      'another@example.com',
+      'ADMIN',
+    );
+    expect(adminEscalationDenied.status).toBe(403);
+    expect(
+      readString(adminEscalationDenied.body as unknown, 'error', 'code'),
+    ).toBe('AUTHORIZATION_DENIED');
+  });
+
+  it('binds invitations to email, invalidates replacements, and rejects stale inviter authority', async () => {
+    const owner = await register('invitation-owner@example.com');
+    const ownerCookie = readCookieHeader(owner);
+    const ownerUserId = readString(owner.body as unknown, 'data', 'user', 'id');
+    const ownerWorkspaceId = readString(
+      owner.body as unknown,
+      'data',
+      'workspace',
+      'id',
+    );
+    const invitee = await register('invitation-target@example.com');
+    const inviteeCookie = readCookieHeader(invitee);
+    const wrongUser = await register('invitation-wrong@example.com');
+    const staleTarget = await register('invitation-stale@example.com');
+
+    await createInvitation(
+      ownerCookie,
+      'invitation-target@example.com',
+      'MEMBER',
+    ).then((response) => expect(response.status).toBe(201));
+    const oldToken = readInvitationToken('invitation-target@example.com');
+    await createInvitation(
+      ownerCookie,
+      'invitation-target@example.com',
+      'MEMBER',
+    ).then((response) => expect(response.status).toBe(201));
+    const replacementToken = readInvitationToken(
+      'invitation-target@example.com',
+      oldToken,
+    );
+
+    await acceptInvitation(inviteeCookie, oldToken).expect(400);
+    await acceptInvitation(
+      readCookieHeader(wrongUser),
+      replacementToken,
+    ).expect(400);
+
+    const replacement = await prisma.membershipInvitation.findFirstOrThrow({
+      where: { tokenHash: { not: '0'.repeat(64) }, activeKey: { not: null } },
+      orderBy: { createdAt: 'desc' },
+    });
+    await request(app.getHttpServer())
+      .delete(`/v1/membership-invitations/${replacement.id}`)
+      .set('Origin', ALLOWED_ORIGIN)
+      .set('Cookie', readCookieHeader(wrongUser))
+      .expect(204);
+    await expect(
+      prisma.membershipInvitation.findUniqueOrThrow({
+        where: { id: replacement.id },
+      }),
+    ).resolves.toMatchObject({ revokedAt: null });
+
+    await request(app.getHttpServer())
+      .delete(`/v1/membership-invitations/${replacement.id}`)
+      .set('Origin', ALLOWED_ORIGIN)
+      .set('Cookie', ownerCookie)
+      .expect(204);
+    await acceptInvitation(inviteeCookie, replacementToken).expect(400);
+
+    await createInvitation(
+      ownerCookie,
+      'invitation-stale@example.com',
+      'MEMBER',
+    ).then((response) => expect(response.status).toBe(201));
+    const staleToken = readInvitationToken('invitation-stale@example.com');
+
+    await prisma.membership.update({
+      where: {
+        workspaceId_userId: {
+          workspaceId: ownerWorkspaceId,
+          userId: ownerUserId,
+        },
+      },
+      data: { role: 'MEMBER' },
+    });
+    await acceptInvitation(readCookieHeader(staleTarget), staleToken).expect(
+      400,
+    );
+    expect(
+      await prisma.membership.count({
+        where: { workspaceId: ownerWorkspaceId },
+      }),
+    ).toBe(1);
+    expect(
+      await prisma.auditLog.count({
+        where: { action: 'membership.invitation.accepted' },
+      }),
+    ).toBe(0);
+  });
+
+  it('allows exactly one concurrent invitation acceptance without switching the current session', async () => {
+    const owner = await register('invitation-race-owner@example.com');
+    const ownerWorkspaceId = readString(
+      owner.body as unknown,
+      'data',
+      'workspace',
+      'id',
+    );
+    const invitee = await register('invitation-race-target@example.com');
+    const inviteeCookie = readCookieHeader(invitee);
+    const inviteeOriginalWorkspaceId = readString(
+      invitee.body as unknown,
+      'data',
+      'workspace',
+      'id',
+    );
+    const inviteeUserId = readString(
+      invitee.body as unknown,
+      'data',
+      'user',
+      'id',
+    );
+
+    await createInvitation(
+      readCookieHeader(owner),
+      'invitation-race-target@example.com',
+      'MEMBER',
+    ).then((response) => expect(response.status).toBe(201));
+    const token = readInvitationToken('invitation-race-target@example.com');
+    const responses = await Promise.all([
+      acceptInvitation(inviteeCookie, token),
+      acceptInvitation(inviteeCookie, token),
+    ]);
+    expect(responses.map(({ status }) => status).sort()).toEqual([204, 400]);
+    expect(
+      await prisma.membership.count({
+        where: { workspaceId: ownerWorkspaceId, userId: inviteeUserId },
+      }),
+    ).toBe(1);
+    expect(
+      await prisma.auditLog.count({
+        where: {
+          workspaceId: ownerWorkspaceId,
+          actorUserId: inviteeUserId,
+          action: 'membership.invitation.accepted',
+        },
+      }),
+    ).toBe(1);
+
+    const current = await request(app.getHttpServer())
+      .get('/v1/auth/session')
+      .set('Cookie', inviteeCookie)
+      .expect(200);
+    expect(readString(current.body as unknown, 'data', 'workspace', 'id')).toBe(
+      inviteeOriginalWorkspaceId,
+    );
+  });
+
+  it('allows only one concurrent invitation issue for the same workspace and email', async () => {
+    const owner = await register('invitation-issue-race-owner@example.com');
+    const ownerCookie = readCookieHeader(owner);
+
+    const responses = await Promise.all([
+      createInvitation(
+        ownerCookie,
+        'invitation-issue-race-target@example.com',
+        'MEMBER',
+      ),
+      createInvitation(
+        ownerCookie,
+        'invitation-issue-race-target@example.com',
+        'MEMBER',
+      ),
+    ]);
+
+    expect(responses.map(({ status }) => status).sort()).toEqual([201, 409]);
+    expect(invitationDeliveries).toHaveLength(1);
+    expect(
+      await prisma.membershipInvitation.count({
+        where: { activeKey: { not: null } },
+      }),
+    ).toBe(1);
+    expect(
+      await prisma.auditLog.count({
+        where: { action: 'membership.invitation.created' },
+      }),
+    ).toBe(1);
+  });
+
+  it('keeps a committed invitation when email delivery fails', async () => {
+    const owner = await register('invitation-delivery-owner@example.com');
+    jest
+      .spyOn(recordingMembershipInvitationSender, 'send')
+      .mockRejectedValueOnce(new Error('forced invitation delivery failure'));
+
+    const response = await createInvitation(
+      readCookieHeader(owner),
+      'invitation-delivery-target@example.com',
+      'MEMBER',
+    );
+
+    expect(response.status).toBe(201);
+    expect(response.body).toMatchObject({
+      meta: { invitationEmailSent: false },
+    });
+    const persisted = await prisma.membershipInvitation.findFirstOrThrow({
+      where: { normalizedEmail: 'invitation-delivery-target@example.com' },
+    });
+    expect(persisted.deliveryStatus).toBe('FAILED');
+    expect(typeof persisted.activeKey).toBe('string');
+  });
+
+  it('scopes invitation terminal and delivery writes to the trusted workspace', async () => {
+    const owner = await register('invitation-scope-owner@example.com');
+    await createInvitation(
+      readCookieHeader(owner),
+      'invitation-scope-target@example.com',
+      'MEMBER',
+    ).then((response) => expect(response.status).toBe(201));
+    const invitation = await prisma.membershipInvitation.findFirstOrThrow({
+      where: { normalizedEmail: 'invitation-scope-target@example.com' },
+    });
+    const repository = app.get(PrismaMembershipInvitationsRepository);
+
+    await expect(
+      repository.accept(randomUUID(), invitation.id, randomUUID(), new Date()),
+    ).resolves.toBe(false);
+    await repository.markDelivery(
+      randomUUID(),
+      invitation.id,
+      'FAILED',
+      new Date(),
+    );
+
+    await expect(
+      prisma.membershipInvitation.findUniqueOrThrow({
+        where: { id: invitation.id },
+      }),
+    ).resolves.toMatchObject({
+      acceptedAt: null,
+      acceptedByUserId: null,
+      deliveryStatus: 'SENT',
+    });
+  });
+
+  it('rejects expired invitations without membership, audit, or session changes', async () => {
+    const owner = await register('invitation-expiry-owner@example.com');
+    const ownerWorkspaceId = readString(
+      owner.body as unknown,
+      'data',
+      'workspace',
+      'id',
+    );
+    const target = await register('invitation-expiry-target@example.com');
+    const targetCookie = readCookieHeader(target);
+    const targetUserId = readString(
+      target.body as unknown,
+      'data',
+      'user',
+      'id',
+    );
+    const targetWorkspaceId = readString(
+      target.body as unknown,
+      'data',
+      'workspace',
+      'id',
+    );
+    await createInvitation(
+      readCookieHeader(owner),
+      'invitation-expiry-target@example.com',
+      'MEMBER',
+    ).then((response) => expect(response.status).toBe(201));
+    const token = readInvitationToken('invitation-expiry-target@example.com');
+    await prisma.membershipInvitation.updateMany({
+      where: { normalizedEmail: 'invitation-expiry-target@example.com' },
+      data: { expiresAt: new Date('2000-01-01T00:00:00.000Z') },
+    });
+
+    await acceptInvitation(targetCookie, token).expect(400);
+    expect(
+      await prisma.membership.count({
+        where: { workspaceId: ownerWorkspaceId, userId: targetUserId },
+      }),
+    ).toBe(0);
+    expect(
+      await prisma.auditLog.count({
+        where: { action: 'membership.invitation.accepted' },
+      }),
+    ).toBe(0);
+    const current = await request(app.getHttpServer())
+      .get('/v1/auth/session')
+      .set('Cookie', targetCookie)
+      .expect(200);
+    expect(readString(current.body as unknown, 'data', 'workspace', 'id')).toBe(
+      targetWorkspaceId,
+    );
+  });
+
+  it('prevents an ADMIN from replacing an OWNER-issued ADMIN invitation', async () => {
+    const owner = await register('invitation-grant-owner@example.com');
+    const ownerCookie = readCookieHeader(owner);
+    const ownerWorkspaceId = readString(
+      owner.body as unknown,
+      'data',
+      'workspace',
+      'id',
+    );
+    const admin = await register('invitation-grant-admin@example.com');
+    const adminUserId = readString(admin.body as unknown, 'data', 'user', 'id');
+    await prisma.membership.create({
+      data: {
+        id: randomUUID(),
+        workspaceId: ownerWorkspaceId,
+        userId: adminUserId,
+        role: 'ADMIN',
+      },
+    });
+    const selectedAdmin = await login(
+      'invitation-grant-admin@example.com',
+      'A secure passphrase 123',
+      ownerWorkspaceId,
+    );
+    const target = await register('invitation-grant-target@example.com');
+
+    await createInvitation(
+      ownerCookie,
+      'invitation-grant-target@example.com',
+      'ADMIN',
+    ).then((response) => expect(response.status).toBe(201));
+    const ownerToken = readInvitationToken(
+      'invitation-grant-target@example.com',
+    );
+    await createInvitation(
+      readCookieHeader(selectedAdmin),
+      'invitation-grant-target@example.com',
+      'MEMBER',
+    ).then((response) => expect(response.status).toBe(403));
+
+    await acceptInvitation(readCookieHeader(target), ownerToken).expect(204);
+    const targetUserId = readString(
+      target.body as unknown,
+      'data',
+      'user',
+      'id',
+    );
+    await expect(
+      prisma.membership.findUniqueOrThrow({
+        where: {
+          workspaceId_userId: {
+            workspaceId: ownerWorkspaceId,
+            userId: targetUserId,
+          },
+        },
+      }),
+    ).resolves.toMatchObject({ role: 'ADMIN' });
+  });
+
+  it('rolls back invitation create, accept, and revoke when audit persistence fails', async () => {
+    const owner = await register('invitation-audit-owner@example.com');
+    const ownerCookie = readCookieHeader(owner);
+    const ownerWorkspaceId = readString(
+      owner.body as unknown,
+      'data',
+      'workspace',
+      'id',
+    );
+    const target = await register('invitation-audit-target@example.com');
+    const targetCookie = readCookieHeader(target);
+    const targetUserId = readString(
+      target.body as unknown,
+      'data',
+      'user',
+      'id',
+    );
+    const append = jest.spyOn(auditLog, 'append');
+
+    append.mockRejectedValueOnce(new Error('forced create audit failure'));
+    await createInvitation(
+      ownerCookie,
+      'invitation-create-audit@example.com',
+      'MEMBER',
+    ).then((response) => expect(response.status).toBe(503));
+    expect(await prisma.membershipInvitation.count()).toBe(0);
+    expect(invitationDeliveries).toHaveLength(0);
+
+    await createInvitation(
+      ownerCookie,
+      'invitation-audit-target@example.com',
+      'MEMBER',
+    ).then((response) => expect(response.status).toBe(201));
+    const token = readInvitationToken('invitation-audit-target@example.com');
+    const invitation = await prisma.membershipInvitation.findFirstOrThrow({
+      where: { workspaceId: ownerWorkspaceId, activeKey: { not: null } },
+    });
+
+    append.mockRejectedValueOnce(new Error('forced accept audit failure'));
+    await acceptInvitation(targetCookie, token).expect(503);
+    await expect(
+      prisma.membershipInvitation.findUniqueOrThrow({
+        where: { id: invitation.id },
+      }),
+    ).resolves.toMatchObject({ acceptedAt: null, acceptedByUserId: null });
+    expect(
+      await prisma.membership.count({
+        where: { workspaceId: ownerWorkspaceId, userId: targetUserId },
+      }),
+    ).toBe(0);
+
+    append.mockRejectedValueOnce(new Error('forced revoke audit failure'));
+    await request(app.getHttpServer())
+      .delete(`/v1/membership-invitations/${invitation.id}`)
+      .set('Origin', ALLOWED_ORIGIN)
+      .set('Cookie', ownerCookie)
+      .expect(503);
+    const revokeRolledBack =
+      await prisma.membershipInvitation.findUniqueOrThrow({
+        where: { id: invitation.id },
+      });
+    expect(revokeRolledBack.revokedAt).toBeNull();
+    expect(typeof revokeRolledBack.activeKey).toBe('string');
+  });
+
+  it('rate-limits invitation creation and acceptance and fails closed when Redis is unavailable', async () => {
+    const owner = await register('invitation-limit-owner@example.com');
+    const ownerCookie = readCookieHeader(owner);
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await createInvitation(
+        ownerCookie,
+        'invitation-limit-target@example.com',
+        'MEMBER',
+      ).then((response) => expect(response.status).toBe(201));
+    }
+    const limitedCreate = await createInvitation(
+      ownerCookie,
+      'invitation-limit-target@example.com',
+      'MEMBER',
+    );
+    expect(limitedCreate.status).toBe(429);
+    expect(readString(limitedCreate.body as unknown, 'error', 'code')).toBe(
+      'MEMBERSHIP_INVITATION_RATE_LIMITED',
+    );
+    expect(limitedCreate.headers['retry-after']).toBeDefined();
+    expect(invitationDeliveries).toHaveLength(5);
+    expect(await prisma.membershipInvitation.count()).toBe(5);
+    expect(
+      await prisma.auditLog.count({
+        where: { action: 'membership.invitation.created' },
+      }),
+    ).toBe(5);
+
+    const target = await register('invitation-limit-accept@example.com');
+    const targetCookie = readCookieHeader(target);
+    await createInvitation(
+      ownerCookie,
+      'invitation-limit-accept@example.com',
+      'MEMBER',
+    ).then((response) => expect(response.status).toBe(201));
+    const validToken = readInvitationToken(
+      'invitation-limit-accept@example.com',
+    );
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      await acceptInvitation(targetCookie, 'A'.repeat(43)).expect(400);
+    }
+    const limitedAccept = await acceptInvitation(targetCookie, 'A'.repeat(43));
+    expect(limitedAccept.status).toBe(429);
+    expect(readString(limitedAccept.body as unknown, 'error', 'code')).toBe(
+      'MEMBERSHIP_INVITATION_RATE_LIMITED',
+    );
+    expect(limitedAccept.headers['retry-after']).toBeDefined();
+    expect(
+      await prisma.auditLog.count({
+        where: { action: 'membership.invitation.accepted' },
+      }),
+    ).toBe(0);
+
+    const invitationBeforeAcceptFailure =
+      await prisma.membershipInvitation.findFirstOrThrow({
+        where: { normalizedEmail: 'invitation-limit-accept@example.com' },
+      });
+    const membershipsBeforeAcceptFailure = await prisma.membership.count();
+    const auditsBeforeAcceptFailure = await prisma.auditLog.count();
+    jest
+      .spyOn(membershipInvitationRateLimiter, 'checkAccept')
+      .mockRejectedValueOnce(new Error('forced Redis failure'));
+    await acceptInvitation(targetCookie, validToken).expect(503);
+    await expect(
+      prisma.membershipInvitation.findUniqueOrThrow({
+        where: { id: invitationBeforeAcceptFailure.id },
+      }),
+    ).resolves.toMatchObject({ acceptedAt: null, acceptedByUserId: null });
+    expect(await prisma.membership.count()).toBe(
+      membershipsBeforeAcceptFailure,
+    );
+    expect(await prisma.auditLog.count()).toBe(auditsBeforeAcceptFailure);
+
+    const invitationsBeforeFailure = await prisma.membershipInvitation.count();
+    const deliveriesBeforeFailure = invitationDeliveries.length;
+    const auditsBeforeFailure = await prisma.auditLog.count();
+    jest
+      .spyOn(membershipInvitationRateLimiter, 'checkCreate')
+      .mockRejectedValueOnce(new Error('forced Redis failure'));
+    await createInvitation(
+      ownerCookie,
+      'invitation-limit-redis@example.com',
+      'MEMBER',
+    ).then((response) => expect(response.status).toBe(503));
+    expect(await prisma.membershipInvitation.count()).toBe(
+      invitationsBeforeFailure,
+    );
+    expect(await prisma.auditLog.count()).toBe(auditsBeforeFailure);
+    expect(invitationDeliveries).toHaveLength(deliveriesBeforeFailure);
+  });
+
   it('rate-limits login before credential verification and fails safely when enforcement is unavailable', async () => {
     const authenticate = jest
       .spyOn(passwordIdentities, 'authenticate')
@@ -1914,6 +2600,26 @@ describe('Nexora API (e2e)', () => {
       .set('Cookie', cookie)
       .send({ workspaceId });
   }
+
+  function createInvitation(
+    cookie: string,
+    email: string,
+    role: 'ADMIN' | 'MEMBER',
+  ) {
+    return request(app.getHttpServer())
+      .post('/v1/membership-invitations')
+      .set('Origin', ALLOWED_ORIGIN)
+      .set('Cookie', cookie)
+      .send({ email, role });
+  }
+
+  function acceptInvitation(cookie: string, token: string) {
+    return request(app.getHttpServer())
+      .post('/v1/membership-invitations/acceptances')
+      .set('Origin', ALLOWED_ORIGIN)
+      .set('Cookie', cookie)
+      .send({ token });
+  }
 });
 
 function registrationBody(email: string) {
@@ -1953,6 +2659,7 @@ async function clearRegistrationData(prisma: PrismaService): Promise<void> {
   await prisma.passwordResetToken.deleteMany();
   await prisma.session.deleteMany();
   await prisma.emailVerification.deleteMany();
+  await prisma.membershipInvitation.deleteMany();
   await prisma.membership.deleteMany();
   await prisma.workspace.deleteMany();
   await prisma.organization.deleteMany();
@@ -1966,6 +2673,7 @@ async function createWorkspaceMembership(
   userId: string,
   organizationName: string,
   workspaceName: string,
+  role: 'OWNER' | 'ADMIN' | 'MEMBER' = 'OWNER',
 ): Promise<{ organizationId: string; workspaceId: string }> {
   const organizationId = randomUUID();
   const workspaceId = randomUUID();
@@ -1976,9 +2684,24 @@ async function createWorkspaceMembership(
     data: { id: workspaceId, organizationId, name: workspaceName },
   });
   await prisma.membership.create({
-    data: { id: randomUUID(), workspaceId, userId, role: 'OWNER' },
+    data: { id: randomUUID(), workspaceId, userId, role },
   });
   return { organizationId, workspaceId };
+}
+
+function readInvitationToken(email: string, excludedToken?: string): string {
+  const normalizedEmail = email.trim().toLocaleLowerCase('en-US');
+  for (const delivery of [...invitationDeliveries].reverse()) {
+    if (
+      delivery.to.toLowerCase() === normalizedEmail &&
+      delivery.token !== excludedToken
+    ) {
+      return delivery.token;
+    }
+  }
+  throw new Error(
+    `Membership invitation was not delivered to ${normalizedEmail}.`,
+  );
 }
 
 function readVerificationToken(

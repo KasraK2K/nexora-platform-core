@@ -83,12 +83,7 @@ export class SwitchWorkspace {
               workspaceId: input.workspaceId,
             }),
           ]);
-          if (
-            !user ||
-            user.status !== 'ACTIVE' ||
-            !sourceMembership ||
-            sourceMembership.role !== 'OWNER'
-          ) {
+          if (!user || user.status !== 'ACTIVE' || !sourceMembership) {
             throw new AuthenticationRequiredError();
           }
           if (!target) {

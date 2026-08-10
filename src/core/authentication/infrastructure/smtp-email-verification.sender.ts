@@ -1,13 +1,16 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { AppConfig } from '../../configuration/app-config';
+import {
+  OUTBOUND_MAIL,
+  type OutboundMail,
+} from '../../mail/application/outbound-mail.port';
 import type { EmailVerificationSender } from '../application/email-verification-sender.port';
-import { SmtpMailTransport } from './smtp-mail.transport';
 
 @Injectable()
 export class SmtpEmailVerificationSender implements EmailVerificationSender {
   constructor(
     private readonly config: AppConfig,
-    private readonly transport: SmtpMailTransport,
+    @Inject(OUTBOUND_MAIL) private readonly mail: OutboundMail,
   ) {}
 
   async send(input: {
@@ -18,7 +21,7 @@ export class SmtpEmailVerificationSender implements EmailVerificationSender {
     const verificationUrl = new URL(this.config.emailVerificationUrl);
     verificationUrl.searchParams.set('token', input.token);
 
-    await this.transport.send({
+    await this.mail.send({
       to: input.to,
       subject: 'Verify your email address',
       text: [

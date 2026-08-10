@@ -1,4 +1,5 @@
 import { ApplicationError } from '../../../shared/domain/application-error';
+import type { MembershipRole } from '../../memberships/application/membership-role';
 
 export class InvalidRegistrationError extends ApplicationError {
   readonly code = 'REGISTRATION_INVALID';
@@ -57,7 +58,7 @@ export class AuthenticationInvalidError extends ApplicationError {
 export type WorkspaceSelectionOption = Readonly<{
   organization: Readonly<{ id: string; name: string }>;
   workspace: Readonly<{ id: string; name: string }>;
-  membership: Readonly<{ role: 'OWNER' }>;
+  membership: Readonly<{ role: MembershipRole }>;
 }>;
 
 export class WorkspaceSelectionRequiredError extends ApplicationError {

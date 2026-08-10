@@ -158,4 +158,5 @@ replacement sessions remain valid until their original absolute expiry.
   workspaces.
 - [ ] Define membership removal and workspace archival behavior for sessions
   referencing those memberships.
-- [ ] Add base roles, invitations, ownership transfer, and last-owner safety.
+- [x] Add base roles and invitations through ADR-0007.
+- [ ] Add ownership transfer and last-owner safety.

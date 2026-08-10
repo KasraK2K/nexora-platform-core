@@ -5,6 +5,7 @@ import type {
   MembershipsRepository,
   MembershipSummary,
 } from '../application/memberships';
+import type { MembershipRole } from '../application/membership-role';
 
 @Injectable()
 export class PrismaMembershipsRepository implements MembershipsRepository {
@@ -18,6 +19,15 @@ export class PrismaMembershipsRepository implements MembershipsRepository {
     await this.database.client.membership.create({
       data: { ...input, role: 'OWNER' },
     });
+  }
+
+  async createInvited(input: {
+    id: string;
+    workspaceId: string;
+    userId: string;
+    role: Exclude<MembershipRole, 'OWNER'>;
+  }): Promise<void> {
+    await this.database.client.membership.create({ data: input });
   }
 
   find(input: {

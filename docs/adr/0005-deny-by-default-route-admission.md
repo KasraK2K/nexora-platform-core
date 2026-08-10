@@ -171,6 +171,6 @@ existing cookies and persisted sessions remain compatible.
 
 - [x] Define multi-workspace login selection and active-workspace switching
   through ADR-0006.
-- [ ] Introduce base RBAC with the first role-differentiated Core operation.
-- [ ] Add invitations, ownership transfer, last-owner protection, and broader
+- [x] Introduce base RBAC and invitations through ADR-0007.
+- [ ] Add ownership transfer, last-owner protection, and broader
   tenant-isolation matrices.

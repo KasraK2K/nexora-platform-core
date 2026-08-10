@@ -15,4 +15,11 @@ export class PrismaIdentityLookupRepository implements IdentityLookupRepository 
       select: { id: true, normalizedEmail: true },
     });
   }
+
+  findById(id: string): Promise<IdentitySummary | null> {
+    return this.database.client.identity.findUnique({
+      where: { id },
+      select: { id: true, normalizedEmail: true },
+    });
+  }
 }

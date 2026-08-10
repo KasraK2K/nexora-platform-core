@@ -37,6 +37,8 @@ The repository is currently one NestJS modular monolith. It implements:
 - deny-by-default route admission with explicit public, context-authenticated,
   or application-authenticated metadata, active-user defaults, pending-user
   opt-in, and trusted-origin ordering;
+- base OWNER, ADMIN, and MEMBER authorization plus hashed, expiring,
+  email-bound membership invitation creation, acceptance, and revocation;
 - provider-neutral SMTP delivery with a local Mailpit development adapter;
 - origin checks, authentication rate limiting, compromised-password screening;
 - audit records, request IDs, Zod transport validation, and OpenAPI generation.
@@ -141,9 +143,9 @@ commands until the explicit migration is implemented and verified.
 - Users: profile and lifecycle data.
 - Organizations: commercial ownership boundary.
 - Workspaces: operational tenant boundary.
-- Memberships: users connected to workspaces.
+- Memberships: users connected to workspaces and invitation lifecycle.
 - Authorization: explicit deny-by-default route admission and authenticated
-  active-user policy.
+  active-user policy plus base membership invitation permissions.
 - Multi-workspace session selection: bounded credentialed choices, actor-only
   membership listing, and audited per-session workspace switching.
 - Audit: append-oriented sensitive-action records.
@@ -151,8 +153,7 @@ commands until the explicit migration is implemented and verified.
 
 ### Planned foundation
 
-- Permission authorization plus base OWNER, ADMIN, and MEMBER roles.
-- Invitations, ownership transfer, and last-owner safety.
+- Ownership transfer and last-owner safety.
 - User and workspace lifecycle operations.
 - Tenant-isolation matrices at repository and API boundaries.
 
@@ -315,8 +316,8 @@ prove a stable shared contract.
 
 ## Platform roadmap
 
-1. Complete tenant foundation: base RBAC, invitations, ownership transfer,
-   and tenant isolation tests.
+1. Complete tenant foundation: ownership transfer, last-owner safety,
+   lifecycle operations, and broader tenant isolation tests.
 2. Complete repository foundation through explicit changes: monorepo decision,
    strict TypeScript plan, contract gates, seeds, and CI.
 3. Add optional reusable capabilities only when a downstream product proves the
@@ -355,7 +356,7 @@ Resolve these only when their phase begins:
 
 - production cookie, Origin, CORS, and trusted-proxy topology;
 - production SMTP provider and reliable asynchronous delivery/retry mechanism;
-- base roles, permissions, invitations, and ownership-transfer policy;
+- ownership-transfer and last-owner policy;
 - whether and when to enable PostgreSQL RLS;
 - billing provider, plan, credit, entitlement, and refund policy if commercial
   capabilities are added;

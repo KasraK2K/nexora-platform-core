@@ -1,13 +1,16 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { AppConfig } from '../../configuration/app-config';
+import {
+  OUTBOUND_MAIL,
+  type OutboundMail,
+} from '../../mail/application/outbound-mail.port';
 import type { PasswordResetSender } from '../application/password-reset-sender.port';
-import { SmtpMailTransport } from './smtp-mail.transport';
 
 @Injectable()
 export class SmtpPasswordResetSender implements PasswordResetSender {
   constructor(
     private readonly config: AppConfig,
-    private readonly transport: SmtpMailTransport,
+    @Inject(OUTBOUND_MAIL) private readonly mail: OutboundMail,
   ) {}
 
   async send(input: {
@@ -18,7 +21,7 @@ export class SmtpPasswordResetSender implements PasswordResetSender {
     const resetUrl = new URL(this.config.passwordResetUrl);
     resetUrl.searchParams.set('token', input.token);
 
-    await this.transport.send({
+    await this.mail.send({
       to: input.to,
       subject: 'Reset your password',
       text: [

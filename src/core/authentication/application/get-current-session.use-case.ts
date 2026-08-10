@@ -15,6 +15,7 @@ import {
   createAuthenticatedRequestContext,
   type AuthenticatedRequestContext,
 } from './authenticated-request-context';
+import type { MembershipRole } from '../../memberships/application/membership-role';
 
 export type CurrentSession = Readonly<{
   user: Readonly<{
@@ -24,7 +25,7 @@ export type CurrentSession = Readonly<{
   }>;
   organization: Readonly<{ id: string; name: string }>;
   workspace: Readonly<{ id: string; name: string }>;
-  membership: Readonly<{ role: 'OWNER' }>;
+  membership: Readonly<{ role: MembershipRole }>;
 }>;
 
 export type ResolvedAuthenticatedRequest = Readonly<{
@@ -90,7 +91,7 @@ export class GetCurrentSession {
         userId: session.userId,
       }),
     ]);
-    if (!user || !workspace || !membership || membership.role !== 'OWNER') {
+    if (!user || !workspace || !membership) {
       return undefined;
     }
 
@@ -119,7 +120,7 @@ export class GetCurrentSession {
         user: Object.freeze({ ...user }),
         organization: Object.freeze({ ...organization }),
         workspace: Object.freeze({ id: workspace.id, name: workspace.name }),
-        membership: Object.freeze({ role: 'OWNER' as const }),
+        membership: Object.freeze({ role: membership.role }),
       }),
     });
   }

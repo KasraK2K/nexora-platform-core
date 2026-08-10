@@ -52,6 +52,15 @@ repository or changing runtime identifiers inherited from this base.
   workspace memberships. `PUT /v1/auth/session/workspace` revalidates source
   and target membership, atomically rotates that session into the selected
   workspace without extending its expiry, and audits both tenant scopes.
+- Base RBAC supports OWNER, ADMIN, and MEMBER memberships. OWNER may invite
+  ADMIN or MEMBER; ADMIN may invite MEMBER; MEMBER cannot manage invitations.
+  `POST /v1/membership-invitations` creates a hashed, expiring, email-delivered
+  invitation for the active workspace,
+  `POST /v1/membership-invitations/acceptances` accepts it for the matching
+  active identity, and `DELETE /v1/membership-invitations/:invitationId`
+  revokes it without exposing foreign-tenant invitation existence. Redis limits
+  invitation creation by IP, actor/workspace, and target email, and acceptance
+  by IP and authenticated session.
 - `DELETE /v1/auth/session` idempotently revokes the presented session;
   `DELETE /v1/auth/sessions` revokes every session for the current user.
 - Passwords use Argon2id. Only a SHA-256 session-token digest is stored;
@@ -70,11 +79,10 @@ repository or changing runtime identifiers inherited from this base.
   returned by the API, or stored in PostgreSQL.
 - OpenAPI UI is served at `/docs` while the application is running.
 
-Authorization roles beyond the current OWNER membership, invitations, and
-additional workspace membership management are not implemented. The session
-issued at registration is restricted to routes that explicitly permit
-pending-verification users. Base role permissions and resource authorization
-remain deferred until a concrete privileged Core operation is implemented.
+Ownership transfer, last-owner protection, role mutation/removal, invite-first
+registration, and broader workspace membership management are not implemented.
+The session issued at registration remains restricted to routes that explicitly
+permit pending-verification users.
 
 ## Product extension model
 
@@ -122,6 +130,8 @@ failure leaves the durable intent marked `FAILED` so the user can request a
 replacement link.
 `PASSWORD_RESET_TTL_SECONDS` bounds reset-link lifetime. Reset tokens are
 single-use SHA-256 digests at rest, and successful reset requires a fresh login.
+`MEMBERSHIP_INVITATION_TTL_SECONDS` bounds invitation lifetime, and
+`MEMBERSHIP_INVITATION_URL` supplies the email link base URL.
 
 Example registration request:
 

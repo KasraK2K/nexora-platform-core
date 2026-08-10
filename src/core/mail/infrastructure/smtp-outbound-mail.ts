@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { createTransport, type Transporter } from 'nodemailer';
 import { AppConfig } from '../../configuration/app-config';
+import type { OutboundMail } from '../application/outbound-mail.port';
 
 @Injectable()
-export class SmtpMailTransport {
+export class SmtpOutboundMail implements OutboundMail {
   private readonly transporter: Transporter;
 
   constructor(private readonly config: AppConfig) {
@@ -27,9 +28,7 @@ export class SmtpMailTransport {
   }): Promise<void> {
     await this.transporter.sendMail({
       from: this.config.emailFrom,
-      to: input.to,
-      subject: input.subject,
-      text: input.text,
+      ...input,
     });
   }
 }

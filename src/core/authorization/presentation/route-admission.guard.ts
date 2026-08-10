@@ -14,6 +14,11 @@ import {
   EmailVerificationRequiredError,
   RouteAccessDeniedError,
 } from '../domain/route-admission.errors';
+import {
+  AuthorizationPolicy,
+  isPermission,
+} from '../application/authorization-policy';
+import { AuthorizationDeniedError } from '../application/authorization-denied.error';
 import { RouteAdmission, type RouteAdmissionPolicy } from './route-admission';
 
 @Injectable()
@@ -24,6 +29,7 @@ export class RouteAdmissionGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly trustedOrigin: TrustedOriginGuard,
     private readonly authenticatedRequest: AuthenticatedRequestContextGuard,
+    private readonly authorization: AuthorizationPolicy,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -77,6 +83,16 @@ export class RouteAdmissionGuard implements CanActivate {
       throw new RouteAccessDeniedError();
     }
 
+    if (
+      policy.permission &&
+      !this.authorization.permits(
+        authenticated.currentSession.membership.role,
+        policy.permission,
+      )
+    ) {
+      throw new AuthorizationDeniedError();
+    }
+
     return true;
   }
 }
@@ -103,6 +119,9 @@ function isRouteAdmissionPolicy(value: unknown): value is RouteAdmissionPolicy {
     value.access === 'authenticated' &&
     'allowPendingVerification' in value &&
     typeof value.allowPendingVerification === 'boolean' &&
-    Object.keys(value).length === 3
+    'permission' in value &&
+    (value.permission === null || isPermission(value.permission)) &&
+    !(value.allowPendingVerification && value.permission !== null) &&
+    Object.keys(value).length === 4
   );
 }

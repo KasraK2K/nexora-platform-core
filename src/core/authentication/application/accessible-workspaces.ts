@@ -3,6 +3,7 @@ import { Memberships } from '../../memberships/application/memberships';
 import { Organizations } from '../../organizations/application/organizations';
 import { Workspaces } from '../../workspaces/application/workspaces';
 import type { WorkspaceSelectionOption } from '../domain/registration.errors';
+import type { MembershipRole } from '../../memberships/application/membership-role';
 
 const MAX_ACCESSIBLE_WORKSPACES = 100;
 
@@ -66,7 +67,7 @@ export class AccessibleWorkspaces {
   private async resolveMembership(membership: {
     userId: string;
     workspaceId: string;
-    role: 'OWNER';
+    role: MembershipRole;
   }): Promise<WorkspaceSelectionOption | null> {
     const workspace = await this.workspaces.findById(membership.workspaceId);
     if (!workspace) {
@@ -82,7 +83,7 @@ export class AccessibleWorkspaces {
   }
 
   private createOption(
-    membership: { role: 'OWNER' },
+    membership: { role: MembershipRole },
     workspace: { id: string; name: string },
     organization: { id: string; name: string },
   ): WorkspaceSelectionOption {

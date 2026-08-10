@@ -27,6 +27,19 @@ enum PasswordResetDeliveryStatus {
 
 enum MembershipRole {
   OWNER
+  ADMIN
+  MEMBER
+}
+
+enum MembershipInvitationDeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum MembershipInvitationRole {
+  ADMIN
+  MEMBER
 }
 
 model Identity {
@@ -64,6 +77,8 @@ model User {
   auditLogs           AuditLog[]
   emailVerifications  EmailVerification[]
   passwordResetTokens PasswordResetToken[]
+  sentMembershipInvitations     MembershipInvitation[] @relation("MembershipInvitationInviter")
+  acceptedMembershipInvitations MembershipInvitation[] @relation("MembershipInvitationAcceptor")
 
   @@map("users")
 }
@@ -132,6 +147,7 @@ model Workspace {
   auditLogs           AuditLog[]
   emailVerifications  EmailVerification[]
   passwordResetTokens PasswordResetToken[]
+  membershipInvitations MembershipInvitation[]
 
   @@index([organizationId], map: "workspaces_organization_id_idx")
   @@map("workspaces")
@@ -151,6 +167,30 @@ model Membership {
   @@index([workspaceId, createdAt(sort: Desc)], map: "memberships_workspace_id_created_at_idx")
   @@index([userId], map: "memberships_user_id_idx")
   @@map("memberships")
+}
+
+model MembershipInvitation {
+  id                  String                             @id @db.Uuid
+  workspaceId         String                             @map("workspace_id") @db.Uuid
+  invitedByUserId     String                             @map("invited_by_user_id") @db.Uuid
+  acceptedByUserId    String?                            @map("accepted_by_user_id") @db.Uuid
+  normalizedEmail     String                             @map("normalized_email") @db.VarChar(254)
+  role                MembershipInvitationRole
+  tokenHash           String                             @unique(map: "membership_invitations_token_hash_key") @map("token_hash") @db.Char(64)
+  activeKey           String?                            @unique(map: "membership_invitations_active_key_key") @map("active_key") @db.Char(64)
+  expiresAt           DateTime                           @map("expires_at") @db.Timestamptz(3)
+  acceptedAt          DateTime?                          @map("accepted_at") @db.Timestamptz(3)
+  revokedAt           DateTime?                          @map("revoked_at") @db.Timestamptz(3)
+  deliveryStatus      MembershipInvitationDeliveryStatus @default(PENDING) @map("delivery_status")
+  deliveryAttemptedAt DateTime?                          @map("delivery_attempted_at") @db.Timestamptz(3)
+  createdAt           DateTime                           @default(now()) @map("created_at") @db.Timestamptz(3)
+  workspace           Workspace                          @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  invitedBy           User                               @relation("MembershipInvitationInviter", fields: [invitedByUserId], references: [id], onDelete: Restrict)
+  acceptedBy          User?                              @relation("MembershipInvitationAcceptor", fields: [acceptedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([workspaceId, createdAt(sort: Desc)], map: "membership_invitations_workspace_id_created_at_idx")
+  @@index([workspaceId, normalizedEmail, expiresAt], map: "membership_invitations_workspace_email_expires_at_idx")
+  @@map("membership_invitations")
 }
 
 model Session {
