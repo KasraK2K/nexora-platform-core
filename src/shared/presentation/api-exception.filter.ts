@@ -116,9 +116,12 @@ function applicationErrorStatus(code: string): number {
     case 'EMAIL_ALREADY_REGISTERED':
     case 'WORKSPACE_SELECTION_REQUIRED':
     case 'MEMBERSHIP_OWNERSHIP_PROTECTED':
+    case 'MEMBERSHIP_LAST_WORKSPACE_PROTECTED':
       return HttpStatus.CONFLICT;
     case 'AUTHENTICATION_REQUIRED':
     case 'AUTHENTICATION_INVALID':
+    case 'USER_LIFECYCLE_INVALID':
+    case 'WORKSPACE_LIFECYCLE_INVALID':
     case 'PASSWORD_CHANGE_INVALID_CURRENT_PASSWORD':
       return HttpStatus.UNAUTHORIZED;
     case 'ROUTE_ACCESS_DENIED':
@@ -138,6 +141,8 @@ function applicationErrorStatus(code: string): number {
     case 'WORKSPACE_SWITCH_UNAVAILABLE':
     case 'MEMBERSHIP_INVITATION_UNAVAILABLE':
     case 'MEMBERSHIP_ADMINISTRATION_UNAVAILABLE':
+    case 'USER_LIFECYCLE_UNAVAILABLE':
+    case 'WORKSPACE_LIFECYCLE_UNAVAILABLE':
       return HttpStatus.SERVICE_UNAVAILABLE;
     default:
       return HttpStatus.INTERNAL_SERVER_ERROR;

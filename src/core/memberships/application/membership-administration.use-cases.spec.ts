@@ -10,13 +10,17 @@ import type { Users } from '../../users/application/users';
 import { Clock } from '../../../shared/application/clock';
 import { IdentifierFactory } from '../../../shared/application/identifier-factory';
 import type { TransactionManager } from '../../../shared/application/transaction-manager.port';
-import { MembershipOwnershipProtectedError } from '../domain/membership-administration.errors';
+import {
+  MembershipLastWorkspaceProtectedError,
+  MembershipOwnershipProtectedError,
+} from '../domain/membership-administration.errors';
 import type {
   MembershipAdministration,
   MembershipAdministrationRecord,
 } from './membership-administration';
 import { ChangeMembershipRole } from './change-membership-role.use-case';
 import { RemoveMembership } from './remove-membership.use-case';
+import { LeaveCurrentWorkspace } from './leave-current-workspace.use-case';
 import { TransferWorkspaceOwnership } from './transfer-workspace-ownership.use-case';
 
 const WORKSPACE_ID = '01911457-e820-7b71-b695-a07fb242b8ec';
@@ -164,11 +168,108 @@ describe('membership administration use cases', () => {
       }),
     ]);
   });
+
+  it('lets a non-owner leave only when another active workspace remains', async () => {
+    const fixture = createFixture('ADMIN', 'MEMBER');
+    const leave = new LeaveCurrentWorkspace(
+      fixture.memberships,
+      fixture.sessionRevocations,
+      new AuthorizationPolicy(),
+      fixture.auditLog,
+      new IdentifierFactory(),
+      fixedClock(),
+      inlineTransactions(),
+    );
+
+    await leave.execute({
+      sessionId: '01911457-e45f-70a4-b39f-da90c15616ee',
+      actorUserId: OWNER_USER_ID,
+      workspaceId: WORKSPACE_ID,
+    });
+
+    expect(fixture.remove).toHaveBeenCalledWith(
+      expect.objectContaining({ membershipId: OWNER_MEMBERSHIP_ID }),
+    );
+    expect(fixture.revokeSessions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: OWNER_USER_ID,
+        workspaceId: WORKSPACE_ID,
+      }),
+    );
+    expect(fixture.audits).toEqual([
+      expect.objectContaining({
+        action: 'membership.left',
+        resourceId: OWNER_MEMBERSHIP_ID,
+      }),
+    ]);
+    expect(fixture.clearCaches).toHaveBeenCalledWith([
+      { tokenHash: 'session-hash' },
+    ]);
+
+    const lastFixture = createFixture('MEMBER', 'MEMBER', false);
+    const lastLeave = new LeaveCurrentWorkspace(
+      lastFixture.memberships,
+      lastFixture.sessionRevocations,
+      new AuthorizationPolicy(),
+      lastFixture.auditLog,
+      new IdentifierFactory(),
+      fixedClock(),
+      inlineTransactions(),
+    );
+    await expect(
+      lastLeave.execute({
+        sessionId: '01911457-e45f-70a4-b39f-da90c15616ee',
+        actorUserId: OWNER_USER_ID,
+        workspaceId: WORKSPACE_ID,
+      }),
+    ).rejects.toBeInstanceOf(MembershipLastWorkspaceProtectedError);
+
+    const ownerFixture = createFixture('OWNER', 'MEMBER');
+    const ownerLeave = new LeaveCurrentWorkspace(
+      ownerFixture.memberships,
+      ownerFixture.sessionRevocations,
+      new AuthorizationPolicy(),
+      ownerFixture.auditLog,
+      new IdentifierFactory(),
+      fixedClock(),
+      inlineTransactions(),
+    );
+    await expect(
+      ownerLeave.execute({
+        sessionId: '01911457-e45f-70a4-b39f-da90c15616ee',
+        actorUserId: OWNER_USER_ID,
+        workspaceId: WORKSPACE_ID,
+      }),
+    ).rejects.toBeInstanceOf(MembershipOwnershipProtectedError);
+
+    const staleFixture = createFixture('MEMBER', 'MEMBER', true, false);
+    const staleLeave = new LeaveCurrentWorkspace(
+      staleFixture.memberships,
+      staleFixture.sessionRevocations,
+      new AuthorizationPolicy(),
+      staleFixture.auditLog,
+      new IdentifierFactory(),
+      fixedClock(),
+      inlineTransactions(),
+    );
+    await expect(
+      staleLeave.execute({
+        sessionId: '01911457-e45f-70a4-b39f-da90c15616ee',
+        actorUserId: OWNER_USER_ID,
+        workspaceId: WORKSPACE_ID,
+      }),
+    ).rejects.toBeInstanceOf(AuthorizationDeniedError);
+    expect(staleFixture.revokeSessions).not.toHaveBeenCalled();
+    expect(staleFixture.remove).not.toHaveBeenCalled();
+    expect(staleFixture.audits).toEqual([]);
+  });
 });
 
 function createFixture(
   actorRole: MembershipAdministrationRecord['role'],
   targetRole: MembershipAdministrationRecord['role'],
+  hasOtherActiveMembership = true,
+  sessionIsActive = true,
 ) {
   const audits: AppendAuditLog[] = [];
   const actor = membership(OWNER_MEMBERSHIP_ID, OWNER_USER_ID, actorRole);
@@ -182,6 +283,7 @@ function createFixture(
     updateRole,
     remove,
     countActiveOwners: () => Promise.resolve(1),
+    hasOtherActiveForUser: () => Promise.resolve(hasOtherActiveMembership),
     transferOwnership,
   } as unknown as MembershipAdministration;
   const revokeSessions = jest.fn(() =>
@@ -189,7 +291,7 @@ function createFixture(
   );
   const clearCaches = jest.fn(() => Promise.resolve());
   const sessionRevocations = {
-    hasActiveContext: () => Promise.resolve(true),
+    hasActiveContext: () => Promise.resolve(sessionIsActive),
     revokeActiveForMembership: revokeSessions,
     clearCachesBestEffort: clearCaches,
   } as unknown as MembershipSessionRevocations;

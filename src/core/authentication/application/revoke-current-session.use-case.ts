@@ -4,6 +4,7 @@ import { Clock } from '../../../shared/application/clock';
 import { IdentifierFactory } from '../../../shared/application/identifier-factory';
 import { TRANSACTION_MANAGER } from '../../../shared/application/transaction-manager.port';
 import type { TransactionManager } from '../../../shared/application/transaction-manager.port';
+import { isTransactionWriteConflict } from '../../../shared/application/transaction-write-conflict';
 import { AuthenticationUnavailableError } from '../domain/registration.errors';
 import { AuthenticationSessions } from './authentication-sessions';
 import { SESSION_CACHE } from './session-cache.port';
@@ -62,10 +63,5 @@ export class RevokeCurrentSession {
 }
 
 function isWriteConflict(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    error.code === 'P2034'
-  );
+  return isTransactionWriteConflict(error);
 }

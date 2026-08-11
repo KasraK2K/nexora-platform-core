@@ -30,4 +30,21 @@ export class PrismaWorkspacesRepository implements WorkspacesRepository {
       select: { id: true, organizationId: true, name: true },
     });
   }
+
+  async rename(input: {
+    id: string;
+    organizationId: string;
+    expectedName: string;
+    name: string;
+  }): Promise<boolean> {
+    const result = await this.database.client.workspace.updateMany({
+      where: {
+        id: input.id,
+        organizationId: input.organizationId,
+        name: input.expectedName,
+      },
+      data: { name: input.name },
+    });
+    return result.count === 1;
+  }
 }

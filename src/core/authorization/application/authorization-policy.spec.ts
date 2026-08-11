@@ -68,6 +68,16 @@ describe('AuthorizationPolicy', () => {
     expect(policy.mayTransferWorkspaceOwnership(owner, member)).toBe(true);
     expect(policy.mayTransferWorkspaceOwnership(owner, owner)).toBe(false);
     expect(policy.mayTransferWorkspaceOwnership(admin, member)).toBe(false);
+    expect(policy.permits('OWNER', 'workspace:update')).toBe(true);
+    expect(policy.permits('ADMIN', 'workspace:update')).toBe(true);
+    expect(policy.permits('MEMBER', 'workspace:update')).toBe(false);
+    expect(policy.permits('OWNER', 'membership:self:leave')).toBe(true);
+    expect(policy.permits('ADMIN', 'membership:self:leave')).toBe(true);
+    expect(policy.permits('MEMBER', 'membership:self:leave')).toBe(true);
+    expect(policy.mayLeaveWorkspace('OWNER')).toBe(false);
+    expect(policy.mayLeaveWorkspace('ADMIN')).toBe(true);
+    expect(policy.mayLeaveWorkspace('MEMBER')).toBe(true);
+    expect(policy.mayLeaveWorkspace('FUTURE' as never)).toBe(false);
     expect(
       policy.mayTransferWorkspaceOwnership(
         { userId: 'owner', role: 'FUTURE' as never },

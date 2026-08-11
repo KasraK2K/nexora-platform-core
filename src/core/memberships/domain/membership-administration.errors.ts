@@ -18,6 +18,15 @@ export class MembershipOwnershipProtectedError extends ApplicationError {
   }
 }
 
+export class MembershipLastWorkspaceProtectedError extends ApplicationError {
+  readonly code = 'MEMBERSHIP_LAST_WORKSPACE_PROTECTED';
+  readonly retryable = false;
+
+  constructor() {
+    super('The final active workspace membership cannot be left.');
+  }
+}
+
 export class MembershipOwnershipTransferInvalidError extends ApplicationError {
   readonly code = 'MEMBERSHIP_OWNERSHIP_TRANSFER_INVALID';
   readonly retryable = false;

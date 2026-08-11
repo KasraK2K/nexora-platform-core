@@ -16,6 +16,12 @@ export interface WorkspacesRepository {
   }): Promise<void>;
   findById(id: string): Promise<WorkspaceSummary | null>;
   findByIds(ids: readonly string[]): Promise<WorkspaceSummary[]>;
+  rename(input: {
+    id: string;
+    organizationId: string;
+    expectedName: string;
+    name: string;
+  }): Promise<boolean>;
 }
 
 @Injectable()

@@ -56,4 +56,20 @@ export class PrismaUsersRepository implements UsersRepository {
     });
     return result.count === 1;
   }
+
+  async updateDisplayName(input: {
+    id: string;
+    expectedDisplayName: string;
+    displayName: string;
+  }): Promise<boolean> {
+    const result = await this.database.client.user.updateMany({
+      where: {
+        id: input.id,
+        status: 'ACTIVE',
+        displayName: input.expectedDisplayName,
+      },
+      data: { displayName: input.displayName },
+    });
+    return result.count === 1;
+  }
 }

@@ -143,11 +143,13 @@ commands until the explicit migration is implemented and verified.
 - Identity: stable principals and authentication methods.
 - Authentication: registration, verification/reset, login, password change,
   opaque sessions, and revocation.
-- Users: profile and lifecycle data.
+- Users: profile data and authenticated self display-name updates.
 - Organizations: commercial ownership boundary.
-- Workspaces: operational tenant boundary.
+- Workspaces: operational tenant boundary and OWNER/ADMIN active-workspace
+  rename.
 - Memberships: users connected to workspaces, invitation lifecycle,
-  administration, soft removal/reactivation, and workspace ownership safety.
+  administration, protected self-leave, soft removal/reactivation, and
+  workspace ownership safety.
 - Authorization: explicit deny-by-default route admission and authenticated
   active-user policy plus base membership invitation permissions.
 - Multi-workspace session selection: bounded credentialed choices, actor-only
@@ -158,7 +160,8 @@ commands until the explicit migration is implemented and verified.
 ### Planned foundation
 
 - Organization commercial ownership transfer and multi-workspace policy.
-- User, self-leave, and workspace lifecycle operations.
+- User deactivation/deletion and workspace archive/delete/create lifecycle
+  policy, including recovery paths.
 - Tenant-isolation matrices at repository and API boundaries.
 
 ### Optional reusable capability packs
@@ -321,7 +324,8 @@ prove a stable shared contract.
 ## Platform roadmap
 
 1. Complete tenant foundation: organization commercial ownership policy,
-   lifecycle operations, and broader tenant isolation tests.
+   account/workspace terminal-state and recovery policy, and broader tenant
+   isolation tests.
 2. Complete repository foundation through explicit changes: monorepo decision,
    strict TypeScript plan, contract gates, seeds, and CI.
 3. Add optional reusable capabilities only when a downstream product proves the
@@ -351,6 +355,10 @@ repository owns its own roadmap.
   session revocation, lower-role management, and an explicit current-password
   confirmed owner replacement. Workspace operational ownership does not mutate
   organization commercial ownership.
+- Bounded lifecycle operations support authenticated self display-name update,
+  OWNER/ADMIN active-workspace rename, and protected non-owner self-leave while
+  deferring account deactivation and workspace archival until ownership and
+  recovery policies are defined.
 - Every Nest route declares public, context-authenticated, or
   application-authenticated admission; unclassified routes are denied, and
   context-authenticated tenant routes require active users by default.

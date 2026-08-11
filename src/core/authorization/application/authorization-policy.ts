@@ -11,6 +11,8 @@ export const PERMISSIONS = [
   'membership:role:update',
   'membership:remove',
   'membership:ownership:transfer',
+  'workspace:update',
+  'membership:self:leave',
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -22,7 +24,10 @@ export class AuthorizationPolicy {
       case 'membership-invitation:revoke':
       case 'membership:read':
       case 'membership:remove':
+      case 'workspace:update':
         return role === 'OWNER' || role === 'ADMIN';
+      case 'membership:self:leave':
+        return role === 'OWNER' || role === 'ADMIN' || role === 'MEMBER';
       case 'membership:role:update':
       case 'membership:ownership:transfer':
         return role === 'OWNER';
@@ -74,6 +79,10 @@ export class AuthorizationPolicy {
       actor.userId !== target.userId &&
       (target.role === 'ADMIN' || target.role === 'MEMBER')
     );
+  }
+
+  mayLeaveWorkspace(role: MembershipRole): boolean {
+    return role === 'ADMIN' || role === 'MEMBER';
   }
 }
 

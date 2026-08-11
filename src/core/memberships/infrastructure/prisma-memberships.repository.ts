@@ -184,6 +184,21 @@ export class PrismaMembershipsRepository
     });
   }
 
+  async hasOtherActiveForUser(
+    userId: string,
+    excludingWorkspaceId: string,
+  ): Promise<boolean> {
+    return (
+      (await this.database.client.membership.count({
+        where: {
+          userId,
+          workspaceId: { not: excludingWorkspaceId },
+          removedAt: null,
+        },
+      })) > 0
+    );
+  }
+
   async transferOwnership(input: {
     workspaceId: string;
     currentOwnerMembershipId: string;

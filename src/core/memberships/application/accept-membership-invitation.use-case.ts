@@ -7,6 +7,7 @@ import { Clock } from '../../../shared/application/clock';
 import { IdentifierFactory } from '../../../shared/application/identifier-factory';
 import { TRANSACTION_MANAGER } from '../../../shared/application/transaction-manager.port';
 import type { TransactionManager } from '../../../shared/application/transaction-manager.port';
+import { isTransactionWriteConflict } from '../../../shared/application/transaction-write-conflict';
 import {
   MembershipInvitationInvalidError,
   MembershipInvitationUnavailableError,
@@ -135,7 +136,7 @@ export class AcceptMembershipInvitation {
 }
 
 function isWriteConflict(error: unknown): boolean {
-  return readSafeErrorCode(error) === 'P2034';
+  return isTransactionWriteConflict(error);
 }
 
 function isUniqueConflict(error: unknown): boolean {

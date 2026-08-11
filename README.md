@@ -69,6 +69,11 @@ repository or changing runtime identifiers inherited from this base.
   requires current-password confirmation and atomically promotes a successor
   while demoting the former owner to ADMIN. Commercial organization ownership
   remains separate.
+- `PATCH /v1/users/me` updates the authenticated user's display name.
+  `PATCH /v1/workspaces/current` lets OWNER or ADMIN rename only the active
+  workspace. `DELETE /v1/memberships/me` lets ADMIN or MEMBER leave the active
+  workspace after proving another active membership remains; it revokes only
+  that workspace's sessions and clears the presented cookie.
 - `DELETE /v1/auth/session` idempotently revokes the presented session;
   `DELETE /v1/auth/sessions` revokes every session for the current user.
 - Passwords use Argon2id. Only a SHA-256 session-token digest is stored;
@@ -87,8 +92,9 @@ repository or changing runtime identifiers inherited from this base.
   returned by the API, or stored in PostgreSQL.
 - OpenAPI UI is served at `/docs` while the application is running.
 
-Organization commercial ownership transfer, self-service workspace leaving,
-invite-first registration, and broader lifecycle management are not implemented.
+Organization commercial ownership transfer, user deactivation/deletion,
+workspace archive/delete/create, invite-first registration, and their recovery
+policies are not implemented.
 The session issued at registration remains restricted to routes that explicitly
 permit pending-verification users.
 

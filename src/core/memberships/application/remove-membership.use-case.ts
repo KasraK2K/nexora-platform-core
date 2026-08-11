@@ -8,6 +8,7 @@ import { Clock } from '../../../shared/application/clock';
 import { IdentifierFactory } from '../../../shared/application/identifier-factory';
 import { TRANSACTION_MANAGER } from '../../../shared/application/transaction-manager.port';
 import type { TransactionManager } from '../../../shared/application/transaction-manager.port';
+import { isTransactionWriteConflict } from '../../../shared/application/transaction-write-conflict';
 import {
   MembershipAdministrationUnavailableError,
   MembershipOwnershipProtectedError,
@@ -121,7 +122,7 @@ class MembershipWriteConflictError extends Error {}
 function isWriteConflict(error: unknown): boolean {
   return (
     error instanceof MembershipWriteConflictError ||
-    readSafeErrorCode(error) === 'P2034'
+    isTransactionWriteConflict(error)
   );
 }
 

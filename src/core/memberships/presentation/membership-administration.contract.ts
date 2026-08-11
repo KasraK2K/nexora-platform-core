@@ -19,6 +19,12 @@ export type ChangeMembershipRoleRequest = z.infer<
   typeof changeMembershipRoleSchema
 >;
 
+export const leaveCurrentWorkspaceBodySchema = z.object({}).strict().optional();
+
+export type LeaveCurrentWorkspaceBody = z.infer<
+  typeof leaveCurrentWorkspaceBodySchema
+>;
+
 export const transferWorkspaceOwnershipSchema = z
   .object({
     membershipId: z.uuid(),

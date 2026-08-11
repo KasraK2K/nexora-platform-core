@@ -40,6 +40,10 @@ export interface MembershipAdministrationRepository {
     removedAt: Date;
   }): Promise<boolean>;
   countActiveOwners(workspaceId: string): Promise<number>;
+  hasOtherActiveForUser(
+    userId: string,
+    excludingWorkspaceId: string,
+  ): Promise<boolean>;
   transferOwnership(input: {
     workspaceId: string;
     currentOwnerMembershipId: string;
@@ -97,6 +101,13 @@ export class MembershipAdministration {
 
   countActiveOwners(workspaceId: string): Promise<number> {
     return this.repository.countActiveOwners(workspaceId);
+  }
+
+  hasOtherActiveForUser(
+    userId: string,
+    excludingWorkspaceId: string,
+  ): Promise<boolean> {
+    return this.repository.hasOtherActiveForUser(userId, excludingWorkspaceId);
   }
 
   transferOwnership(input: {

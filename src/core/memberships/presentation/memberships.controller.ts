@@ -10,6 +10,7 @@ import {
   Patch,
   Put,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -24,19 +25,25 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
+import type { Response } from 'express';
+import { AppConfig } from '../../configuration/app-config';
 import type { AuthenticatedRequestContext } from '../../authentication/application/authenticated-request-context';
 import { CurrentAuthenticatedContext } from '../../authentication/presentation/authenticated-request-context';
 import { AuthenticatedRoute } from '../../authorization/presentation/route-admission';
+import { clearSessionCookie } from '../../../shared/presentation/clear-session-cookie';
 import { ZodValidationPipe } from '../../../shared/presentation/zod-validation.pipe';
 import { ChangeMembershipRole } from '../application/change-membership-role.use-case';
 import { ListWorkspaceMemberships } from '../application/list-workspace-memberships.use-case';
+import { LeaveCurrentWorkspace } from '../application/leave-current-workspace.use-case';
 import { RemoveMembership } from '../application/remove-membership.use-case';
 import { TransferWorkspaceOwnership } from '../application/transfer-workspace-ownership.use-case';
 import {
   changeMembershipRoleSchema,
+  leaveCurrentWorkspaceBodySchema,
   listWorkspaceMembershipsSchema,
   transferWorkspaceOwnershipSchema,
   type ChangeMembershipRoleRequest,
+  type LeaveCurrentWorkspaceBody,
   type ListWorkspaceMembershipsRequest,
   type TransferWorkspaceOwnershipRequest,
 } from './membership-administration.contract';
@@ -47,9 +54,11 @@ import { MembershipOwnershipTransferRequestGuard } from './membership-ownership-
 export class MembershipsController {
   constructor(
     private readonly listMemberships: ListWorkspaceMemberships,
+    private readonly leaveCurrentWorkspace: LeaveCurrentWorkspace,
     private readonly changeRole: ChangeMembershipRole,
     private readonly removeMembership: RemoveMembership,
     private readonly transferOwnership: TransferWorkspaceOwnership,
+    private readonly config: AppConfig,
   ) {}
 
   @Get()
@@ -75,6 +84,41 @@ export class MembershipsController {
       data: page.memberships,
       meta: { nextCursor: page.nextCursor },
     };
+  }
+
+  @Delete('me')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @AuthenticatedRoute({
+    requireTrustedOrigin: true,
+    permission: 'membership:self:leave',
+  })
+  @ApiCookieAuth()
+  @ApiOperation({ summary: 'Leave the active workspace' })
+  @ApiBody({
+    required: false,
+    schema: { type: 'object', additionalProperties: false, maxProperties: 0 },
+  })
+  @ApiNoContentResponse({ description: 'Active workspace membership left.' })
+  @ApiForbiddenResponse({ description: 'Workspace leave permission denied.' })
+  @ApiConflictResponse({
+    description: 'Workspace ownership or final membership is protected.',
+  })
+  async leave(
+    @Body(new ZodValidationPipe(leaveCurrentWorkspaceBodySchema))
+    _body: LeaveCurrentWorkspaceBody,
+    @CurrentAuthenticatedContext() context: AuthenticatedRequestContext,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<void> {
+    await this.leaveCurrentWorkspace.execute({
+      sessionId: context.sessionId,
+      actorUserId: context.actorUserId,
+      workspaceId: context.workspaceId,
+    });
+    clearSessionCookie(
+      response,
+      this.config.sessionCookieName,
+      this.config.cookieSecure,
+    );
   }
 
   @Patch(':membershipId/role')

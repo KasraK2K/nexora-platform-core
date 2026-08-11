@@ -1925,6 +1925,400 @@ describe('Nexora API (e2e)', () => {
     ).then((response) => expect(response.status).toBe(201));
   });
 
+  it('updates the actor profile and lets only OWNER or ADMIN rename the active workspace', async () => {
+    const owner = await register('lifecycle-owner@example.com');
+    const ownerCookie = readCookieHeader(owner);
+    const ownerUserId = readString(owner.body as unknown, 'data', 'user', 'id');
+    const workspaceId = readString(
+      owner.body as unknown,
+      'data',
+      'workspace',
+      'id',
+    );
+
+    await updateOwnProfile(ownerCookie, {
+      displayName: 'Injected Name',
+      userId: randomUUID(),
+    }).expect(400);
+    await request(app.getHttpServer())
+      .patch('/v1/users/me')
+      .set('Cookie', ownerCookie)
+      .send({ displayName: 'Missing Origin' })
+      .expect(403);
+    await updateOwnProfile(ownerCookie, {
+      displayName: '  Updated Owner  ',
+    })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          data: { id: ownerUserId, displayName: 'Updated Owner' },
+          meta: {},
+        });
+      });
+    await request(app.getHttpServer())
+      .get('/v1/auth/session')
+      .set('Cookie', ownerCookie)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          data: { user: { id: ownerUserId, displayName: 'Updated Owner' } },
+        });
+      });
+    expect(
+      await prisma.auditLog.count({
+        where: {
+          workspaceId,
+          actorUserId: ownerUserId,
+          action: 'user.profile.updated',
+        },
+      }),
+    ).toBe(1);
+
+    await renameCurrentWorkspace(ownerCookie, {
+      name: 'Injected Workspace',
+      workspaceId: randomUUID(),
+    }).expect(400);
+    await renameCurrentWorkspace(ownerCookie, {
+      name: '  Renamed Workspace  ',
+    })
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          data: { id: workspaceId, name: 'Renamed Workspace' },
+          meta: {},
+        });
+      });
+    await request(app.getHttpServer())
+      .get('/v1/auth/session')
+      .set('Cookie', ownerCookie)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          data: { workspace: { id: workspaceId, name: 'Renamed Workspace' } },
+        });
+      });
+
+    const collaborator = await register('lifecycle-collaborator@example.com');
+    const collaboratorHomeCookie = readCookieHeader(collaborator);
+    const collaboratorUserId = readString(
+      collaborator.body as unknown,
+      'data',
+      'user',
+      'id',
+    );
+    await createInvitation(
+      ownerCookie,
+      'lifecycle-collaborator@example.com',
+      'MEMBER',
+    ).expect(201);
+    await acceptInvitation(
+      collaboratorHomeCookie,
+      readInvitationToken('lifecycle-collaborator@example.com'),
+    ).expect(204);
+    const collaboratorSession = await login(
+      'lifecycle-collaborator@example.com',
+      'A secure passphrase 123',
+      workspaceId,
+    );
+    const collaboratorCookie = readCookieHeader(collaboratorSession);
+    await renameCurrentWorkspace(collaboratorCookie, {
+      name: 'Member Rename',
+    }).expect(403);
+    const collaboratorMembership = await prisma.membership.findUniqueOrThrow({
+      where: {
+        workspaceId_userId: { workspaceId, userId: collaboratorUserId },
+      },
+    });
+    await changeMembershipRole(
+      ownerCookie,
+      collaboratorMembership.id,
+      'ADMIN',
+    ).expect(204);
+    await renameCurrentWorkspace(collaboratorCookie, {
+      name: 'Admin Rename',
+    }).expect(200);
+    expect(
+      await prisma.auditLog.count({
+        where: { workspaceId, action: 'workspace.renamed' },
+      }),
+    ).toBe(2);
+
+    await updateOwnProfile(collaboratorCookie, {
+      displayName: 'Updated Collaborator',
+    }).expect(200);
+    await request(app.getHttpServer())
+      .get('/v1/auth/session')
+      .set('Cookie', collaboratorHomeCookie)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          data: { user: { displayName: 'Updated Collaborator' } },
+        });
+      });
+  });
+
+  it('leaves only the active workspace, revokes its sessions, and clears the presented cookie', async () => {
+    const owner = await register('leave-owner@example.com');
+    const ownerCookie = readCookieHeader(owner);
+    const workspaceId = readString(
+      owner.body as unknown,
+      'data',
+      'workspace',
+      'id',
+    );
+    const member = await register('leave-member@example.com');
+    const memberHomeCookie = readCookieHeader(member);
+    const memberUserId = readString(
+      member.body as unknown,
+      'data',
+      'user',
+      'id',
+    );
+    await createInvitation(
+      ownerCookie,
+      'leave-member@example.com',
+      'MEMBER',
+    ).expect(201);
+    await acceptInvitation(
+      memberHomeCookie,
+      readInvitationToken('leave-member@example.com'),
+    ).expect(204);
+    const firstSelected = await login(
+      'leave-member@example.com',
+      'A secure passphrase 123',
+      workspaceId,
+    );
+    const secondSelected = await login(
+      'leave-member@example.com',
+      'A secure passphrase 123',
+      workspaceId,
+    );
+    const firstSelectedCookie = readCookieHeader(firstSelected);
+    const secondSelectedCookie = readCookieHeader(secondSelected);
+
+    await request(app.getHttpServer())
+      .delete('/v1/memberships/me')
+      .set('Cookie', firstSelectedCookie)
+      .expect(403);
+    await request(app.getHttpServer())
+      .delete('/v1/memberships/me')
+      .set('Origin', ALLOWED_ORIGIN)
+      .set('Cookie', firstSelectedCookie)
+      .send({ workspaceId: randomUUID() })
+      .expect(400);
+    const removeCachedSession = jest
+      .spyOn(sessionCache, 'remove')
+      .mockRejectedValue(new Error('forced'));
+    const leaveResponse = await leaveCurrentWorkspace(firstSelectedCookie);
+    expect(leaveResponse.status).toBe(204);
+    expect(removeCachedSession).toHaveBeenCalled();
+    expect(readSetCookie(leaveResponse)).toContain('Max-Age=0');
+    const leftMembership = await prisma.membership.findUniqueOrThrow({
+      where: { workspaceId_userId: { workspaceId, userId: memberUserId } },
+    });
+    expect(leftMembership.removedAt).toBeInstanceOf(Date);
+    expect(
+      await prisma.session.count({
+        where: {
+          userId: memberUserId,
+          activeWorkspaceId: workspaceId,
+          revokedAt: { not: null },
+        },
+      }),
+    ).toBe(2);
+    await request(app.getHttpServer())
+      .get('/v1/auth/session')
+      .set('Cookie', firstSelectedCookie)
+      .expect(401);
+    await request(app.getHttpServer())
+      .get('/v1/auth/session')
+      .set('Cookie', secondSelectedCookie)
+      .expect(401);
+    await request(app.getHttpServer())
+      .get('/v1/auth/session')
+      .set('Cookie', memberHomeCookie)
+      .expect(200);
+    expect(
+      await prisma.auditLog.count({
+        where: {
+          workspaceId,
+          actorUserId: memberUserId,
+          action: 'membership.left',
+        },
+      }),
+    ).toBe(1);
+
+    await leaveCurrentWorkspace(ownerCookie)
+      .expect(409)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          error: { code: 'MEMBERSHIP_OWNERSHIP_PROTECTED' },
+        });
+      });
+  });
+
+  it('keeps one active membership when the final two workspace leaves race', async () => {
+    const actor = await register('leave-race-actor@example.com');
+    const actorCookie = readCookieHeader(actor);
+    const actorUserId = readString(actor.body as unknown, 'data', 'user', 'id');
+    const actorWorkspaceId = readString(
+      actor.body as unknown,
+      'data',
+      'workspace',
+      'id',
+    );
+    const successor = await register('leave-race-successor@example.com');
+    const successorCookie = readCookieHeader(successor);
+    const successorUserId = readString(
+      successor.body as unknown,
+      'data',
+      'user',
+      'id',
+    );
+    await createInvitation(
+      actorCookie,
+      'leave-race-successor@example.com',
+      'MEMBER',
+    ).expect(201);
+    await acceptInvitation(
+      successorCookie,
+      readInvitationToken('leave-race-successor@example.com'),
+    ).expect(204);
+    const successorMembership = await prisma.membership.findUniqueOrThrow({
+      where: {
+        workspaceId_userId: {
+          workspaceId: actorWorkspaceId,
+          userId: successorUserId,
+        },
+      },
+    });
+    await transferWorkspaceOwner(
+      actorCookie,
+      successorMembership.id,
+      'A secure passphrase 123',
+    ).expect(204);
+
+    const secondOwner = await register('leave-race-owner@example.com');
+    const secondOwnerCookie = readCookieHeader(secondOwner);
+    const secondWorkspaceId = readString(
+      secondOwner.body as unknown,
+      'data',
+      'workspace',
+      'id',
+    );
+    await createInvitation(
+      secondOwnerCookie,
+      'leave-race-actor@example.com',
+      'MEMBER',
+    ).expect(201);
+    await acceptInvitation(
+      actorCookie,
+      readInvitationToken('leave-race-actor@example.com'),
+    ).expect(204);
+    const secondWorkspaceSession = await login(
+      'leave-race-actor@example.com',
+      'A secure passphrase 123',
+      secondWorkspaceId,
+    );
+
+    const responses = await Promise.all([
+      leaveCurrentWorkspace(actorCookie),
+      leaveCurrentWorkspace(readCookieHeader(secondWorkspaceSession)),
+    ]);
+    expect(responses.map(({ status }) => status).sort()).toEqual([204, 409]);
+    const activeMemberships = await prisma.membership.findMany({
+      where: { userId: actorUserId, removedAt: null },
+    });
+    expect(activeMemberships).toHaveLength(1);
+    expect(
+      await prisma.auditLog.count({
+        where: { actorUserId, action: 'membership.left' },
+      }),
+    ).toBe(1);
+  });
+
+  it('rolls back lifecycle mutations when audit persistence fails', async () => {
+    const owner = await register('lifecycle-audit-owner@example.com');
+    const ownerCookie = readCookieHeader(owner);
+    const ownerUserId = readString(owner.body as unknown, 'data', 'user', 'id');
+    const workspaceId = readString(
+      owner.body as unknown,
+      'data',
+      'workspace',
+      'id',
+    );
+    const appendAudit = jest.spyOn(auditLog, 'append');
+
+    appendAudit.mockRejectedValueOnce(
+      new Error('forced profile audit failure'),
+    );
+    await updateOwnProfile(ownerCookie, { displayName: 'Must Roll Back' })
+      .expect(503)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          error: { code: 'USER_LIFECYCLE_UNAVAILABLE' },
+        });
+      });
+    expect(
+      await prisma.user.findUniqueOrThrow({ where: { id: ownerUserId } }),
+    ).toMatchObject({ displayName: 'Owner' });
+
+    appendAudit.mockRejectedValueOnce(
+      new Error('forced workspace audit failure'),
+    );
+    await renameCurrentWorkspace(ownerCookie, { name: 'Must Roll Back' })
+      .expect(503)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          error: { code: 'WORKSPACE_LIFECYCLE_UNAVAILABLE' },
+        });
+      });
+    expect(
+      await prisma.workspace.findUniqueOrThrow({ where: { id: workspaceId } }),
+    ).toMatchObject({ name: 'Main Workspace' });
+
+    const member = await register('lifecycle-audit-member@example.com');
+    const memberCookie = readCookieHeader(member);
+    const memberUserId = readString(
+      member.body as unknown,
+      'data',
+      'user',
+      'id',
+    );
+    await createInvitation(
+      ownerCookie,
+      'lifecycle-audit-member@example.com',
+      'MEMBER',
+    ).expect(201);
+    await acceptInvitation(
+      memberCookie,
+      readInvitationToken('lifecycle-audit-member@example.com'),
+    ).expect(204);
+    const selectedMember = await login(
+      'lifecycle-audit-member@example.com',
+      'A secure passphrase 123',
+      workspaceId,
+    );
+    const selectedMemberCookie = readCookieHeader(selectedMember);
+    appendAudit.mockRejectedValueOnce(new Error('forced leave audit failure'));
+    await leaveCurrentWorkspace(selectedMemberCookie)
+      .expect(503)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          error: { code: 'MEMBERSHIP_ADMINISTRATION_UNAVAILABLE' },
+        });
+      });
+    expect(
+      await prisma.membership.findUniqueOrThrow({
+        where: { workspaceId_userId: { workspaceId, userId: memberUserId } },
+      }),
+    ).toMatchObject({ removedAt: null });
+    await request(app.getHttpServer())
+      .get('/v1/auth/session')
+      .set('Cookie', selectedMemberCookie)
+      .expect(200);
+  });
+
   it('transfers workspace ownership only with step-up confirmation and preserves commercial ownership', async () => {
     const ownershipPassword = '\u{1F510}'.repeat(65);
     const owner = await registerWithPassword(
@@ -3135,6 +3529,35 @@ describe('Nexora API (e2e)', () => {
       .set('Origin', ALLOWED_ORIGIN)
       .set('Cookie', cookie)
       .send({ workspaceId });
+  }
+
+  function updateOwnProfile(
+    cookie: string,
+    body: { displayName: string; userId?: string },
+  ) {
+    return request(app.getHttpServer())
+      .patch('/v1/users/me')
+      .set('Origin', ALLOWED_ORIGIN)
+      .set('Cookie', cookie)
+      .send(body);
+  }
+
+  function renameCurrentWorkspace(
+    cookie: string,
+    body: { name: string; workspaceId?: string },
+  ) {
+    return request(app.getHttpServer())
+      .patch('/v1/workspaces/current')
+      .set('Origin', ALLOWED_ORIGIN)
+      .set('Cookie', cookie)
+      .send(body);
+  }
+
+  function leaveCurrentWorkspace(cookie: string) {
+    return request(app.getHttpServer())
+      .delete('/v1/memberships/me')
+      .set('Origin', ALLOWED_ORIGIN)
+      .set('Cookie', cookie);
   }
 
   function createInvitation(

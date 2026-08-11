@@ -6,6 +6,7 @@ import { Clock } from '../../../shared/application/clock';
 import { IdentifierFactory } from '../../../shared/application/identifier-factory';
 import { TRANSACTION_MANAGER } from '../../../shared/application/transaction-manager.port';
 import type { TransactionManager } from '../../../shared/application/transaction-manager.port';
+import { isTransactionWriteConflict } from '../../../shared/application/transaction-write-conflict';
 import { MembershipInvitationUnavailableError } from '../domain/membership-invitation.errors';
 import { MembershipInvitations } from './membership-invitations';
 import { Memberships } from './memberships';
@@ -78,7 +79,7 @@ export class RevokeMembershipInvitation {
         });
         return;
       } catch (error) {
-        if (attempt === 0 && readSafeErrorCode(error) === 'P2034') {
+        if (attempt === 0 && isTransactionWriteConflict(error)) {
           continue;
         }
         if (error instanceof AuthorizationDeniedError) {

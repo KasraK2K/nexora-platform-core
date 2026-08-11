@@ -106,8 +106,9 @@ This is workspace operational ownership only. It does not modify
 `Organization.ownerUserId`. Organization commercial ownership transfer remains
 an Organizations-owned future decision.
 
-Self-service workspace leaving is not included. An OWNER must first use the
-explicit transfer; ADMIN cannot remove itself because it may manage MEMBER only.
+Self-service workspace leaving is defined separately by ADR-0009. An OWNER must
+first use the explicit transfer; ADMIN and MEMBER may leave only while another
+active workspace membership remains.
 
 ## Consequences
 
@@ -187,8 +188,8 @@ writes but must keep removal-aware readers.
 
 - [ ] Define organization commercial ownership transfer across multiple
       workspaces.
-- [ ] Add explicit self-service workspace leaving if a concrete consumer needs
-      it.
+- [x] Add protected self-service workspace leaving with scoped session
+      revocation and a final-membership concurrency invariant (ADR-0009).
 - [ ] Define removed-membership, session, audit, and invitation PII retention.
 - [ ] Consider a database partial unique owner constraint at the production
       migration transition.

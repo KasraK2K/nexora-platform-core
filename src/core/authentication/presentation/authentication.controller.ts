@@ -64,6 +64,7 @@ import {
 import { PasswordChangeRequestGuard } from './password-change-request.guard';
 import { setPrivateResponseHeaders } from './private-response-headers';
 import { readCookie } from './session-cookie';
+import { clearSessionCookie } from '../../../shared/presentation/clear-session-cookie';
 import { CurrentAuthenticatedSession } from './authenticated-request-context';
 import { CurrentAuthenticatedContext } from './authenticated-request-context';
 import type { AuthenticatedRequestContext } from '../application/authenticated-request-context';
@@ -269,7 +270,11 @@ export class AuthenticationController {
       token: body.token,
       newPassword: body.newPassword,
     });
-    clearSessionCookie(response, this.config);
+    clearSessionCookie(
+      response,
+      this.config.sessionCookieName,
+      this.config.cookieSecure,
+    );
   }
 
   @Put('password')
@@ -465,7 +470,11 @@ export class AuthenticationController {
     await this.revokeCurrentSession.execute(
       readCookie(request.header('cookie'), this.config.sessionCookieName),
     );
-    clearSessionCookie(response, this.config);
+    clearSessionCookie(
+      response,
+      this.config.sessionCookieName,
+      this.config.cookieSecure,
+    );
   }
 
   @Delete('sessions')
@@ -482,7 +491,11 @@ export class AuthenticationController {
     await this.revokeAllSessions.execute(
       readCookie(request.header('cookie'), this.config.sessionCookieName),
     );
-    clearSessionCookie(response, this.config);
+    clearSessionCookie(
+      response,
+      this.config.sessionCookieName,
+      this.config.cookieSecure,
+    );
   }
 }
 
@@ -498,16 +511,5 @@ function setSessionCookie(
     sameSite: 'lax',
     path: '/',
     expires,
-  });
-}
-
-function clearSessionCookie(response: Response, config: AppConfig): void {
-  response.cookie(config.sessionCookieName, '', {
-    httpOnly: true,
-    secure: config.cookieSecure,
-    sameSite: 'lax',
-    path: '/',
-    expires: new Date(0),
-    maxAge: 0,
   });
 }

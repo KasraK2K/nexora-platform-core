@@ -29,6 +29,11 @@ export interface UsersRepository {
   findByIdentityId(identityId: string): Promise<UserSummary | null>;
   findActiveByIdentityId(identityId: string): Promise<UserSummary | null>;
   activate(id: string): Promise<boolean>;
+  updateDisplayName(input: {
+    id: string;
+    expectedDisplayName: string;
+    displayName: string;
+  }): Promise<boolean>;
 }
 
 @Injectable()
