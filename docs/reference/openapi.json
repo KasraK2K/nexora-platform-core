@@ -1,0 +1,864 @@
+{
+  "components": {
+    "schemas": {},
+    "securitySchemes": {
+      "cookie": {
+        "in": "cookie",
+        "name": "nexora_session",
+        "type": "apiKey"
+      }
+    }
+  },
+  "info": {
+    "contact": {},
+    "description": "",
+    "title": "Nexora Platform Core API",
+    "version": "1"
+  },
+  "openapi": "3.0.0",
+  "paths": {
+    "/": {
+      "get": {
+        "operationId": "AppController_getHello",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/v1/auth/email-verification-requests": {
+      "post": {
+        "operationId": "AuthenticationController_requestVerification",
+        "parameters": [],
+        "responses": {
+          "202": {
+            "description": "The request is accepted regardless of account existence."
+          }
+        },
+        "summary": "Request a replacement email verification link",
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/v1/auth/email-verifications": {
+      "post": {
+        "operationId": "AuthenticationController_confirmVerification",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": "Email address verified."
+          }
+        },
+        "summary": "Confirm ownership of an email address",
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/v1/auth/password": {
+      "put": {
+        "operationId": "AuthenticationController_changeAuthenticatedPassword",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "currentPassword": {
+                    "maxLength": 128,
+                    "minLength": 1,
+                    "type": "string",
+                    "writeOnly": true
+                  },
+                  "newPassword": {
+                    "maxLength": 128,
+                    "minLength": 15,
+                    "type": "string",
+                    "writeOnly": true
+                  }
+                },
+                "required": [
+                  "currentPassword",
+                  "newPassword"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Password changed, existing sessions revoked, and current session rotated."
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Change the current user password",
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/v1/auth/password-reset-requests": {
+      "post": {
+        "operationId": "AuthenticationController_requestPasswordResetLink",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "email": {
+                    "format": "email",
+                    "maxLength": 254,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "email"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "The request is accepted regardless of account existence."
+          }
+        },
+        "summary": "Request a password reset link",
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/v1/auth/password-resets": {
+      "post": {
+        "operationId": "AuthenticationController_confirmPasswordReset",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "newPassword": {
+                    "maxLength": 128,
+                    "minLength": 15,
+                    "type": "string",
+                    "writeOnly": true
+                  },
+                  "token": {
+                    "maxLength": 43,
+                    "minLength": 43,
+                    "type": "string",
+                    "writeOnly": true
+                  }
+                },
+                "required": [
+                  "token",
+                  "newPassword"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Password replaced and every existing session revoked."
+          }
+        },
+        "summary": "Replace a password using a reset token",
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/v1/auth/registrations": {
+      "post": {
+        "operationId": "AuthenticationController_register",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "displayName": {
+                    "maxLength": 100,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "email": {
+                    "format": "email",
+                    "maxLength": 254,
+                    "type": "string"
+                  },
+                  "organizationName": {
+                    "maxLength": 120,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "password": {
+                    "maxLength": 128,
+                    "minLength": 15,
+                    "type": "string",
+                    "writeOnly": true
+                  },
+                  "workspaceName": {
+                    "maxLength": 120,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "email",
+                  "password",
+                  "displayName",
+                  "organizationName",
+                  "workspaceName"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Account created and session cookie issued."
+          }
+        },
+        "summary": "Create an account and its initial organization and workspace",
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/v1/auth/session": {
+      "delete": {
+        "operationId": "AuthenticationController_logout",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": "Current session revoked."
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Revoke the current session",
+        "tags": [
+          "Authentication"
+        ]
+      },
+      "get": {
+        "operationId": "AuthenticationController_currentSession",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Current authenticated session."
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Resolve the current user and trusted active workspace",
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/v1/auth/session/workspace": {
+      "put": {
+        "operationId": "AuthenticationController_selectWorkspace",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "workspaceId": {
+                    "format": "uuid",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "workspaceId"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Active workspace switched and the opaque session cookie rotated."
+          },
+          "403": {
+            "description": "The requested workspace is not available to this user."
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Switch the active workspace for this session",
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/v1/auth/session/workspaces": {
+      "get": {
+        "operationId": "AuthenticationController_availableWorkspaces",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Current workspace memberships."
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "List workspaces available to the current user",
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/v1/auth/sessions": {
+      "delete": {
+        "operationId": "AuthenticationController_logoutEverywhere",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": "All user sessions revoked."
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Revoke every session for the current user",
+        "tags": [
+          "Authentication"
+        ]
+      },
+      "post": {
+        "operationId": "AuthenticationController_login",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "email": {
+                    "format": "email",
+                    "maxLength": 254,
+                    "type": "string"
+                  },
+                  "password": {
+                    "maxLength": 128,
+                    "minLength": 1,
+                    "type": "string",
+                    "writeOnly": true
+                  },
+                  "workspaceId": {
+                    "format": "uuid",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "email",
+                  "password"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Session created and cookie issued."
+          },
+          "409": {
+            "description": "Valid credentials require an explicit choice from the returned workspaces."
+          }
+        },
+        "summary": "Authenticate and create a new session",
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/v1/membership-invitations": {
+      "post": {
+        "operationId": "MembershipInvitationsController_create",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "email": {
+                    "format": "email",
+                    "maxLength": 254,
+                    "type": "string"
+                  },
+                  "role": {
+                    "enum": [
+                      "ADMIN",
+                      "MEMBER"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "email",
+                  "role"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Membership invitation created."
+          },
+          "403": {
+            "description": "Invitation permission denied."
+          },
+          "409": {
+            "description": "A membership or active invitation already exists."
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Invite a user to the active workspace",
+        "tags": [
+          "Membership invitations"
+        ]
+      }
+    },
+    "/v1/membership-invitations/acceptances": {
+      "post": {
+        "operationId": "MembershipInvitationsController_accept",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "token": {
+                    "maxLength": 43,
+                    "minLength": 43,
+                    "type": "string",
+                    "writeOnly": true
+                  }
+                },
+                "required": [
+                  "token"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Membership invitation accepted."
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Accept an email-bound membership invitation",
+        "tags": [
+          "Membership invitations"
+        ]
+      }
+    },
+    "/v1/membership-invitations/{invitationId}": {
+      "delete": {
+        "operationId": "MembershipInvitationsController_revoke",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "invitationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Invitation revoked or not visible in the active workspace."
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Revoke an active-workspace membership invitation",
+        "tags": [
+          "Membership invitations"
+        ]
+      }
+    },
+    "/v1/memberships": {
+      "get": {
+        "operationId": "MembershipsController_list",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "example": 50,
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A cursor-bounded membership page."
+          },
+          "403": {
+            "description": "Membership read permission denied."
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "List active-workspace memberships",
+        "tags": [
+          "Memberships"
+        ]
+      }
+    },
+    "/v1/memberships/me": {
+      "delete": {
+        "operationId": "MembershipsController_leave",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "maxProperties": 0,
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "204": {
+            "description": "Active workspace membership left."
+          },
+          "403": {
+            "description": "Workspace leave permission denied."
+          },
+          "409": {
+            "description": "Workspace ownership or final membership is protected."
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Leave the active workspace",
+        "tags": [
+          "Memberships"
+        ]
+      }
+    },
+    "/v1/memberships/owner": {
+      "put": {
+        "operationId": "MembershipsController_transferWorkspaceOwner",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "currentPassword": {
+                    "description": "Maximum 128 normalized Unicode code points and 512 UTF-8 bytes.",
+                    "maxLength": 512,
+                    "minLength": 1,
+                    "type": "string",
+                    "writeOnly": true
+                  },
+                  "membershipId": {
+                    "format": "uuid",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "membershipId",
+                  "currentPassword"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Workspace ownership transferred."
+          },
+          "400": {
+            "description": "Transfer confirmation was invalid."
+          },
+          "403": {
+            "description": "Ownership transfer permission denied."
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Transfer active-workspace operational ownership",
+        "tags": [
+          "Memberships"
+        ]
+      }
+    },
+    "/v1/memberships/{membershipId}": {
+      "delete": {
+        "operationId": "MembershipsController_remove",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "membershipId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Membership removed or not visible in the active workspace."
+          },
+          "403": {
+            "description": "Membership removal permission denied."
+          },
+          "409": {
+            "description": "Workspace ownership is protected."
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Remove a non-owner active-workspace membership",
+        "tags": [
+          "Memberships"
+        ]
+      }
+    },
+    "/v1/memberships/{membershipId}/role": {
+      "patch": {
+        "operationId": "MembershipsController_updateRole",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "membershipId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "role": {
+                    "enum": [
+                      "ADMIN",
+                      "MEMBER"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "role"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Membership role updated or unchanged."
+          },
+          "403": {
+            "description": "Role update permission denied."
+          },
+          "409": {
+            "description": "Workspace ownership is protected."
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Change a non-owner membership role",
+        "tags": [
+          "Memberships"
+        ]
+      }
+    },
+    "/v1/users/me": {
+      "patch": {
+        "operationId": "UsersController_updateMe",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "displayName": {
+                    "maxLength": 100,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "displayName"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Current user profile updated or unchanged."
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Update the current user profile",
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/v1/workspaces/current": {
+      "patch": {
+        "operationId": "WorkspacesController_rename",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "maxLength": 120,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Active workspace renamed or unchanged."
+          },
+          "403": {
+            "description": "Workspace update permission denied."
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Rename the active workspace",
+        "tags": [
+          "Workspaces"
+        ]
+      }
+    }
+  },
+  "servers": [],
+  "tags": []
+}

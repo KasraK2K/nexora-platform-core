@@ -6,9 +6,9 @@ product. Product modules, provider integrations, prompts, evaluation data, and
 product UI do not belong in this repository.
 
 The target architecture is documented in
-`docs/architecture/platform-core-baseline.md`. The repository currently remains
-one NestJS modular monolith; the target pnpm/Turborepo structure has not been
-implemented.
+`docs/architecture/platform-core-baseline.md`. ADR-0010 retains the current
+single-package NestJS modular monolith until explicit package and task-graph
+triggers justify pnpm workspaces and Turborepo.
 
 See `docs/architecture/downstream-product-guide.md` before creating a product
 repository or changing runtime identifiers inherited from this base.
@@ -96,6 +96,9 @@ repository or changing runtime identifiers inherited from this base.
   Mailpit; raw verification tokens are delivered by email and are never logged,
   returned by the API, or stored in PostgreSQL.
 - OpenAPI UI is served at `/docs` while the application is running.
+- Repository foundation gates now cover full-project strict TypeScript,
+  deterministic OpenAPI drift, module/table ownership, Core/product dependency
+  direction, non-mutating CI checks, and isolated Docker E2E tests.
 
 Organization commercial ownership transfer, user deactivation/deletion,
 workspace archive/delete/create, invite-first registration, and their recovery
@@ -134,8 +137,16 @@ copy .env.example .env
 pnpm install
 pnpm run db:dev:up
 pnpm run db:push
+pnpm run db:seed
 pnpm run start:dev
 ```
+
+`db:seed` is optional and repeatable. It creates one non-authenticating,
+product-neutral local tenant fixture with fixed IDs and `example.invalid` data.
+It contains no password, token, session, provider credential, real PII, or
+product policy. Seed, schema-push, and E2E commands fail closed unless their
+database and Redis targets match the committed loopback development/test
+services.
 
 The local PostgreSQL port is `55432`; Redis uses `56379`. Mailpit accepts SMTP
 on `1025` and exposes its local mailbox UI at `http://localhost:8025`.
@@ -174,11 +185,19 @@ curl -i http://localhost:3000/v1/auth/email-verifications \
 
 ```bash
 pnpm run lint
+pnpm run format:check
+pnpm run lint:check
+pnpm run typecheck
+pnpm run contract:check
+pnpm run test:architecture
 pnpm run test --runInBand
 pnpm run test:e2e
 pnpm run build
 pnpm run check:deprecated
 ```
+
+Regenerate `docs/reference/openapi.json` with `pnpm run contract:generate`,
+then review the public-contract diff before accepting it.
 
 Refresh the generated local password fallback from its documented free source
 with `pnpm run update:password-blocklist`, then review the source checksum,

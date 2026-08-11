@@ -4,9 +4,6 @@ import {
 } from '../../audit/application/audit-log';
 import { AuthorizationPolicy } from '../../authorization/application/authorization-policy';
 import { AuthorizationDeniedError } from '../../authorization/application/authorization-denied.error';
-import type { AppConfig } from '../../configuration/app-config';
-import type { IdentityLookup } from '../../identity/application/identity-lookup';
-import type { Users } from '../../users/application/users';
 import { Clock } from '../../../shared/application/clock';
 import { IdentifierFactory } from '../../../shared/application/identifier-factory';
 import type { TransactionManager } from '../../../shared/application/transaction-manager.port';
@@ -17,10 +14,9 @@ import {
 import type { MembershipRole } from './membership-role';
 import { AcceptMembershipInvitation } from './accept-membership-invitation.use-case';
 import { CreateMembershipInvitation } from './create-membership-invitation.use-case';
-import type { MembershipInvitationDelivery } from './membership-invitation-delivery';
 import { MembershipInvitationTokenService } from './membership-invitation-token.service';
 import { MembershipInvitations } from './membership-invitations';
-import { Memberships } from './memberships';
+import { Memberships, type MembershipsRepository } from './memberships';
 import { InvitedMembershipsWriter } from './invited-memberships-writer';
 
 const WORKSPACE_ID = '01911457-e820-7b71-b695-a07fb242b8ec';
@@ -176,15 +172,15 @@ function createIssueFixture(
         id: IDENTITY_ID,
         normalizedEmail: 'person@example.com',
       }),
-  } as IdentityLookup;
+  };
   const users = {
     findByIdentityId: () =>
       Promise.resolve({
         id: INVITEE_ID,
         displayName: 'Invitee',
-        status: 'ACTIVE',
+        status: 'ACTIVE' as const,
       }),
-  } as Users;
+  };
 
   return {
     audits,
@@ -199,11 +195,11 @@ function createIssueFixture(
       new AuditLog({
         append: (audit) => (audits.push(audit), Promise.resolve()),
       }),
-      { attempt: delivery } as unknown as MembershipInvitationDelivery,
+      { attempt: delivery },
       new MembershipInvitationTokenService(),
       new IdentifierFactory(),
       fixedClock(),
-      { membershipInvitationTtlSeconds: 3600 } as AppConfig,
+      { membershipInvitationTtlSeconds: 3600 },
       inlineTransactions(),
     ),
   };
@@ -269,24 +265,24 @@ function createAcceptanceFixture(
           : null,
       ),
     listForUser: () => Promise.resolve([]),
-    resolveLoginWorkspace: () => Promise.resolve({ kind: 'none' }),
-  };
+    resolveLoginWorkspace: () => Promise.resolve({ kind: 'none' as const }),
+  } satisfies MembershipsRepository;
   const memberships = new Memberships(membershipsRepository);
   const users = {
     findAuthenticationReferenceById: () =>
       Promise.resolve({
         id: INVITEE_ID,
         identityId: IDENTITY_ID,
-        status: 'ACTIVE',
+        status: 'ACTIVE' as const,
       }),
-  } as Users;
+  };
   const identities = {
     findById: () =>
       Promise.resolve({
         id: IDENTITY_ID,
         normalizedEmail: overrides.normalizedEmail ?? 'person@example.com',
       }),
-  } as IdentityLookup;
+  };
 
   return {
     rawToken: token.raw,

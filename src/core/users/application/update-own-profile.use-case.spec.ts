@@ -166,10 +166,12 @@ function users(
   };
 }
 
-function sessionAuthority(active: boolean): MembershipSessionRevocations {
+function sessionAuthority(
+  active: boolean,
+): Pick<MembershipSessionRevocations, 'hasActiveContext'> {
   return {
     hasActiveContext: () => Promise.resolve(active),
-  } as MembershipSessionRevocations;
+  };
 }
 
 function fixedClock(): Clock {

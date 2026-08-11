@@ -126,7 +126,13 @@ function createFixture(
   sessionIsActive = true,
 ) {
   const audits: AppendAuditLog[] = [];
-  const rename = jest.fn(() => Promise.resolve(renameResults.shift() ?? true));
+  const rename = jest.fn<
+    ReturnType<WorkspacesRepository['rename']>,
+    Parameters<WorkspacesRepository['rename']>
+  >((input) => {
+    void input;
+    return Promise.resolve(renameResults.shift() ?? true);
+  });
   const workspaces: WorkspacesRepository = {
     create: () => Promise.resolve(),
     findById: () =>
@@ -151,7 +157,7 @@ function createFixture(
     memberships,
     {
       hasActiveContext: () => Promise.resolve(sessionIsActive),
-    } as MembershipSessionRevocations,
+    } satisfies Pick<MembershipSessionRevocations, 'hasActiveContext'>,
     new AuthorizationPolicy(),
     new AuditLog({
       append: (audit) => (audits.push(audit), Promise.resolve()),

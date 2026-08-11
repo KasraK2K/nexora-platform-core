@@ -27,7 +27,11 @@ export class RenameCurrentWorkspace {
     @Inject(WORKSPACES_REPOSITORY)
     private readonly workspaces: WorkspacesRepository,
     private readonly memberships: Memberships,
-    private readonly sessionAuthority: MembershipSessionRevocations,
+    @Inject(MembershipSessionRevocations)
+    private readonly sessionAuthority: Pick<
+      MembershipSessionRevocations,
+      'hasActiveContext'
+    >,
     private readonly authorization: AuthorizationPolicy,
     private readonly auditLog: AuditLog,
     private readonly identifiers: IdentifierFactory,

@@ -93,6 +93,7 @@ function createFixture(options?: { expired?: boolean }) {
       status = 'ACTIVE';
       return Promise.resolve(true);
     },
+    updateDisplayName: () => Promise.resolve(false),
   });
   const audits: AppendAuditLog[] = [];
   const auditLog = new AuditLog({

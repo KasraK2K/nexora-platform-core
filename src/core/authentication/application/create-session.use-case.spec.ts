@@ -107,8 +107,16 @@ describe('CreateSession', () => {
       code: 'WORKSPACE_SELECTION_REQUIRED',
       details: {
         availableWorkspaces: [
-          { workspace: { id: 'workspace-id' } },
-          { workspace: { id: 'workspace-2' } },
+          {
+            organization: { id: 'organization-id', name: 'Example Org' },
+            workspace: { id: 'workspace-id', name: 'Main Workspace' },
+            membership: { role: 'OWNER' },
+          },
+          {
+            organization: { id: 'organization-2', name: 'Example Org 2' },
+            workspace: { id: 'workspace-2', name: 'Workspace 2' },
+            membership: { role: 'OWNER' },
+          },
         ],
       },
     } satisfies Partial<WorkspaceSelectionRequiredError>);
@@ -217,9 +225,11 @@ function createFixture(options?: { memberships?: MembershipSummary[] }): {
         status: 'ACTIVE',
       }),
     activate: () => Promise.resolve(false),
+    updateDisplayName: () => Promise.resolve(false),
   });
   const memberships = new Memberships({
     createOwner: () => Promise.resolve(),
+    createInvited: () => Promise.resolve(),
     find: (input) =>
       Promise.resolve(
         membershipRecords.find(
@@ -231,7 +241,7 @@ function createFixture(options?: { memberships?: MembershipSummary[] }): {
     resolveLoginWorkspace: () =>
       Promise.resolve(
         membershipRecords.length === 1
-          ? { kind: 'selected', membership: membershipRecords[0] as const }
+          ? { kind: 'selected' as const, membership: membershipRecords[0] }
           : { kind: 'ambiguous' },
       ),
   });
@@ -265,6 +275,7 @@ function createFixture(options?: { memberships?: MembershipSummary[] }): {
               }),
         ),
       ),
+    rename: () => Promise.resolve(false),
   });
   const organizations = new Organizations({
     create: () => Promise.resolve(),

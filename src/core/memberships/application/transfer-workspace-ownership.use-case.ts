@@ -16,15 +16,28 @@ import {
 } from '../domain/membership-administration.errors';
 import { MembershipAdministration } from './membership-administration';
 
+type CurrentPasswordProof = {
+  verify(input: {
+    identityId: string;
+    password: string;
+  }): Promise<object | null>;
+};
+
 @Injectable()
 export class TransferWorkspaceOwnership {
   private readonly logger = new Logger(TransferWorkspaceOwnership.name);
 
   constructor(
     private readonly memberships: MembershipAdministration,
-    private readonly sessionAuthority: MembershipSessionRevocations,
-    private readonly users: Users,
-    private readonly passwordCredentials: PasswordCredentialVerification,
+    @Inject(MembershipSessionRevocations)
+    private readonly sessionAuthority: Pick<
+      MembershipSessionRevocations,
+      'hasActiveContext'
+    >,
+    @Inject(Users)
+    private readonly users: Pick<Users, 'findAuthenticationReferenceById'>,
+    @Inject(PasswordCredentialVerification)
+    private readonly passwordCredentials: CurrentPasswordProof,
     private readonly authorization: AuthorizationPolicy,
     private readonly auditLog: AuditLog,
     private readonly identifiers: IdentifierFactory,

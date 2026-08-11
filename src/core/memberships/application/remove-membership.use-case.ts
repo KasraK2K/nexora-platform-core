@@ -21,7 +21,11 @@ export class RemoveMembership {
 
   constructor(
     private readonly memberships: MembershipAdministration,
-    private readonly sessionRevocations: MembershipSessionRevocations,
+    @Inject(MembershipSessionRevocations)
+    private readonly sessionRevocations: Pick<
+      MembershipSessionRevocations,
+      'hasActiveContext' | 'revokeActiveForMembership' | 'clearCachesBestEffort'
+    >,
     private readonly authorization: AuthorizationPolicy,
     private readonly auditLog: AuditLog,
     private readonly identifiers: IdentifierFactory,

@@ -221,6 +221,7 @@ function createFixture(): {
   ];
   const memberships = new Memberships({
     createOwner: () => Promise.resolve(),
+    createInvited: () => Promise.resolve(),
     find: (input) =>
       Promise.resolve(
         membershipRecords.find(
@@ -251,6 +252,7 @@ function createFixture(): {
           name: id === 'workspace-1' ? 'Workspace 1' : 'Workspace 2',
         })),
       ),
+    rename: () => Promise.resolve(false),
   });
   const organizations = new Organizations({
     create: () => Promise.resolve(),
@@ -283,6 +285,7 @@ function createFixture(): {
     findByIdentityId: () => Promise.resolve(null),
     findActiveByIdentityId: () => Promise.resolve(null),
     activate: () => Promise.resolve(false),
+    updateDisplayName: () => Promise.resolve(false),
   });
   const audits: AppendAuditLog[] = [];
   const auditLog = new AuditLog({

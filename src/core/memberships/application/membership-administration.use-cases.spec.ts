@@ -5,8 +5,6 @@ import {
 import type { MembershipSessionRevocations } from '../../authentication/application/membership-session-revocations';
 import { AuthorizationPolicy } from '../../authorization/application/authorization-policy';
 import { AuthorizationDeniedError } from '../../authorization/application/authorization-denied.error';
-import type { PasswordCredentialVerification } from '../../identity/application/password-credential-verification';
-import type { Users } from '../../users/application/users';
 import { Clock } from '../../../shared/application/clock';
 import { IdentifierFactory } from '../../../shared/application/identifier-factory';
 import type { TransactionManager } from '../../../shared/application/transaction-manager.port';
@@ -138,8 +136,8 @@ describe('membership administration use cases', () => {
             identityId: '01911457-d45f-70a4-b39f-da90c15616ee',
             status: 'ACTIVE',
           }),
-      } as Users,
-      { verify: () => Promise.resolve({}) } as PasswordCredentialVerification,
+      },
+      { verify: () => Promise.resolve({}) },
       new AuthorizationPolicy(),
       fixture.auditLog,
       new IdentifierFactory(),
@@ -294,7 +292,10 @@ function createFixture(
     hasActiveContext: () => Promise.resolve(sessionIsActive),
     revokeActiveForMembership: revokeSessions,
     clearCachesBestEffort: clearCaches,
-  } as unknown as MembershipSessionRevocations;
+  } satisfies Pick<
+    MembershipSessionRevocations,
+    'hasActiveContext' | 'revokeActiveForMembership' | 'clearCachesBestEffort'
+  >;
 
   return {
     memberships,

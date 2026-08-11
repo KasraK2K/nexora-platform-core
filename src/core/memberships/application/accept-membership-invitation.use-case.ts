@@ -25,8 +25,10 @@ export class AcceptMembershipInvitation {
     private readonly memberships: Memberships,
     private readonly membershipWriter: InvitedMembershipsWriter,
     private readonly invitations: MembershipInvitations,
-    private readonly users: Users,
-    private readonly identities: IdentityLookup,
+    @Inject(Users)
+    private readonly users: Pick<Users, 'findAuthenticationReferenceById'>,
+    @Inject(IdentityLookup)
+    private readonly identities: Pick<IdentityLookup, 'findById'>,
     private readonly authorization: AuthorizationPolicy,
     private readonly auditLog: AuditLog,
     private readonly tokens: MembershipInvitationTokenService,

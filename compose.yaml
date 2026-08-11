@@ -6,9 +6,9 @@ services:
       POSTGRES_USER: nexora
       POSTGRES_PASSWORD: nexora_local
     ports:
-      - "55432:5432"
+      - '127.0.0.1:55432:5432'
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U nexora -d nexora"]
+      test: ['CMD-SHELL', 'pg_isready -U nexora -d nexora']
       interval: 2s
       timeout: 3s
       retries: 20
@@ -17,11 +17,18 @@ services:
 
   redis:
     image: redis:7.4-alpine
-    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    command:
+      [
+        'redis-server',
+        '--appendonly',
+        'yes',
+        '--maxmemory-policy',
+        'noeviction',
+      ]
     ports:
-      - "56379:6379"
+      - '127.0.0.1:56379:6379'
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 2s
       timeout: 3s
       retries: 20
@@ -31,10 +38,10 @@ services:
   mailpit:
     image: axllent/mailpit:v1.30.0
     ports:
-      - "1025:1025"
-      - "8025:8025"
+      - '127.0.0.1:1025:1025'
+      - '127.0.0.1:8025:8025'
     healthcheck:
-      test: ["CMD", "/mailpit", "readyz"]
+      test: ['CMD', '/mailpit', 'readyz']
       interval: 2s
       timeout: 3s
       retries: 20

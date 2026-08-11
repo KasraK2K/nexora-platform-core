@@ -356,9 +356,11 @@ function createFixture(options?: {
     findByIdentityId: () => Promise.resolve(null),
     findActiveByIdentityId: () => Promise.resolve(null),
     activate: () => Promise.resolve(false),
+    updateDisplayName: () => Promise.resolve(false),
   });
   const memberships = new Memberships({
     createOwner: () => Promise.resolve(),
+    createInvited: () => Promise.resolve(),
     find: (input) =>
       Promise.resolve(
         options?.membershipPresent === false

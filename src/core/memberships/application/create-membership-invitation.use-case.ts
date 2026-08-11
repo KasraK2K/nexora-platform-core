@@ -37,15 +37,19 @@ export class CreateMembershipInvitation {
   constructor(
     private readonly memberships: Memberships,
     private readonly invitations: MembershipInvitations,
-    private readonly identities: IdentityLookup,
-    private readonly users: Users,
+    @Inject(IdentityLookup)
+    private readonly identities: Pick<IdentityLookup, 'findByEmail'>,
+    @Inject(Users)
+    private readonly users: Pick<Users, 'findByIdentityId'>,
     private readonly authorization: AuthorizationPolicy,
     private readonly auditLog: AuditLog,
-    private readonly delivery: MembershipInvitationDelivery,
+    @Inject(MembershipInvitationDelivery)
+    private readonly delivery: Pick<MembershipInvitationDelivery, 'attempt'>,
     private readonly tokens: MembershipInvitationTokenService,
     private readonly identifiers: IdentifierFactory,
     private readonly clock: Clock,
-    private readonly config: AppConfig,
+    @Inject(AppConfig)
+    private readonly config: Pick<AppConfig, 'membershipInvitationTtlSeconds'>,
     @Inject(TRANSACTION_MANAGER)
     private readonly transactions: TransactionManager,
   ) {}

@@ -213,6 +213,7 @@ function createRequestFixture(latestWorkspaces?: readonly string[]) {
             id: 'identity-id',
             normalizedEmail: 'person@example.com',
           }),
+        findById: () => Promise.resolve(null),
       }),
       users,
       sessions,
@@ -327,6 +328,7 @@ function activeUsers(): Users {
         status: 'ACTIVE',
       }),
     activate: () => Promise.resolve(false),
+    updateDisplayName: () => Promise.resolve(false),
   });
 }
 

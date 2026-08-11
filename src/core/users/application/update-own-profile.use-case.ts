@@ -23,7 +23,11 @@ export class UpdateOwnProfile {
   constructor(
     @Inject(USERS_REPOSITORY)
     private readonly users: UsersRepository,
-    private readonly sessionAuthority: MembershipSessionRevocations,
+    @Inject(MembershipSessionRevocations)
+    private readonly sessionAuthority: Pick<
+      MembershipSessionRevocations,
+      'hasActiveContext'
+    >,
     private readonly auditLog: AuditLog,
     private readonly identifiers: IdentifierFactory,
     private readonly clock: Clock,

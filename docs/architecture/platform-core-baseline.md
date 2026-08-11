@@ -46,6 +46,9 @@ The repository is currently one NestJS modular monolith. It implements:
   and protected non-owner self-leave;
 - executable HTTP and repository tenant-isolation matrices for every currently
   implemented tenant-owned surface;
+- repository foundation gates for strict full-project type checking,
+  deterministic local seeding, OpenAPI drift, architecture/table ownership,
+  non-mutating CI, and Docker E2E;
 - provider-neutral SMTP delivery with a local Mailpit development adapter;
 - origin checks, authentication rate limiting, compromised-password screening;
 - audit records, request IDs, Zod transport validation, and OpenAPI generation.
@@ -138,7 +141,10 @@ packages/
 ```
 
 Do not perform this reorganization as incidental work. Preserve current package
-commands until the explicit migration is implemented and verified.
+commands until the explicit migration is implemented and verified. ADR-0010
+retains the single-package structure until multiple real packages or
+applications, stable shared consumers, a downstream release strategy, private
+database ownership, and measured task-graph/cache pressure justify migration.
 
 ## Core module map
 
@@ -160,6 +166,8 @@ commands until the explicit migration is implemented and verified.
   membership listing, and audited per-session workspace switching.
 - Audit: append-oriented sensitive-action records.
 - Configuration, persistence, Redis, and shared primitives.
+- Repository foundation: strict type checking, collision-safe local seed,
+  committed OpenAPI contract, executable architecture ownership, and CI.
 
 ### Planned foundation
 
@@ -328,8 +336,8 @@ prove a stable shared contract.
 
 1. Complete tenant foundation: organization commercial ownership policy and
    account/workspace terminal-state and recovery policy.
-2. Complete repository foundation through explicit changes: monorepo decision,
-   strict TypeScript plan, contract gates, seeds, and CI.
+2. Maintain the repository foundation gates accepted in ADR-0010 and reassess
+   pnpm workspaces/Turborepo only when its explicit triggers are met.
 3. Add optional reusable capabilities only when a downstream product proves the
    need.
 4. Prepare production operations: deployment, observability, privacy,
@@ -369,6 +377,8 @@ repository owns its own roadmap.
   context-authenticated tenant routes require active users by default.
 - REST/OpenAPI, with SSE only for demonstrated streaming needs.
 - pnpm workspaces and Turborepo as an explicit long-term repository target.
+- One root package until ADR-0010's package-consumer and measured task-graph
+  triggers justify a separately approved migration.
 - Product-neutral Platform Core with downstream product repositories.
 
 ## Open decisions
