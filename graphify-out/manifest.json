@@ -155,8 +155,8 @@
     "semantic_hash": ""
   },
   "src/core/authentication/application/password-reset.use-cases.spec.ts": {
-    "mtime": 1786262718.6098967,
-    "ast_hash": "5eda445550fe7ea2cf1c13b9ed2e9df6",
+    "mtime": 1786446541.006117,
+    "ast_hash": "8991738d779a6daf3a20737bbad75c21",
     "semantic_hash": ""
   },
   "src/core/authentication/application/register-account.use-case.spec.ts": {
@@ -175,8 +175,8 @@
     "semantic_hash": ""
   },
   "src/core/authentication/application/request-password-reset.use-case.ts": {
-    "mtime": 1786213538.3578196,
-    "ast_hash": "d5f92da24b0800f64a56e0e39e798b61",
+    "mtime": 1786446618.399378,
+    "ast_hash": "6c0a1c2d7e5604cebb411577829b796a",
     "semantic_hash": ""
   },
   "src/core/authentication/application/reset-password.use-case.ts": {
@@ -250,8 +250,8 @@
     "semantic_hash": ""
   },
   "src/core/authentication/infrastructure/prisma-authentication-sessions.repository.ts": {
-    "mtime": 1786436810.2159984,
-    "ast_hash": "d064bdf1b2a8ae44d5f921b773acae76",
+    "mtime": 1786446317.4389222,
+    "ast_hash": "00f7e329ae1d282fedb81766ca84542e",
     "semantic_hash": ""
   },
   "src/core/authentication/infrastructure/prisma-email-verifications.repository.ts": {
@@ -450,8 +450,8 @@
     "semantic_hash": ""
   },
   "src/core/memberships/infrastructure/prisma-memberships.repository.ts": {
-    "mtime": 1786439942.6363177,
-    "ast_hash": "27a7a1c5db93fcef2a902f26b28f21c7",
+    "mtime": 1786446317.4409337,
+    "ast_hash": "a37287cb45dab3b226514e623b27dd8c",
     "semantic_hash": ""
   },
   "src/core/memberships/memberships.module.ts": {
@@ -565,8 +565,8 @@
     "semantic_hash": ""
   },
   "test/app.e2e-spec.ts": {
-    "mtime": 1786441568.0575569,
-    "ast_hash": "974743befd20fdead02a224a427770b2",
+    "mtime": 1786446618.399378,
+    "ast_hash": "2082bffd916a78f4ddb133ab24357946",
     "semantic_hash": ""
   },
   "tsconfig.build.json": {
@@ -650,8 +650,8 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1786440654.6783564,
-    "ast_hash": "fde0d97620f36cb57d9230eb56aaa71f",
+    "mtime": 1786446148.2466378,
+    "ast_hash": "6b360fab67e15bf1af1661623ab564c8",
     "semantic_hash": ""
   },
   "THIRD_PARTY_NOTICES.md": {
@@ -695,8 +695,8 @@
     "semantic_hash": ""
   },
   "docs/architecture/platform-core-baseline.md": {
-    "mtime": 1786440654.6804664,
-    "ast_hash": "afdec8c6e821ff03a3b38f4a2c56f0a3",
+    "mtime": 1786446555.895575,
+    "ast_hash": "a15f43aec708b3e6166dc0b5f7143caf",
     "semantic_hash": ""
   },
   "pnpm-workspace.yaml": {
@@ -965,8 +965,8 @@
     "semantic_hash": ""
   },
   "src/core/memberships/application/membership-administration.ts": {
-    "mtime": 1786440690.3662314,
-    "ast_hash": "2d737b30b70c319ce0ec20f620b25b56",
+    "mtime": 1786446578.510026,
+    "ast_hash": "ef611182be5e3f4a34b14727025863b7",
     "semantic_hash": ""
   },
   "src/core/memberships/application/membership-administration.use-cases.spec.ts": {
@@ -1102,6 +1102,11 @@
   "src/shared/presentation/clear-session-cookie.ts": {
     "mtime": 1786441283.1411295,
     "ast_hash": "dba9d6546501d9423b9f49e4aa8caaee",
+    "semantic_hash": ""
+  },
+  "docs/architecture/tenant-isolation-matrices.md": {
+    "mtime": 1786446578.5115285,
+    "ast_hash": "2d4b4c823aadcf72a727c24f06ce4f7a",
     "semantic_hash": ""
   }
 }

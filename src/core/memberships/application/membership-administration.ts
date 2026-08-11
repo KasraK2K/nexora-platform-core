@@ -44,6 +44,7 @@ export interface MembershipAdministrationRepository {
     userId: string,
     excludingWorkspaceId: string,
   ): Promise<boolean>;
+  /** Compound owner replacement; the application use case must supply a transaction. */
   transferOwnership(input: {
     workspaceId: string;
     currentOwnerMembershipId: string;

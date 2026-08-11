@@ -45,7 +45,7 @@ export class PrismaAuthenticationSessionsRepository
 
   findLatestForUser(userId: string): Promise<SessionContext | null> {
     return this.database.client.session.findFirst({
-      where: { userId },
+      where: { userId, membership: { removedAt: null } },
       orderBy: { createdAt: 'desc' },
       select: { userId: true, activeWorkspaceId: true },
     });

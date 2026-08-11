@@ -31,6 +31,9 @@ import {
 import { MembershipInvitationRateLimiter } from '../src/core/memberships/infrastructure/membership-invitation-rate-limiter';
 import { MembershipOwnershipTransferRateLimiter } from '../src/core/memberships/infrastructure/membership-ownership-transfer-rate-limiter';
 import { PrismaMembershipInvitationsRepository } from '../src/core/memberships/infrastructure/prisma-membership-invitations.repository';
+import { PrismaMembershipsRepository } from '../src/core/memberships/infrastructure/prisma-memberships.repository';
+import { PrismaAuthenticationSessionsRepository } from '../src/core/authentication/infrastructure/prisma-authentication-sessions.repository';
+import { PrismaWorkspacesRepository } from '../src/core/workspaces/infrastructure/prisma-workspaces.repository';
 import {
   AuthenticatedRoute,
   PublicRoute,
@@ -485,6 +488,76 @@ describe('Nexora API (e2e)', () => {
     );
   });
 
+  it('keeps verification replacement and confirmation isolated between tenants', async () => {
+    const tenantA = await registerUnverified(
+      'verification-matrix-a@example.com',
+    );
+    const tenantB = await registerUnverified(
+      'verification-matrix-b@example.com',
+    );
+    const userA = readString(tenantA.body as unknown, 'data', 'user', 'id');
+    const userB = readString(tenantB.body as unknown, 'data', 'user', 'id');
+    const workspaceA = readString(
+      tenantA.body as unknown,
+      'data',
+      'workspace',
+      'id',
+    );
+    const workspaceB = readString(
+      tenantB.body as unknown,
+      'data',
+      'workspace',
+      'id',
+    );
+    const firstTokenA = await readVerificationToken(
+      'verification-matrix-a@example.com',
+    );
+    const tokenB = await readVerificationToken(
+      'verification-matrix-b@example.com',
+    );
+
+    await request(app.getHttpServer())
+      .post('/v1/auth/email-verification-requests')
+      .set('Origin', ALLOWED_ORIGIN)
+      .send({ email: 'verification-matrix-a@example.com' })
+      .expect(202);
+    const replacementTokenA = await readVerificationToken(
+      'verification-matrix-a@example.com',
+      firstTokenA,
+    );
+    await confirmEmail(firstTokenA).expect(400);
+    await confirmEmail(replacementTokenA).expect(204);
+
+    await expect(
+      prisma.user.findUniqueOrThrow({ where: { id: userA } }),
+    ).resolves.toMatchObject({ status: 'ACTIVE' });
+    await expect(
+      prisma.user.findUniqueOrThrow({ where: { id: userB } }),
+    ).resolves.toMatchObject({ status: 'PENDING_VERIFICATION' });
+    expect(
+      await prisma.auditLog.count({
+        where: {
+          workspaceId: workspaceA,
+          actorUserId: userA,
+          action: 'email.verified',
+        },
+      }),
+    ).toBe(1);
+    expect(
+      await prisma.auditLog.count({
+        where: {
+          workspaceId: workspaceB,
+          action: 'email.verified',
+        },
+      }),
+    ).toBe(0);
+
+    await confirmEmail(tokenB).expect(204);
+    await expect(
+      prisma.user.findUniqueOrThrow({ where: { id: userB } }),
+    ).resolves.toMatchObject({ status: 'ACTIVE' });
+  });
+
   it('commits registration and records a failed delivery attempt', async () => {
     jest
       .spyOn(recordingEmailSender, 'send')
@@ -632,6 +705,99 @@ describe('Nexora API (e2e)', () => {
     expect(
       (await prisma.passwordResetToken.findFirstOrThrow()).deliveryStatus,
     ).toBe('FAILED');
+  });
+
+  it('anchors password reset to the latest active membership after tenant removal', async () => {
+    const tenantA = await register('reset-scope-owner@example.com');
+    const tenantACookie = readCookieHeader(tenantA);
+    const workspaceA = readString(
+      tenantA.body as unknown,
+      'data',
+      'workspace',
+      'id',
+    );
+    const target = await register('reset-scope-target@example.com');
+    const targetHomeCookie = readCookieHeader(target);
+    const targetUserId = readString(
+      target.body as unknown,
+      'data',
+      'user',
+      'id',
+    );
+    const targetHomeWorkspaceId = readString(
+      target.body as unknown,
+      'data',
+      'workspace',
+      'id',
+    );
+    await createInvitation(
+      tenantACookie,
+      'reset-scope-target@example.com',
+      'MEMBER',
+    ).expect(201);
+    await acceptInvitation(
+      targetHomeCookie,
+      readInvitationToken('reset-scope-target@example.com'),
+    ).expect(204);
+    const selectedTenantA = await login(
+      'reset-scope-target@example.com',
+      'A secure passphrase 123',
+      workspaceA,
+    );
+    expect(selectedTenantA.status).toBe(201);
+    const tenantAMembership = await prisma.membership.findUniqueOrThrow({
+      where: {
+        workspaceId_userId: { workspaceId: workspaceA, userId: targetUserId },
+      },
+    });
+
+    await removeWorkspaceMembership(tenantACookie, tenantAMembership.id).expect(
+      204,
+    );
+    await request(app.getHttpServer())
+      .get('/v1/auth/session')
+      .set('Cookie', readCookieHeader(selectedTenantA))
+      .expect(401);
+
+    await requestPasswordReset('reset-scope-target@example.com').expect(202);
+    const reset = await prisma.passwordResetToken.findFirstOrThrow({
+      where: { userId: targetUserId },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(reset.workspaceId).toBe(targetHomeWorkspaceId);
+    expect(reset.workspaceId).not.toBe(workspaceA);
+
+    await confirmPasswordReset(
+      readPasswordResetToken('reset-scope-target@example.com'),
+      'A reset scoped replacement 456',
+    ).expect(204);
+    expect(
+      await prisma.auditLog.count({
+        where: {
+          workspaceId: workspaceA,
+          actorUserId: targetUserId,
+          action: 'password.reset.completed',
+        },
+      }),
+    ).toBe(0);
+    expect(
+      await prisma.auditLog.count({
+        where: {
+          workspaceId: targetHomeWorkspaceId,
+          actorUserId: targetUserId,
+          action: 'password.reset.completed',
+        },
+      }),
+    ).toBe(1);
+    await request(app.getHttpServer())
+      .get('/v1/auth/session')
+      .set('Cookie', tenantACookie)
+      .expect(200);
+    await login(
+      'reset-scope-target@example.com',
+      'A reset scoped replacement 456',
+      targetHomeWorkspaceId,
+    ).then((response) => expect(response.status).toBe(201));
   });
 
   it('changes the password, invalidates reset links, and rotates only the current user sessions', async () => {
@@ -3360,6 +3526,466 @@ describe('Nexora API (e2e)', () => {
         },
       }),
     ).rejects.toBeDefined();
+  });
+
+  it('enforces the tenant-isolation matrix for HTTP reads and resource mutations', async () => {
+    const tenantA = await register('tenant-matrix-http-a@example.com');
+    const tenantB = await register('tenant-matrix-http-b@example.com');
+    const tenantBMember = await register(
+      'tenant-matrix-http-b-member@example.com',
+    );
+    const cookieA = readCookieHeader(tenantA);
+    const userA = readString(tenantA.body as unknown, 'data', 'user', 'id');
+    const userB = readString(tenantB.body as unknown, 'data', 'user', 'id');
+    const userBMember = readString(
+      tenantBMember.body as unknown,
+      'data',
+      'user',
+      'id',
+    );
+    const workspaceA = readString(
+      tenantA.body as unknown,
+      'data',
+      'workspace',
+      'id',
+    );
+    const workspaceB = readString(
+      tenantB.body as unknown,
+      'data',
+      'workspace',
+      'id',
+    );
+    const organizationB = readString(
+      tenantB.body as unknown,
+      'data',
+      'organization',
+      'id',
+    );
+    const membershipB = await prisma.membership.findUniqueOrThrow({
+      where: { workspaceId_userId: { workspaceId: workspaceB, userId: userB } },
+    });
+    const membershipBMemberId = randomUUID();
+    await prisma.membership.create({
+      data: {
+        id: membershipBMemberId,
+        workspaceId: workspaceB,
+        userId: userBMember,
+        role: 'MEMBER',
+      },
+    });
+    const invitationBId = randomUUID();
+    const invitationBActiveKey = 'b'.repeat(64);
+    await prisma.membershipInvitation.create({
+      data: {
+        id: invitationBId,
+        workspaceId: workspaceB,
+        invitedByUserId: userB,
+        normalizedEmail: 'tenant-matrix-http-target@example.com',
+        role: 'MEMBER',
+        tokenHash: 'c'.repeat(64),
+        activeKey: invitationBActiveKey,
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+    });
+    const forgedHeaders = {
+      'X-User-Id': userB,
+      'X-Workspace-Id': workspaceB,
+      'X-Membership-Role': 'OWNER',
+    };
+    const sessionCountBeforeForeignLogin = await prisma.session.count();
+    const auditCountBeforeForeignLogin = await prisma.auditLog.count();
+    await login(
+      'tenant-matrix-http-a@example.com',
+      'A secure passphrase 123',
+      workspaceB,
+    ).then((response) => expect(response.status).toBe(401));
+    expect(await prisma.session.count()).toBe(sessionCountBeforeForeignLogin);
+    expect(await prisma.auditLog.count()).toBe(auditCountBeforeForeignLogin);
+
+    const current = await request(app.getHttpServer())
+      .get('/v1/auth/session')
+      .set('Cookie', cookieA)
+      .set(forgedHeaders)
+      .expect(200);
+    expect(readString(current.body as unknown, 'data', 'user', 'id')).toBe(
+      userA,
+    );
+    expect(readString(current.body as unknown, 'data', 'workspace', 'id')).toBe(
+      workspaceA,
+    );
+
+    const workspaces = await request(app.getHttpServer())
+      .get('/v1/auth/session/workspaces')
+      .set('Cookie', cookieA)
+      .set(forgedHeaders)
+      .expect(200);
+    expect(
+      readArray(workspaces.body as unknown, 'data').map((entry) =>
+        readString(entry, 'workspace', 'id'),
+      ),
+    ).toEqual([workspaceA]);
+
+    const memberships = await request(app.getHttpServer())
+      .get('/v1/memberships')
+      .set('Cookie', cookieA)
+      .set(forgedHeaders)
+      .expect(200);
+    const visibleMembershipIds = readArray(
+      memberships.body as unknown,
+      'data',
+    ).map((entry) => readString(entry, 'id'));
+    expect(visibleMembershipIds).not.toContain(membershipB.id);
+    expect(visibleMembershipIds).not.toContain(membershipBMemberId);
+    expect(visibleMembershipIds).toHaveLength(1);
+
+    await switchWorkspace(cookieA, workspaceB)
+      .expect(403)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          error: { code: 'WORKSPACE_ACCESS_DENIED' },
+        });
+      });
+    await request(app.getHttpServer())
+      .get(`/v1/memberships?cursor=${membershipBMemberId}`)
+      .set('Cookie', cookieA)
+      .set(forgedHeaders)
+      .expect(400);
+    await changeMembershipRole(cookieA, membershipBMemberId, 'ADMIN').expect(
+      204,
+    );
+    await removeWorkspaceMembership(cookieA, membershipBMemberId).expect(204);
+    await transferWorkspaceOwner(
+      cookieA,
+      membershipBMemberId,
+      'A secure passphrase 123',
+    ).expect(400);
+    await request(app.getHttpServer())
+      .delete(`/v1/membership-invitations/${invitationBId}`)
+      .set('Origin', ALLOWED_ORIGIN)
+      .set('Cookie', cookieA)
+      .set(forgedHeaders)
+      .expect(204);
+
+    await updateOwnProfile(cookieA, { displayName: 'Tenant A Actor' })
+      .set(forgedHeaders)
+      .expect(200);
+    await renameCurrentWorkspace(cookieA, { name: 'Tenant A Renamed' })
+      .set(forgedHeaders)
+      .expect(200);
+    await request(app.getHttpServer())
+      .post('/v1/membership-invitations')
+      .set('Origin', ALLOWED_ORIGIN)
+      .set('Cookie', cookieA)
+      .set(forgedHeaders)
+      .send({
+        email: 'tenant-matrix-http-target@example.com',
+        role: 'MEMBER',
+      })
+      .expect(201);
+
+    await expect(
+      prisma.user.findUniqueOrThrow({ where: { id: userB } }),
+    ).resolves.toMatchObject({ displayName: 'Owner' });
+    await expect(
+      prisma.workspace.findUniqueOrThrow({ where: { id: workspaceB } }),
+    ).resolves.toMatchObject({
+      organizationId: organizationB,
+      name: 'Main Workspace',
+    });
+    await expect(
+      prisma.membership.findUniqueOrThrow({ where: { id: membershipB.id } }),
+    ).resolves.toMatchObject({ role: 'OWNER', removedAt: null });
+    await expect(
+      prisma.membership.findUniqueOrThrow({
+        where: { id: membershipBMemberId },
+      }),
+    ).resolves.toMatchObject({ role: 'MEMBER', removedAt: null });
+    await expect(
+      prisma.membershipInvitation.findUniqueOrThrow({
+        where: { id: invitationBId },
+      }),
+    ).resolves.toMatchObject({
+      activeKey: invitationBActiveKey,
+      revokedAt: null,
+    });
+    expect(
+      await prisma.membershipInvitation.count({
+        where: {
+          workspaceId: workspaceA,
+          normalizedEmail: 'tenant-matrix-http-target@example.com',
+        },
+      }),
+    ).toBe(1);
+    expect(
+      await prisma.auditLog.count({
+        where: { workspaceId: workspaceB, actorUserId: userA },
+      }),
+    ).toBe(0);
+    expect(
+      await prisma.auditLog.count({
+        where: {
+          resourceId: { in: [membershipBMemberId, invitationBId] },
+          action: {
+            in: [
+              'membership.role.updated',
+              'membership.removed',
+              'membership.ownership.transferred',
+              'membership.invitation.revoked',
+            ],
+          },
+        },
+      }),
+    ).toBe(0);
+  });
+
+  it('enforces the tenant-isolation matrix for workspace-scoped repositories', async () => {
+    const tenantA = await register('tenant-matrix-repository-a@example.com');
+    const tenantB = await register('tenant-matrix-repository-b@example.com');
+    const foreignMember = await register(
+      'tenant-matrix-repository-member@example.com',
+    );
+    const userA = readString(tenantA.body as unknown, 'data', 'user', 'id');
+    const userB = readString(tenantB.body as unknown, 'data', 'user', 'id');
+    const foreignMemberUserId = readString(
+      foreignMember.body as unknown,
+      'data',
+      'user',
+      'id',
+    );
+    const workspaceA = readString(
+      tenantA.body as unknown,
+      'data',
+      'workspace',
+      'id',
+    );
+    const workspaceB = readString(
+      tenantB.body as unknown,
+      'data',
+      'workspace',
+      'id',
+    );
+    const organizationA = readString(
+      tenantA.body as unknown,
+      'data',
+      'organization',
+      'id',
+    );
+    const organizationB = readString(
+      tenantB.body as unknown,
+      'data',
+      'organization',
+      'id',
+    );
+    const ownerA = await prisma.membership.findUniqueOrThrow({
+      where: { workspaceId_userId: { workspaceId: workspaceA, userId: userA } },
+    });
+    const ownerB = await prisma.membership.findUniqueOrThrow({
+      where: { workspaceId_userId: { workspaceId: workspaceB, userId: userB } },
+    });
+    const localTargetId = randomUUID();
+    await prisma.membership.create({
+      data: {
+        id: localTargetId,
+        workspaceId: workspaceA,
+        userId: userB,
+        role: 'MEMBER',
+      },
+    });
+    const foreignMemberId = randomUUID();
+    await prisma.membership.create({
+      data: {
+        id: foreignMemberId,
+        workspaceId: workspaceB,
+        userId: foreignMemberUserId,
+        role: 'MEMBER',
+      },
+    });
+    const foreignSessionResponse = await login(
+      'tenant-matrix-repository-member@example.com',
+      'A secure passphrase 123',
+      workspaceB,
+    );
+    expect(foreignSessionResponse.status).toBe(201);
+    const foreignSessionToken = readCookieHeader(foreignSessionResponse).split(
+      '=',
+      2,
+    )[1];
+    const foreignSession = await prisma.session.findUniqueOrThrow({
+      where: { tokenHash: new SessionTokenService().hash(foreignSessionToken) },
+    });
+    const invitationBId = randomUUID();
+    const invitationBTokenHash = 'd'.repeat(64);
+    const invitationBActiveKey = 'e'.repeat(64);
+    const invitationEmail = 'tenant-matrix-repository-target@example.com';
+    await prisma.membershipInvitation.create({
+      data: {
+        id: invitationBId,
+        workspaceId: workspaceB,
+        invitedByUserId: userB,
+        normalizedEmail: invitationEmail,
+        role: 'MEMBER',
+        tokenHash: invitationBTokenHash,
+        activeKey: invitationBActiveKey,
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+    });
+
+    const membershipsRepository = app.get(PrismaMembershipsRepository);
+    const invitationsRepository = app.get(
+      PrismaMembershipInvitationsRepository,
+    );
+    const sessionsRepository = app.get(PrismaAuthenticationSessionsRepository);
+    const workspacesRepository = app.get(PrismaWorkspacesRepository);
+    const now = new Date();
+
+    await expect(
+      membershipsRepository.find({
+        workspaceId: workspaceA,
+        userId: foreignMemberUserId,
+      }),
+    ).resolves.toBeNull();
+    await expect(
+      membershipsRepository.findActiveById(workspaceA, foreignMemberId),
+    ).resolves.toBeNull();
+    await expect(
+      membershipsRepository.findActiveForUser(workspaceA, foreignMemberUserId),
+    ).resolves.toBeNull();
+    await expect(
+      membershipsRepository.listActive({
+        workspaceId: workspaceA,
+        cursor: foreignMemberId,
+        limit: 50,
+      }),
+    ).resolves.toBeNull();
+    const visibleMemberships = await membershipsRepository.listActive({
+      workspaceId: workspaceA,
+      limit: 50,
+    });
+    expect(visibleMemberships?.map(({ id }) => id)).toEqual(
+      expect.arrayContaining([ownerA.id, localTargetId]),
+    );
+    expect(visibleMemberships).toHaveLength(2);
+    await expect(
+      membershipsRepository.updateRole({
+        workspaceId: workspaceA,
+        membershipId: foreignMemberId,
+        expectedRole: 'MEMBER',
+        role: 'ADMIN',
+      }),
+    ).resolves.toBe(false);
+    await expect(
+      membershipsRepository.remove({
+        workspaceId: workspaceA,
+        membershipId: foreignMemberId,
+        expectedRole: 'MEMBER',
+        removedAt: now,
+      }),
+    ).resolves.toBe(false);
+    await expect(
+      membershipsRepository.transferOwnership({
+        workspaceId: workspaceA,
+        currentOwnerMembershipId: ownerA.id,
+        targetMembershipId: foreignMemberId,
+        expectedTargetRole: 'MEMBER',
+      }),
+    ).resolves.toBe(false);
+    await expect(
+      membershipsRepository.transferOwnership({
+        workspaceId: workspaceA,
+        currentOwnerMembershipId: ownerB.id,
+        targetMembershipId: localTargetId,
+        expectedTargetRole: 'MEMBER',
+      }),
+    ).resolves.toBe(false);
+    await expect(
+      membershipsRepository.countActiveOwners(workspaceA),
+    ).resolves.toBe(1);
+
+    await expect(
+      invitationsRepository.findActiveById(workspaceA, invitationBId, now),
+    ).resolves.toBeNull();
+    await expect(
+      invitationsRepository.findActiveForEmail(
+        workspaceA,
+        invitationEmail,
+        now,
+      ),
+    ).resolves.toBeNull();
+    await invitationsRepository.retireActive(workspaceA, invitationEmail, now);
+    await expect(
+      invitationsRepository.revoke(workspaceA, invitationBId, now),
+    ).resolves.toBe(false);
+    await expect(
+      invitationsRepository.accept(workspaceA, invitationBId, userA, now),
+    ).resolves.toBe(false);
+    await invitationsRepository.markDelivery(
+      workspaceA,
+      invitationBId,
+      'FAILED',
+      now,
+    );
+    await expect(
+      invitationsRepository.findUsableByTokenHash(invitationBTokenHash, now),
+    ).resolves.toMatchObject({
+      id: invitationBId,
+      workspaceId: workspaceB,
+    });
+
+    await expect(
+      sessionsRepository.hasActiveContext({
+        sessionId: foreignSession.id,
+        userId: foreignMemberUserId,
+        workspaceId: workspaceA,
+        now,
+      }),
+    ).resolves.toBe(false);
+    await expect(
+      sessionsRepository.revokeActiveForMembership({
+        userId: foreignMemberUserId,
+        workspaceId: workspaceA,
+        revokedAt: now,
+      }),
+    ).resolves.toEqual([]);
+    await expect(
+      workspacesRepository.rename({
+        id: workspaceB,
+        organizationId: organizationA,
+        expectedName: 'Main Workspace',
+        name: 'Cross-tenant Rename',
+      }),
+    ).resolves.toBe(false);
+
+    await expect(
+      prisma.membership.findUniqueOrThrow({ where: { id: foreignMemberId } }),
+    ).resolves.toMatchObject({ role: 'MEMBER', removedAt: null });
+    await expect(
+      prisma.membership.findUniqueOrThrow({ where: { id: ownerB.id } }),
+    ).resolves.toMatchObject({ role: 'OWNER', removedAt: null });
+    await expect(
+      prisma.membership.findUniqueOrThrow({ where: { id: localTargetId } }),
+    ).resolves.toMatchObject({ role: 'MEMBER', removedAt: null });
+    await expect(
+      prisma.membershipInvitation.findUniqueOrThrow({
+        where: { id: invitationBId },
+      }),
+    ).resolves.toMatchObject({
+      activeKey: invitationBActiveKey,
+      acceptedAt: null,
+      revokedAt: null,
+      deliveryStatus: 'PENDING',
+    });
+    await expect(
+      prisma.session.findUniqueOrThrow({ where: { id: foreignSession.id } }),
+    ).resolves.toMatchObject({
+      revokedAt: null,
+      activeWorkspaceId: workspaceB,
+    });
+    await expect(
+      prisma.workspace.findUniqueOrThrow({ where: { id: workspaceB } }),
+    ).resolves.toMatchObject({
+      organizationId: organizationB,
+      name: 'Main Workspace',
+    });
   });
 
   it('rolls back every durable record when a module participant fails', async () => {

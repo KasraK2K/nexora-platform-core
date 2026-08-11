@@ -136,6 +136,18 @@ describe('password reset use cases', () => {
     ]);
   });
 
+  it('re-resolves the active workspace inside the reset-request transaction', async () => {
+    const fixture = createRequestFixture([
+      'former-workspace',
+      'active-workspace',
+    ]);
+
+    await fixture.useCase.execute('person@example.com');
+
+    expect(fixture.repository.records).toHaveLength(1);
+    expect(fixture.repository.records[0].workspaceId).toBe('active-workspace');
+  });
+
   it('replaces the password, revokes every session, audits, and rejects replay', async () => {
     const fixture = createResetFixture();
 
@@ -174,7 +186,7 @@ describe('password reset use cases', () => {
   });
 });
 
-function createRequestFixture() {
+function createRequestFixture(latestWorkspaces?: readonly string[]) {
   const repository = new InMemoryResetTokens();
   const resets = new PasswordResetTokens(repository);
   const deliveries: Array<{ to: string; token: string; expiresAt: Date }> = [];
@@ -189,7 +201,7 @@ function createRequestFixture() {
   };
   const clock = fixedClock();
   const users = activeUsers();
-  const sessions = sessionRepository();
+  const sessions = sessionRepository(undefined, latestWorkspaces);
 
   return {
     repository,
@@ -318,12 +330,22 @@ function activeUsers(): Users {
   });
 }
 
-function sessionRepository(onRevoke?: () => void): AuthenticationSessions {
+function sessionRepository(
+  onRevoke?: () => void,
+  latestWorkspaces: readonly string[] = ['workspace-1'],
+): AuthenticationSessions {
+  let latestWorkspaceIndex = 0;
   return new AuthenticationSessions({
     create: () => Promise.resolve(),
     findByTokenHash: () => Promise.resolve(null),
-    findLatestForUser: () =>
-      Promise.resolve({ userId: 'user-id', activeWorkspaceId: 'workspace-1' }),
+    findLatestForUser: () => {
+      const activeWorkspaceId =
+        latestWorkspaces[
+          Math.min(latestWorkspaceIndex, latestWorkspaces.length - 1)
+        ];
+      latestWorkspaceIndex += 1;
+      return Promise.resolve({ userId: 'user-id', activeWorkspaceId });
+    },
     revokeByTokenHash: () => Promise.resolve(null),
     revokeAllForUser: () => {
       onRevoke?.();

@@ -42,6 +42,10 @@ The repository is currently one NestJS modular monolith. It implements:
 - active-workspace membership listing, role mutation, soft removal/reactivation,
   workspace-scoped session revocation, and step-up-protected atomic operational
   ownership transfer with last-owner safety;
+- authenticated self display-name update, OWNER/ADMIN active-workspace rename,
+  and protected non-owner self-leave;
+- executable HTTP and repository tenant-isolation matrices for every currently
+  implemented tenant-owned surface;
 - provider-neutral SMTP delivery with a local Mailpit development adapter;
 - origin checks, authentication rate limiting, compromised-password screening;
 - audit records, request IDs, Zod transport validation, and OpenAPI generation.
@@ -162,7 +166,6 @@ commands until the explicit migration is implemented and verified.
 - Organization commercial ownership transfer and multi-workspace policy.
 - User deactivation/deletion and workspace archive/delete/create lifecycle
   policy, including recovery paths.
-- Tenant-isolation matrices at repository and API boundaries.
 
 ### Optional reusable capability packs
 
@@ -323,9 +326,8 @@ prove a stable shared contract.
 
 ## Platform roadmap
 
-1. Complete tenant foundation: organization commercial ownership policy,
-   account/workspace terminal-state and recovery policy, and broader tenant
-   isolation tests.
+1. Complete tenant foundation: organization commercial ownership policy and
+   account/workspace terminal-state and recovery policy.
 2. Complete repository foundation through explicit changes: monorepo decision,
    strict TypeScript plan, contract gates, seeds, and CI.
 3. Add optional reusable capabilities only when a downstream product proves the
@@ -359,6 +361,9 @@ repository owns its own roadmap.
   OWNER/ADMIN active-workspace rename, and protected non-owner self-leave while
   deferring account deactivation and workspace archival until ownership and
   recovery policies are defined.
+- Current tenant-owned HTTP and repository surfaces maintain executable
+  positive and tenant A/B negative matrices; every future tenant surface must
+  extend both matrices in the same change.
 - Every Nest route declares public, context-authenticated, or
   application-authenticated admission; unclassified routes are denied, and
   context-authenticated tenant routes require active users by default.

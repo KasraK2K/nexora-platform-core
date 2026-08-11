@@ -205,6 +205,28 @@ export class PrismaMembershipsRepository
     targetMembershipId: string;
     expectedTargetRole: Exclude<MembershipRole, 'OWNER'>;
   }): Promise<boolean> {
+    const [currentOwner, target] = await Promise.all([
+      this.database.client.membership.findFirst({
+        where: {
+          id: input.currentOwnerMembershipId,
+          workspaceId: input.workspaceId,
+          role: 'OWNER',
+          removedAt: null,
+        },
+        select: { id: true },
+      }),
+      this.database.client.membership.findFirst({
+        where: {
+          id: input.targetMembershipId,
+          workspaceId: input.workspaceId,
+          role: input.expectedTargetRole,
+          removedAt: null,
+        },
+        select: { id: true },
+      }),
+    ]);
+    if (!currentOwner || !target) return false;
+
     const promoted = await this.database.client.membership.updateMany({
       where: {
         id: input.targetMembershipId,

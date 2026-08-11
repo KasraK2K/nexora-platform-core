@@ -76,6 +76,11 @@ repository or changing runtime identifiers inherited from this base.
   that workspace's sessions and clears the presented cookie.
 - `DELETE /v1/auth/session` idempotently revokes the presented session;
   `DELETE /v1/auth/sessions` revokes every session for the current user.
+- The current tenant-owned HTTP and repository surfaces have executable
+  positive and tenant A/B negative coverage documented in
+  `docs/architecture/tenant-isolation-matrices.md`. Forged tenant headers and
+  foreign resource identifiers cannot redirect reads, writes, audits, or
+  workspace-scoped session revocation.
 - Passwords use Argon2id. Only a SHA-256 session-token digest is stored;
   PostgreSQL is authoritative and Redis is a disposable lookup cache.
 - New passwords are screened against a bundled common-password fallback and

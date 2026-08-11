@@ -71,8 +71,11 @@ export class RequestPasswordReset {
     let created = false;
     try {
       created = await this.transactions.execute(async () => {
-        const current = await this.users.findById(user.id);
-        if (!current || current.status !== 'ACTIVE') {
+        const [current, currentSessionContext] = await Promise.all([
+          this.users.findById(user.id),
+          this.sessions.findLatestForUser(user.id),
+        ]);
+        if (!current || current.status !== 'ACTIVE' || !currentSessionContext) {
           return false;
         }
         await this.resetTokens.invalidateOpenForUser(user.id, now);
@@ -80,7 +83,7 @@ export class RequestPasswordReset {
           id: resetId,
           identityId: identity.id,
           userId: user.id,
-          workspaceId: sessionContext.activeWorkspaceId,
+          workspaceId: currentSessionContext.activeWorkspaceId,
           tokenHash: token.hash,
           expiresAt,
         });
