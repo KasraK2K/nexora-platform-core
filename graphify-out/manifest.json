@@ -220,8 +220,8 @@
     "semantic_hash": ""
   },
   "src/core/authentication/authentication.module.ts": {
-    "mtime": 1786331507.9405222,
-    "ast_hash": "4ce0e578586b420c27845a5c5e2a38ce",
+    "mtime": 1786436824.4507203,
+    "ast_hash": "4735a7181510da858b62c3419f680e64",
     "semantic_hash": ""
   },
   "src/core/authentication/domain/password-policy.ts": {
@@ -250,8 +250,8 @@
     "semantic_hash": ""
   },
   "src/core/authentication/infrastructure/prisma-authentication-sessions.repository.ts": {
-    "mtime": 1786213332.0152512,
-    "ast_hash": "183ea78102732d644b17b90a827bdae0",
+    "mtime": 1786436810.2159984,
+    "ast_hash": "d064bdf1b2a8ae44d5f921b773acae76",
     "semantic_hash": ""
   },
   "src/core/authentication/infrastructure/prisma-email-verifications.repository.ts": {
@@ -450,13 +450,13 @@
     "semantic_hash": ""
   },
   "src/core/memberships/infrastructure/prisma-memberships.repository.ts": {
-    "mtime": 1786333058.1803782,
-    "ast_hash": "662d5fc3c0dfa25f79b2f56f26c9292f",
+    "mtime": 1786438083.0196426,
+    "ast_hash": "7ce3a9b3814279a77f91fb9048c55176",
     "semantic_hash": ""
   },
   "src/core/memberships/memberships.module.ts": {
-    "mtime": 1786333185.2481534,
-    "ast_hash": "f7077720228c6d067817a52aa21f3d09",
+    "mtime": 1786437111.1222985,
+    "ast_hash": "87e018bbbe69755b705a41949d70e473",
     "semantic_hash": ""
   },
   "src/core/organizations/application/organizations.ts": {
@@ -550,8 +550,8 @@
     "semantic_hash": ""
   },
   "src/shared/presentation/api-exception.filter.ts": {
-    "mtime": 1786332762.7142608,
-    "ast_hash": "afe6d75d089a0878134b7d0bafcc607c",
+    "mtime": 1786437122.1882489,
+    "ast_hash": "09968eba6df0b67f2aed6dbe46ab4d08",
     "semantic_hash": ""
   },
   "src/shared/presentation/request-id.middleware.ts": {
@@ -565,8 +565,8 @@
     "semantic_hash": ""
   },
   "test/app.e2e-spec.ts": {
-    "mtime": 1786334019.309742,
-    "ast_hash": "2c17bfb0f8153bcdaea46cecd791f48d",
+    "mtime": 1786438504.9797444,
+    "ast_hash": "b528489317f72a4fbb77b89e306dd147",
     "semantic_hash": ""
   },
   "tsconfig.build.json": {
@@ -650,8 +650,8 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1786333517.0812762,
-    "ast_hash": "616b00a29ec5c94f77b55c71382f00a6",
+    "mtime": 1786437556.8428357,
+    "ast_hash": "915bd7d120f92fdef71e175c1a965ff5",
     "semantic_hash": ""
   },
   "THIRD_PARTY_NOTICES.md": {
@@ -695,8 +695,8 @@
     "semantic_hash": ""
   },
   "docs/architecture/platform-core-baseline.md": {
-    "mtime": 1786332575.7164123,
-    "ast_hash": "dffcf907516a96c92324fade3dfb1e04",
+    "mtime": 1786437556.8441298,
+    "ast_hash": "cf6ebf6e627e80ccf3166039dbe0a83b",
     "semantic_hash": ""
   },
   "pnpm-workspace.yaml": {
@@ -815,13 +815,13 @@
     "semantic_hash": ""
   },
   "src/core/authorization/application/authorization-policy.spec.ts": {
-    "mtime": 1786333215.876328,
-    "ast_hash": "fca8c9ed3e35e720a137d2267399f7ae",
+    "mtime": 1786437140.6016757,
+    "ast_hash": "f0e94010328ef8d57b6c12677f1e6971",
     "semantic_hash": ""
   },
   "src/core/authorization/application/authorization-policy.ts": {
-    "mtime": 1786333215.8743267,
-    "ast_hash": "eece64a91257cd14400f26838f378cd2",
+    "mtime": 1786436899.9766333,
+    "ast_hash": "ba940b2afa62c22e499b1e2f403d3574",
     "semantic_hash": ""
   },
   "src/core/authorization/authorization-policy.module.ts": {
@@ -910,8 +910,8 @@
     "semantic_hash": ""
   },
   "docs/adr/0007-base-rbac-and-membership-invitations.md": {
-    "mtime": 1786334075.0642881,
-    "ast_hash": "e2751f4c3d955dc3987f387b1a8b1d21",
+    "mtime": 1786437556.8418286,
+    "ast_hash": "609fd58c1193db7a815ac512c37c8d63",
     "semantic_hash": ""
   },
   "src/core/memberships/application/invited-memberships-writer.ts": {
@@ -942,6 +942,86 @@
   "src/core/authorization/application/authorization-denied.error.ts": {
     "mtime": 1786333972.9346387,
     "ast_hash": "38d28ee70728806c3ff466a4fe265160",
+    "semantic_hash": ""
+  },
+  "src/core/authentication/application/membership-session-revocations.ts": {
+    "mtime": 1786436810.212848,
+    "ast_hash": "d4b9acffe298e8d62129d35da5213116",
+    "semantic_hash": ""
+  },
+  "src/core/authentication/authentication-session-state.module.ts": {
+    "mtime": 1786437649.084834,
+    "ast_hash": "7956ccaa9677d40df58f66c7c90ad229",
+    "semantic_hash": ""
+  },
+  "src/core/memberships/application/change-membership-role.use-case.ts": {
+    "mtime": 1786436961.7880263,
+    "ast_hash": "49254ebcbe3b398f626894b4478afa4f",
+    "semantic_hash": ""
+  },
+  "src/core/memberships/application/list-workspace-memberships.use-case.ts": {
+    "mtime": 1786436961.7869847,
+    "ast_hash": "b02d70c162121b9691b64317e5622034",
+    "semantic_hash": ""
+  },
+  "src/core/memberships/application/membership-administration.ts": {
+    "mtime": 1786436767.7561243,
+    "ast_hash": "587c409b4c06e2c1e6bf32cacb34b048",
+    "semantic_hash": ""
+  },
+  "src/core/memberships/application/membership-administration.use-cases.spec.ts": {
+    "mtime": 1786437649.084834,
+    "ast_hash": "f62da9849b750a2ef6ec135f0047a25b",
+    "semantic_hash": ""
+  },
+  "src/core/memberships/application/membership-ownership-transfer-rate-limiter.port.ts": {
+    "mtime": 1786437047.3957195,
+    "ast_hash": "12e09b96b7411a6a5892ecee1cda1a74",
+    "semantic_hash": ""
+  },
+  "src/core/memberships/application/remove-membership.use-case.ts": {
+    "mtime": 1786436961.789682,
+    "ast_hash": "7d55aa631e0a40a108289ff02361cfaf",
+    "semantic_hash": ""
+  },
+  "src/core/memberships/application/transfer-workspace-ownership.use-case.ts": {
+    "mtime": 1786437047.3957195,
+    "ast_hash": "2b91aa69bc95b571556e8aebbf6c1307",
+    "semantic_hash": ""
+  },
+  "src/core/memberships/domain/membership-administration.errors.ts": {
+    "mtime": 1786436876.3807917,
+    "ast_hash": "a3615d577a777dbae4a64fae3df79807",
+    "semantic_hash": ""
+  },
+  "src/core/memberships/infrastructure/membership-ownership-transfer-rate-limiter.ts": {
+    "mtime": 1786437047.3957195,
+    "ast_hash": "7dcabe3fb95e62990f4f24af35bf539d",
+    "semantic_hash": ""
+  },
+  "src/core/memberships/presentation/membership-administration.contract.ts": {
+    "mtime": 1786438304.2529957,
+    "ast_hash": "2da5bfc8a9a75e72fa9b198b49ef087d",
+    "semantic_hash": ""
+  },
+  "src/core/memberships/presentation/membership-ownership-transfer-request.guard.ts": {
+    "mtime": 1786437092.2629335,
+    "ast_hash": "f489f6c9da8be6af7de587b8a14cc877",
+    "semantic_hash": ""
+  },
+  "src/core/memberships/presentation/memberships.controller.ts": {
+    "mtime": 1786438304.2529957,
+    "ast_hash": "6b502b3a137efd6889101505e38e3d23",
+    "semantic_hash": ""
+  },
+  "docs/adr/0008-workspace-membership-administration.md": {
+    "mtime": 1786437556.840325,
+    "ast_hash": "1113a23ab9bd6136e628d377195d69be",
+    "semantic_hash": ""
+  },
+  "src/core/memberships/infrastructure/membership-ownership-transfer-rate-limiter.spec.ts": {
+    "mtime": 1786438387.6250598,
+    "ast_hash": "5ba1408d6fe358bab6115b837ee18097",
     "semantic_hash": ""
   }
 }

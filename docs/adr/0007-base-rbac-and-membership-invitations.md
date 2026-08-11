@@ -186,8 +186,8 @@ outstanding invitations and non-OWNER memberships deliberately.
 
 ## Follow-up work
 
-- [ ] Add ownership transfer and last-owner protection.
-- [ ] Add membership role mutation/removal and session effects.
+- [x] Add workspace ownership transfer and last-owner protection (ADR-0008).
+- [x] Add membership role mutation/removal and session effects (ADR-0008).
 - [ ] Define invitation PII retention and cleanup.
 - [ ] Add durable asynchronous email retry if delivery reliability requires it.
 - [ ] Design invite-first account onboarding only with a concrete consumer.

@@ -6,13 +6,10 @@ import { OrganizationsModule } from '../organizations/organizations.module';
 import { UsersModule } from '../users/users.module';
 import { WorkspacesModule } from '../workspaces/workspaces.module';
 import { CoreInfrastructureModule } from '../core-infrastructure.module';
+import { AuthenticationSessionStateModule } from './authentication-session-state.module';
 import { MailModule } from '../mail/mail.module';
 import { Clock } from '../../shared/application/clock';
 import { IdentifierFactory } from '../../shared/application/identifier-factory';
-import {
-  AUTHENTICATION_SESSIONS_REPOSITORY,
-  AuthenticationSessions,
-} from './application/authentication-sessions';
 import { GetCurrentSession } from './application/get-current-session.use-case';
 import { AUTHENTICATION_RATE_LIMITER } from './application/authentication-rate-limiter.port';
 import { CreateSession } from './application/create-session.use-case';
@@ -22,13 +19,10 @@ import { PASSWORD_COMPROMISE_CHECKER } from './application/password-compromise-c
 import { PASSWORD_HASHER } from './application/password-hasher.port';
 import { RegisterAccount } from './application/register-account.use-case';
 import { SessionTokenService } from './application/session-token.service';
-import { SESSION_CACHE } from './application/session-cache.port';
 import { PasswordPolicy } from './domain/password-policy';
 import { Argon2PasswordHasher } from './infrastructure/argon2-password-hasher';
-import { PrismaAuthenticationSessionsRepository } from './infrastructure/prisma-authentication-sessions.repository';
 import { PwnedPasswordsCompromiseChecker } from './infrastructure/pwned-passwords-compromise-checker';
 import { AuthenticationRateLimiter } from './infrastructure/authentication-rate-limiter';
-import { SessionCache } from './infrastructure/session-cache';
 import { AuthenticationController } from './presentation/authentication.controller';
 import { RegistrationRequestGuard } from './presentation/registration-request.guard';
 import { LoginRequestGuard } from './presentation/login-request.guard';
@@ -70,6 +64,7 @@ import { WorkspaceSwitchRequestGuard } from './presentation/workspace-switch-req
 @Module({
   imports: [
     CoreInfrastructureModule,
+    AuthenticationSessionStateModule,
     IdentityModule,
     UsersModule,
     OrganizationsModule,
@@ -90,7 +85,6 @@ import { WorkspaceSwitchRequestGuard } from './presentation/workspace-switch-req
     PasswordResetTokenService,
     PasswordResetTokens,
     PasswordResetDelivery,
-    SessionCache,
     AuthenticationRateLimiter,
     {
       provide: AUTHENTICATION_RATE_LIMITER,
@@ -119,10 +113,8 @@ import { WorkspaceSwitchRequestGuard } from './presentation/workspace-switch-req
     ChangePassword,
     ListSessionWorkspaces,
     SwitchWorkspace,
-    AuthenticationSessions,
     Argon2PasswordHasher,
     PwnedPasswordsCompromiseChecker,
-    PrismaAuthenticationSessionsRepository,
     PrismaEmailVerificationsRepository,
     PrismaPasswordResetTokensRepository,
     SmtpEmailVerificationSender,
@@ -132,7 +124,6 @@ import { WorkspaceSwitchRequestGuard } from './presentation/workspace-switch-req
       provide: PASSWORD_COMPROMISE_CHECKER,
       useExisting: PwnedPasswordsCompromiseChecker,
     },
-    { provide: SESSION_CACHE, useExisting: SessionCache },
     {
       provide: EMAIL_VERIFICATION_SENDER,
       useExisting: SmtpEmailVerificationSender,
@@ -148,10 +139,6 @@ import { WorkspaceSwitchRequestGuard } from './presentation/workspace-switch-req
     {
       provide: PASSWORD_RESET_TOKENS_REPOSITORY,
       useExisting: PrismaPasswordResetTokensRepository,
-    },
-    {
-      provide: AUTHENTICATION_SESSIONS_REPOSITORY,
-      useExisting: PrismaAuthenticationSessionsRepository,
     },
   ],
   exports: [AuthenticatedRequestContextGuard, TrustedOriginGuard],

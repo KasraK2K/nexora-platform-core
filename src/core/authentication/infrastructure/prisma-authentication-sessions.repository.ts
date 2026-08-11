@@ -6,9 +6,17 @@ import type {
   SessionContext,
   SessionRecord,
 } from '../application/authentication-sessions';
+import type {
+  MembershipSessionRevocationsRepository,
+  RevokedMembershipSession,
+} from '../application/membership-session-revocations';
 
 @Injectable()
-export class PrismaAuthenticationSessionsRepository implements AuthenticationSessionsRepository {
+export class PrismaAuthenticationSessionsRepository
+  implements
+    AuthenticationSessionsRepository,
+    MembershipSessionRevocationsRepository
+{
   constructor(private readonly database: DatabaseContext) {}
 
   async create(input: {
@@ -60,6 +68,41 @@ export class PrismaAuthenticationSessionsRepository implements AuthenticationSes
       where: { userId, revokedAt: null },
       data: { revokedAt },
       select: revokedSessionSelect,
+    });
+  }
+
+  async hasActiveContext(input: {
+    sessionId: string;
+    userId: string;
+    workspaceId: string;
+    now: Date;
+  }): Promise<boolean> {
+    return (
+      (await this.database.client.session.count({
+        where: {
+          id: input.sessionId,
+          userId: input.userId,
+          activeWorkspaceId: input.workspaceId,
+          revokedAt: null,
+          expiresAt: { gt: input.now },
+        },
+      })) === 1
+    );
+  }
+
+  revokeActiveForMembership(input: {
+    userId: string;
+    workspaceId: string;
+    revokedAt: Date;
+  }): Promise<RevokedMembershipSession[]> {
+    return this.database.client.session.updateManyAndReturn({
+      where: {
+        userId: input.userId,
+        activeWorkspaceId: input.workspaceId,
+        revokedAt: null,
+      },
+      data: { revokedAt: input.revokedAt },
+      select: { tokenHash: true },
     });
   }
 }

@@ -14,6 +14,23 @@ describe('AuthorizationPolicy', () => {
   });
 
   it.each([
+    ['OWNER', true, true, true],
+    ['ADMIN', false, true, false],
+    ['MEMBER', false, false, false],
+  ] as const)(
+    '%s membership administration permissions fail closed',
+    (role, mayUpdateRole, mayRemove, mayTransferOwnership) => {
+      expect(policy.permits(role, 'membership:role:update')).toBe(
+        mayUpdateRole,
+      );
+      expect(policy.permits(role, 'membership:remove')).toBe(mayRemove);
+      expect(policy.permits(role, 'membership:ownership:transfer')).toBe(
+        mayTransferOwnership,
+      );
+    },
+  );
+
+  it.each([
     ['OWNER', 'ADMIN', true],
     ['OWNER', 'MEMBER', true],
     ['ADMIN', 'ADMIN', false],
@@ -29,5 +46,33 @@ describe('AuthorizationPolicy', () => {
       policy.permits('SUPER_ADMIN' as never, 'membership-invitation:create'),
     ).toBe(false);
     expect(policy.permits('OWNER', 'unknown' as never)).toBe(false);
+  });
+
+  it('applies the role-change, removal, self-action, and ownership matrices', () => {
+    const owner = { userId: 'owner', role: 'OWNER' } as const;
+    const admin = { userId: 'admin', role: 'ADMIN' } as const;
+    const member = { userId: 'member', role: 'MEMBER' } as const;
+
+    expect(policy.mayChangeMembershipRole(owner, admin, 'MEMBER')).toBe(true);
+    expect(policy.mayChangeMembershipRole(owner, member, 'ADMIN')).toBe(true);
+    expect(policy.mayChangeMembershipRole(owner, owner, 'ADMIN')).toBe(false);
+    expect(policy.mayChangeMembershipRole(admin, member, 'ADMIN')).toBe(false);
+
+    expect(policy.mayRemoveMembership(owner, admin)).toBe(true);
+    expect(policy.mayRemoveMembership(owner, member)).toBe(true);
+    expect(policy.mayRemoveMembership(admin, member)).toBe(true);
+    expect(policy.mayRemoveMembership(admin, admin)).toBe(false);
+    expect(policy.mayRemoveMembership(owner, owner)).toBe(false);
+
+    expect(policy.mayTransferWorkspaceOwnership(owner, admin)).toBe(true);
+    expect(policy.mayTransferWorkspaceOwnership(owner, member)).toBe(true);
+    expect(policy.mayTransferWorkspaceOwnership(owner, owner)).toBe(false);
+    expect(policy.mayTransferWorkspaceOwnership(admin, member)).toBe(false);
+    expect(
+      policy.mayTransferWorkspaceOwnership(
+        { userId: 'owner', role: 'FUTURE' as never },
+        member,
+      ),
+    ).toBe(false);
   });
 });

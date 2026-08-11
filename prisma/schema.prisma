@@ -159,12 +159,13 @@ model Membership {
   userId      String         @map("user_id") @db.Uuid
   role        MembershipRole
   createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  removedAt   DateTime?      @map("removed_at") @db.Timestamptz(3)
   workspace   Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
   user        User           @relation(fields: [userId], references: [id], onDelete: Restrict)
   sessions    Session[]
 
   @@unique([workspaceId, userId], map: "memberships_workspace_id_user_id_key")
-  @@index([workspaceId, createdAt(sort: Desc)], map: "memberships_workspace_id_created_at_idx")
+  @@index([workspaceId, removedAt, createdAt(sort: Desc)], map: "memberships_workspace_active_created_at_idx")
   @@index([userId], map: "memberships_user_id_idx")
   @@map("memberships")
 }

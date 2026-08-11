@@ -61,6 +61,14 @@ repository or changing runtime identifiers inherited from this base.
   revokes it without exposing foreign-tenant invitation existence. Redis limits
   invitation creation by IP, actor/workspace, and target email, and acceptance
   by IP and authenticated session.
+- `GET /v1/memberships` lists a bounded, active-workspace membership page.
+  OWNER may change ADMIN/MEMBER roles; OWNER or ADMIN may remove only lower
+  roles. Removal is retained as lifecycle state, revokes only sessions active
+  in that workspace, and supports safe later re-invitation. Workspace OWNER is
+  protected from generic mutation/removal; `PUT /v1/memberships/owner`
+  requires current-password confirmation and atomically promotes a successor
+  while demoting the former owner to ADMIN. Commercial organization ownership
+  remains separate.
 - `DELETE /v1/auth/session` idempotently revokes the presented session;
   `DELETE /v1/auth/sessions` revokes every session for the current user.
 - Passwords use Argon2id. Only a SHA-256 session-token digest is stored;
@@ -79,8 +87,8 @@ repository or changing runtime identifiers inherited from this base.
   returned by the API, or stored in PostgreSQL.
 - OpenAPI UI is served at `/docs` while the application is running.
 
-Ownership transfer, last-owner protection, role mutation/removal, invite-first
-registration, and broader workspace membership management are not implemented.
+Organization commercial ownership transfer, self-service workspace leaving,
+invite-first registration, and broader lifecycle management are not implemented.
 The session issued at registration remains restricted to routes that explicitly
 permit pending-verification users.
 

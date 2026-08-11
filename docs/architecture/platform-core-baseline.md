@@ -39,6 +39,9 @@ The repository is currently one NestJS modular monolith. It implements:
   opt-in, and trusted-origin ordering;
 - base OWNER, ADMIN, and MEMBER authorization plus hashed, expiring,
   email-bound membership invitation creation, acceptance, and revocation;
+- active-workspace membership listing, role mutation, soft removal/reactivation,
+  workspace-scoped session revocation, and step-up-protected atomic operational
+  ownership transfer with last-owner safety;
 - provider-neutral SMTP delivery with a local Mailpit development adapter;
 - origin checks, authentication rate limiting, compromised-password screening;
 - audit records, request IDs, Zod transport validation, and OpenAPI generation.
@@ -143,7 +146,8 @@ commands until the explicit migration is implemented and verified.
 - Users: profile and lifecycle data.
 - Organizations: commercial ownership boundary.
 - Workspaces: operational tenant boundary.
-- Memberships: users connected to workspaces and invitation lifecycle.
+- Memberships: users connected to workspaces, invitation lifecycle,
+  administration, soft removal/reactivation, and workspace ownership safety.
 - Authorization: explicit deny-by-default route admission and authenticated
   active-user policy plus base membership invitation permissions.
 - Multi-workspace session selection: bounded credentialed choices, actor-only
@@ -153,8 +157,8 @@ commands until the explicit migration is implemented and verified.
 
 ### Planned foundation
 
-- Ownership transfer and last-owner safety.
-- User and workspace lifecycle operations.
+- Organization commercial ownership transfer and multi-workspace policy.
+- User, self-leave, and workspace lifecycle operations.
 - Tenant-isolation matrices at repository and API boundaries.
 
 ### Optional reusable capability packs
@@ -316,7 +320,7 @@ prove a stable shared contract.
 
 ## Platform roadmap
 
-1. Complete tenant foundation: ownership transfer, last-owner safety,
+1. Complete tenant foundation: organization commercial ownership policy,
    lifecycle operations, and broader tenant isolation tests.
 2. Complete repository foundation through explicit changes: monorepo decision,
    strict TypeScript plan, contract gates, seeds, and CI.
@@ -343,6 +347,10 @@ repository owns its own roadmap.
 - Multi-workspace login uses an explicit validated selector when more than one
   membership exists; a real session workspace switch rotates the opaque token,
   preserves absolute expiry, and audits both workspace scopes.
+- Membership administration uses active-row lifecycle state, workspace-scoped
+  session revocation, lower-role management, and an explicit current-password
+  confirmed owner replacement. Workspace operational ownership does not mutate
+  organization commercial ownership.
 - Every Nest route declares public, context-authenticated, or
   application-authenticated admission; unclassified routes are denied, and
   context-authenticated tenant routes require active users by default.
@@ -356,7 +364,7 @@ Resolve these only when their phase begins:
 
 - production cookie, Origin, CORS, and trusted-proxy topology;
 - production SMTP provider and reliable asynchronous delivery/retry mechanism;
-- ownership-transfer and last-owner policy;
+- organization commercial ownership transfer across multiple workspaces;
 - whether and when to enable PostgreSQL RLS;
 - billing provider, plan, credit, entitlement, and refund policy if commercial
   capabilities are added;
