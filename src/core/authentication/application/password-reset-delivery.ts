@@ -1,40 +1,52 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { AppConfig } from '../../configuration/app-config';
+import { MailOutbox } from '../../mail/application/mail-outbox';
 import { Clock } from '../../../shared/application/clock';
-import {
-  PASSWORD_RESET_SENDER,
-  type PasswordResetSender,
-} from './password-reset-sender.port';
 import { PasswordResetTokens } from './password-reset-tokens';
 
 @Injectable()
 export class PasswordResetDelivery {
   constructor(
-    @Inject(PASSWORD_RESET_SENDER)
-    private readonly sender: PasswordResetSender,
+    private readonly outbox: MailOutbox,
     private readonly tokens: PasswordResetTokens,
     private readonly clock: Clock,
+    private readonly config: AppConfig,
   ) {}
 
-  async attempt(input: {
+  async enqueue(input: {
     resetId: string;
+    workspaceId: string;
     email: string;
     token: string;
     expiresAt: Date;
-  }): Promise<boolean> {
-    let status: 'SENT' | 'FAILED' = 'SENT';
-    try {
-      await this.sender.send({
-        to: input.email,
-        token: input.token,
-        expiresAt: input.expiresAt,
-      });
-    } catch {
-      status = 'FAILED';
-    }
+  }): Promise<void> {
+    const url = new URL(this.config.passwordResetUrl);
+    url.hash = `token=${encodeURIComponent(input.token)}`;
+    await this.outbox.enqueue({
+      id: input.resetId,
+      workspaceId: input.workspaceId,
+      purpose: 'PASSWORD_RESET',
+      to: input.email,
+      subject: 'Reset your password',
+      text: [
+        'Reset your password by opening this link:',
+        url.toString(),
+        `This link expires at ${input.expiresAt.toISOString()}.`,
+        'If you did not request a password reset, you can ignore this email.',
+      ].join('\n\n'),
+      expiresAt: input.expiresAt,
+    });
+  }
 
+  async attempt(resetId: string): Promise<boolean> {
+    const sent = await this.outbox.deliverNow(resetId);
     await this.tokens
-      .markDelivery(input.resetId, status, this.clock.now())
+      .markDelivery(resetId, sent ? 'SENT' : 'FAILED', this.clock.now())
       .catch(() => undefined);
-    return status === 'SENT';
+    return sent;
+  }
+
+  dispatch(resetId: string): void {
+    void this.attempt(resetId).catch(() => undefined);
   }
 }

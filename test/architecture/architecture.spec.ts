@@ -20,6 +20,8 @@ const APPROVED_CROSS_MODULE_EXCEPTIONS = new Set([
   'src/core/authorization/presentation/route-admission.guard.ts|src/core/authentication/presentation/authenticated-request-context.guard',
   'src/core/authorization/presentation/route-admission.guard.ts|src/core/authentication/presentation/private-response-headers',
   'src/core/authorization/presentation/route-admission.guard.ts|src/core/authentication/presentation/trusted-origin.guard',
+  'src/core/health/health.controller.ts|src/core/authorization/presentation/route-admission',
+  'src/core/observability/metrics.controller.ts|src/core/authorization/presentation/route-admission',
   'src/core/authentication/presentation/authentication.controller.ts|src/core/authorization/presentation/route-admission',
   'src/core/memberships/presentation/membership-invitations.controller.ts|src/core/authentication/presentation/authenticated-request-context',
   'src/core/memberships/presentation/membership-invitations.controller.ts|src/core/authorization/presentation/route-admission',
@@ -44,6 +46,7 @@ const MODEL_OWNERS = new Map([
   ['Session', 'authentication'],
   ['EmailVerification', 'authentication'],
   ['PasswordResetToken', 'authentication'],
+  ['MailOutboxMessage', 'mail'],
   ['AuditLog', 'audit'],
 ]);
 

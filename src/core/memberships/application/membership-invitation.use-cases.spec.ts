@@ -151,7 +151,7 @@ function createIssueFixture(
 ) {
   const audits: AppendAuditLog[] = [];
   const invitations = new RecordingInvitations();
-  const delivery = jest.fn(() => Promise.resolve(true));
+  const delivery = jest.fn(() => Promise.resolve());
   const memberships = new Memberships({
     createOwner: () => Promise.resolve(),
     createInvited: () => Promise.resolve(),
@@ -195,7 +195,10 @@ function createIssueFixture(
       new AuditLog({
         append: (audit) => (audits.push(audit), Promise.resolve()),
       }),
-      { attempt: delivery },
+      {
+        enqueue: delivery,
+        attempt: () => Promise.resolve(true),
+      },
       new MembershipInvitationTokenService(),
       new IdentifierFactory(),
       fixedClock(),

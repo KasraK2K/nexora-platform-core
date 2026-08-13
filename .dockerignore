@@ -1,0 +1,16 @@
+.git
+.github
+.env
+.env.*
+!.env.example
+Dockerfile*
+README.md
+coverage
+dist
+docs
+graphify-out
+node_modules
+npm-debug.log*
+pnpm-debug.log*
+test
+*.tsbuildinfo

@@ -17,17 +17,9 @@ import { PasswordCredentialVerification } from '../src/core/identity/application
 import { AuthenticationRateLimiter } from '../src/core/authentication/infrastructure/authentication-rate-limiter';
 import { SessionTokenService } from '../src/core/authentication/application/session-token.service';
 import {
-  EMAIL_VERIFICATION_SENDER,
-  type EmailVerificationSender,
-} from '../src/core/authentication/application/email-verification-sender.port';
-import {
-  PASSWORD_RESET_SENDER,
-  type PasswordResetSender,
-} from '../src/core/authentication/application/password-reset-sender.port';
-import {
-  MEMBERSHIP_INVITATION_SENDER,
-  type MembershipInvitationSender,
-} from '../src/core/memberships/application/membership-invitation-sender.port';
+  OUTBOUND_MAIL,
+  type OutboundMail,
+} from '../src/core/mail/application/outbound-mail.port';
 import { MembershipInvitationRateLimiter } from '../src/core/memberships/infrastructure/membership-invitation-rate-limiter';
 import { MembershipOwnershipTransferRateLimiter } from '../src/core/memberships/infrastructure/membership-ownership-transfer-rate-limiter';
 import { PrismaMembershipInvitationsRepository } from '../src/core/memberships/infrastructure/prisma-membership-invitations.repository';
@@ -48,8 +40,8 @@ const verificationDeliveries: Array<{
   token: string;
   expiresAt: Date;
 }> = [];
-const recordingEmailSender: EmailVerificationSender = {
-  send(input) {
+const recordingEmailSender = {
+  send(input: { to: string; token: string; expiresAt: Date }) {
     verificationDeliveries.push(input);
     return Promise.resolve();
   },
@@ -59,8 +51,8 @@ const resetDeliveries: Array<{
   token: string;
   expiresAt: Date;
 }> = [];
-const recordingPasswordResetSender: PasswordResetSender = {
-  send(input) {
+const recordingPasswordResetSender = {
+  send(input: { to: string; token: string; expiresAt: Date }) {
     resetDeliveries.push(input);
     return Promise.resolve();
   },
@@ -71,12 +63,51 @@ const invitationDeliveries: Array<{
   role: 'ADMIN' | 'MEMBER';
   expiresAt: Date;
 }> = [];
-const recordingMembershipInvitationSender: MembershipInvitationSender = {
-  send(input) {
+const recordingMembershipInvitationSender = {
+  send(input: {
+    to: string;
+    token: string;
+    role: 'ADMIN' | 'MEMBER';
+    expiresAt: Date;
+  }) {
     invitationDeliveries.push(input);
     return Promise.resolve();
   },
 };
+const recordingOutboundMail: OutboundMail = {
+  async send(input) {
+    const token = readMailToken(input.text);
+    const expiresAt = readMailExpiry(input.text);
+    if (input.subject === 'Verify your email address') {
+      await recordingEmailSender.send({ to: input.to, token, expiresAt });
+    } else if (input.subject === 'Reset your password') {
+      await recordingPasswordResetSender.send({
+        to: input.to,
+        token,
+        expiresAt,
+      });
+    } else {
+      await recordingMembershipInvitationSender.send({
+        to: input.to,
+        token,
+        role: input.text.includes(' as ADMIN.') ? 'ADMIN' : 'MEMBER',
+        expiresAt,
+      });
+    }
+  },
+};
+
+function readMailToken(text: string): string {
+  const match = text.match(/#token=([^\s]+)/);
+  if (!match) throw new Error('Mail token missing');
+  return decodeURIComponent(match[1]);
+}
+
+function readMailExpiry(text: string): Date {
+  const match = text.match(/expires at ([^\s]+)\./);
+  if (!match) throw new Error('Mail expiry missing');
+  return new Date(match[1]);
+}
 let unclassifiedRouteExecutions = 0;
 
 @Controller('__test/route-admission')
@@ -164,12 +195,8 @@ describe('Nexora API (e2e)', () => {
       imports: [AppModule],
       controllers: [RouteAdmissionProbeController],
     })
-      .overrideProvider(EMAIL_VERIFICATION_SENDER)
-      .useValue(recordingEmailSender)
-      .overrideProvider(PASSWORD_RESET_SENDER)
-      .useValue(recordingPasswordResetSender)
-      .overrideProvider(MEMBERSHIP_INVITATION_SENDER)
-      .useValue(recordingMembershipInvitationSender)
+      .overrideProvider(OUTBOUND_MAIL)
+      .useValue(recordingOutboundMail)
       .compile();
 
     app = moduleFixture.createNestApplication<NestExpressApplication>();
@@ -207,6 +234,53 @@ describe('Nexora API (e2e)', () => {
       .get('/')
       .expect(200)
       .expect('Hello World!');
+  });
+
+  it('separates dependency-free liveness from dependency readiness', async () => {
+    const live = await request(app.getHttpServer())
+      .get('/health/live')
+      .expect(200);
+    expect(live.body).toEqual({ status: 'live' });
+    expect(live.headers['x-content-type-options']).toBe('nosniff');
+    expect(live.headers['x-frame-options']).toBe('DENY');
+    expect(live.headers).not.toHaveProperty('x-powered-by');
+
+    await request(app.getHttpServer())
+      .get('/health/ready')
+      .expect(200)
+      .expect({
+        status: 'ready',
+        checks: { postgresql: 'up', redis: 'up' },
+      });
+
+    jest.spyOn(redis.client, 'ping').mockRejectedValueOnce(new Error('secret'));
+    const degraded = await request(app.getHttpServer())
+      .get('/health/ready')
+      .expect(503);
+    expect(degraded.body).toEqual({
+      status: 'not_ready',
+      checks: { postgresql: 'up', redis: 'down' },
+    });
+    expect(JSON.stringify(degraded.body)).not.toContain('secret');
+    await request(app.getHttpServer()).get('/health/live').expect(200);
+  });
+
+  it('uses an exact credentialed CORS allow-list', async () => {
+    const allowed = await request(app.getHttpServer())
+      .options('/health/live')
+      .set('Origin', ALLOWED_ORIGIN)
+      .set('Access-Control-Request-Method', 'GET')
+      .expect(204);
+    expect(allowed.headers['access-control-allow-origin']).toBe(ALLOWED_ORIGIN);
+    expect(allowed.headers['access-control-allow-credentials']).toBe('true');
+    expect(allowed.headers['access-control-allow-methods']).toContain('PATCH');
+
+    const denied = await request(app.getHttpServer())
+      .options('/health/live')
+      .set('Origin', 'https://attacker.example')
+      .set('Access-Control-Request-Method', 'GET')
+      .expect(404);
+    expect(denied.headers).not.toHaveProperty('access-control-allow-origin');
   });
 
   it('keeps the adapter-mounted OpenAPI UI public in development', async () => {
@@ -573,6 +647,13 @@ describe('Nexora API (e2e)', () => {
     expect(
       (await prisma.emailVerification.findFirstOrThrow()).deliveryStatus,
     ).toBe('FAILED');
+    const outbox = await prisma.mailOutboxMessage.findFirstOrThrow();
+    expect(outbox.status).toBe('RETRY_SCHEDULED');
+    expect(outbox.attemptCount).toBe(1);
+    expect(outbox.encryptedPayload).not.toContain(
+      'delivery-failed@example.com',
+    );
+    expect(outbox.encryptedPayload).not.toContain('token=');
   });
 
   it('resets a password, revokes every session, and accepts only the replacement password', async () => {
@@ -759,7 +840,9 @@ describe('Nexora API (e2e)', () => {
       .set('Cookie', readCookieHeader(selectedTenantA))
       .expect(401);
 
-    await requestPasswordReset('reset-scope-target@example.com').expect(202);
+    expect(
+      (await requestPasswordReset('reset-scope-target@example.com')).status,
+    ).toBe(202);
     const reset = await prisma.passwordResetToken.findFirstOrThrow({
       where: { userId: targetUserId },
       orderBy: { createdAt: 'desc' },
@@ -4123,11 +4206,24 @@ describe('Nexora API (e2e)', () => {
       .send({ token });
   }
 
-  function requestPasswordReset(email: string) {
-    return request(app.getHttpServer())
+  async function requestPasswordReset(email: string) {
+    const response = await request(app.getHttpServer())
       .post('/v1/auth/password-reset-requests')
       .set('Origin', ALLOWED_ORIGIN)
       .send({ email });
+    await waitForImmediateMailAttempts();
+    return response;
+  }
+
+  async function waitForImmediateMailAttempts(): Promise<void> {
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      const pending = await prisma.mailOutboxMessage.count({
+        where: { status: { in: ['PENDING', 'PROCESSING'] } },
+      });
+      if (pending === 0) return;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    throw new Error('Timed out waiting for immediate durable mail attempt.');
   }
 
   function confirmPasswordReset(token: string, newPassword: string) {
@@ -4271,6 +4367,7 @@ function readCookieHeader(response: {
 }
 
 async function clearRegistrationData(prisma: PrismaService): Promise<void> {
+  await prisma.mailOutboxMessage.deleteMany();
   await prisma.auditLog.deleteMany();
   await prisma.passwordResetToken.deleteMany();
   await prisma.session.deleteMany();
@@ -4320,18 +4417,21 @@ function readInvitationToken(email: string, excludedToken?: string): string {
   );
 }
 
-function readVerificationToken(
+async function readVerificationToken(
   email: string,
   excludedToken?: string,
 ): Promise<string> {
   const normalizedEmail = email.trim().toLocaleLowerCase('en-US');
-  for (const delivery of [...verificationDeliveries].reverse()) {
-    if (
-      delivery.to.toLowerCase() === normalizedEmail &&
-      delivery.token !== excludedToken
-    ) {
-      return Promise.resolve(delivery.token);
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    for (const delivery of [...verificationDeliveries].reverse()) {
+      if (
+        delivery.to.toLowerCase() === normalizedEmail &&
+        delivery.token !== excludedToken
+      ) {
+        return delivery.token;
+      }
     }
+    await new Promise((resolve) => setTimeout(resolve, 10));
   }
   throw new Error(
     `Verification email was not delivered to ${normalizedEmail}.`,

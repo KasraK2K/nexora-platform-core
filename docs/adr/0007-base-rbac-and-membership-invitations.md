@@ -119,7 +119,8 @@ failure is fail-closed before any invitation write, audit, or delivery.
 ### Negative and tradeoffs
 
 - An invitee must already have, or first create and verify, a Core account.
-- SMTP delivery remains synchronous and best-effort; no retry job exists yet.
+- Superseded by ADR-0012: SMTP delivery now uses a Mail-owned encrypted
+  PostgreSQL outbox with bounded retry in the same deployable.
 - Normalized invitation email is retained as PII until a cleanup policy is
   implemented.
 - The create response includes the invited email for the authorized actor, but
@@ -189,5 +190,5 @@ outstanding invitations and non-OWNER memberships deliberately.
 - [x] Add workspace ownership transfer and last-owner protection (ADR-0008).
 - [x] Add membership role mutation/removal and session effects (ADR-0008).
 - [ ] Define invitation PII retention and cleanup.
-- [ ] Add durable asynchronous email retry if delivery reliability requires it.
+- [x] Add durable asynchronous email retry (ADR-0012).
 - [ ] Design invite-first account onboarding only with a concrete consumer.

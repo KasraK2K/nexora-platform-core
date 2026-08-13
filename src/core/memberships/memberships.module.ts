@@ -16,14 +16,12 @@ import { CreateMembershipInvitation } from './application/create-membership-invi
 import { RevokeMembershipInvitation } from './application/revoke-membership-invitation.use-case';
 import { MembershipInvitationDelivery } from './application/membership-invitation-delivery';
 import { MEMBERSHIP_INVITATION_RATE_LIMITER } from './application/membership-invitation-rate-limiter.port';
-import { MEMBERSHIP_INVITATION_SENDER } from './application/membership-invitation-sender.port';
 import { MembershipInvitationTokenService } from './application/membership-invitation-token.service';
 import {
   MEMBERSHIP_INVITATIONS_REPOSITORY,
   MembershipInvitations,
 } from './application/membership-invitations';
 import { PrismaMembershipInvitationsRepository } from './infrastructure/prisma-membership-invitations.repository';
-import { SmtpMembershipInvitationSender } from './infrastructure/smtp-membership-invitation.sender';
 import { MembershipInvitationRateLimiter } from './infrastructure/membership-invitation-rate-limiter';
 import { MembershipInvitationsController } from './presentation/membership-invitations.controller';
 import { MembershipsController } from './presentation/memberships.controller';
@@ -76,7 +74,6 @@ import { MembershipOwnershipTransferRequestGuard } from './presentation/membersh
     LeaveCurrentWorkspace,
     PrismaMembershipsRepository,
     PrismaMembershipInvitationsRepository,
-    SmtpMembershipInvitationSender,
     MembershipInvitationRateLimiter,
     MembershipOwnershipTransferRateLimiter,
     MembershipOwnershipTransferRequestGuard,
@@ -91,10 +88,6 @@ import { MembershipOwnershipTransferRequestGuard } from './presentation/membersh
     {
       provide: MEMBERSHIP_INVITATIONS_REPOSITORY,
       useExisting: PrismaMembershipInvitationsRepository,
-    },
-    {
-      provide: MEMBERSHIP_INVITATION_SENDER,
-      useExisting: SmtpMembershipInvitationSender,
     },
     {
       provide: MEMBERSHIP_INVITATION_RATE_LIMITER,

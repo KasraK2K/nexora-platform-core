@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   OnApplicationShutdown,
   OnModuleInit,
 } from '@nestjs/common';
@@ -8,6 +9,7 @@ import { AppConfig } from '../configuration/app-config';
 
 @Injectable()
 export class RedisService implements OnModuleInit, OnApplicationShutdown {
+  private readonly logger = new Logger(RedisService.name);
   readonly client: RedisClientType;
 
   constructor(config: AppConfig) {
@@ -15,7 +17,14 @@ export class RedisService implements OnModuleInit, OnApplicationShutdown {
   }
 
   async onModuleInit(): Promise<void> {
-    this.client.on('error', () => undefined);
+    this.client.on('error', (error: unknown) => {
+      this.logger.warn(
+        JSON.stringify({
+          event: 'redis.client_error',
+          errorType: error instanceof Error ? error.name : 'UnknownError',
+        }),
+      );
+    });
     await this.client.connect();
   }
 

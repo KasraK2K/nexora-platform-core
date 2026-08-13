@@ -274,6 +274,7 @@ export class AuthenticationController {
       response,
       this.config.sessionCookieName,
       this.config.cookieSecure,
+      this.config.cookieSameSite,
     );
   }
 
@@ -474,6 +475,7 @@ export class AuthenticationController {
       response,
       this.config.sessionCookieName,
       this.config.cookieSecure,
+      this.config.cookieSameSite,
     );
   }
 
@@ -495,6 +497,7 @@ export class AuthenticationController {
       response,
       this.config.sessionCookieName,
       this.config.cookieSecure,
+      this.config.cookieSameSite,
     );
   }
 }
@@ -508,7 +511,7 @@ function setSessionCookie(
   response.cookie(config.sessionCookieName, token, {
     httpOnly: true,
     secure: config.cookieSecure,
-    sameSite: 'lax',
+    sameSite: config.cookieSameSite,
     path: '/',
     expires,
   });

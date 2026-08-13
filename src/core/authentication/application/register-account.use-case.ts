@@ -152,6 +152,13 @@ export class RegisterAccount {
           tokenHash: verification.hash,
           expiresAt: verificationExpiresAt,
         });
+        await this.verificationDelivery.enqueue({
+          verificationId,
+          workspaceId,
+          email: normalizedEmail,
+          token: verification.raw,
+          expiresAt: verificationExpiresAt,
+        });
         await this.sessions.create({
           id: this.identifiers.create(),
           tokenHash: session.hash,
@@ -194,12 +201,8 @@ export class RegisterAccount {
       .store(session.hash, { userId, workspaceId }, sessionExpiresAt)
       .catch(() => undefined);
 
-    const verificationEmailSent = await this.verificationDelivery.attempt({
-      verificationId,
-      email: normalizedEmail,
-      token: verification.raw,
-      expiresAt: verificationExpiresAt,
-    });
+    const verificationEmailSent =
+      await this.verificationDelivery.attempt(verificationId);
 
     return {
       userId,

@@ -332,6 +332,14 @@ prove a stable shared contract.
 - Do not adopt microservices, Kubernetes, multi-region, or dedicated-tenant
   topology without measurable need and an ADR.
 
+Repository-enforced progress (ADR-0011 and ADR-0012) now includes validated
+production runtime configuration, exact credentialed CORS, session/security
+headers, stable liveness/readiness, structured correlation and vendor-neutral
+metrics hooks, a digest-pinned non-root application image, an encrypted
+PostgreSQL mail outbox with bounded retries, and operator runbook/gates. These
+controls do not resolve the external launch decisions below and do not announce
+the production database migration transition.
+
 ## Platform roadmap
 
 1. Complete tenant foundation: organization commercial ownership policy and
@@ -385,8 +393,10 @@ repository owns its own roadmap.
 
 Resolve these only when their phase begins:
 
-- production cookie, Origin, CORS, and trusted-proxy topology;
-- production SMTP provider and reliable asynchronous delivery/retry mechanism;
+- exact production ingress/trusted-proxy addresses, origins/CORS topology, and
+  approved SameSite policy within the enforced secure configuration boundary;
+- production SMTP provider, sender-domain authentication, quotas, and
+  acceptance-ambiguity policy (reliable encrypted retry is implemented);
 - organization commercial ownership transfer across multiple workspaces;
 - whether and when to enable PostgreSQL RLS;
 - billing provider, plan, credit, entitlement, and refund policy if commercial

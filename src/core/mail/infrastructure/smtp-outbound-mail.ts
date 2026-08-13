@@ -1,10 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, type OnApplicationShutdown } from '@nestjs/common';
 import { createTransport, type Transporter } from 'nodemailer';
 import { AppConfig } from '../../configuration/app-config';
 import type { OutboundMail } from '../application/outbound-mail.port';
 
 @Injectable()
-export class SmtpOutboundMail implements OutboundMail {
+export class SmtpOutboundMail implements OutboundMail, OnApplicationShutdown {
   private readonly transporter: Transporter;
 
   constructor(private readonly config: AppConfig) {
@@ -12,6 +12,10 @@ export class SmtpOutboundMail implements OutboundMail {
       host: config.smtpHost,
       port: config.smtpPort,
       secure: config.smtpSecure,
+      requireTLS: config.smtpRequireTls,
+      tls: { rejectUnauthorized: true },
+      disableFileAccess: true,
+      disableUrlAccess: true,
       connectionTimeout: config.smtpTimeoutMs,
       greetingTimeout: config.smtpTimeoutMs,
       socketTimeout: config.smtpTimeoutMs,
@@ -25,10 +29,17 @@ export class SmtpOutboundMail implements OutboundMail {
     to: string;
     subject: string;
     text: string;
+    messageId?: string;
   }): Promise<void> {
     await this.transporter.sendMail({
       from: this.config.emailFrom,
       ...input,
+      disableFileAccess: true,
+      disableUrlAccess: true,
     });
+  }
+
+  onApplicationShutdown(): void {
+    this.transporter.close();
   }
 }

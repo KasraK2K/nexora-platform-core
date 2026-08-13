@@ -27,7 +27,6 @@ import { AuthenticationController } from './presentation/authentication.controll
 import { RegistrationRequestGuard } from './presentation/registration-request.guard';
 import { LoginRequestGuard } from './presentation/login-request.guard';
 import { TrustedOriginGuard } from './presentation/trusted-origin.guard';
-import { EMAIL_VERIFICATION_SENDER } from './application/email-verification-sender.port';
 import { EmailVerificationTokenService } from './application/email-verification-token.service';
 import {
   EMAIL_VERIFICATIONS_REPOSITORY,
@@ -37,7 +36,6 @@ import { EmailVerificationDelivery } from './application/email-verification-deli
 import { RequestEmailVerification } from './application/request-email-verification.use-case';
 import { VerifyEmail } from './application/verify-email.use-case';
 import { PrismaEmailVerificationsRepository } from './infrastructure/prisma-email-verifications.repository';
-import { SmtpEmailVerificationSender } from './infrastructure/smtp-email-verification.sender';
 import { EmailVerificationRequestGuard } from './presentation/email-verification-request.guard';
 import { EmailVerificationConfirmationGuard } from './presentation/email-verification-confirmation.guard';
 import { PasswordResetTokenService } from './application/password-reset-token.service';
@@ -46,11 +44,9 @@ import {
   PasswordResetTokens,
 } from './application/password-reset-tokens';
 import { PasswordResetDelivery } from './application/password-reset-delivery';
-import { PASSWORD_RESET_SENDER } from './application/password-reset-sender.port';
 import { RequestPasswordReset } from './application/request-password-reset.use-case';
 import { ResetPassword } from './application/reset-password.use-case';
 import { PrismaPasswordResetTokensRepository } from './infrastructure/prisma-password-reset-tokens.repository';
-import { SmtpPasswordResetSender } from './infrastructure/smtp-password-reset.sender';
 import { PasswordResetRequestGuard } from './presentation/password-reset-request.guard';
 import { PasswordResetConfirmationGuard } from './presentation/password-reset-confirmation.guard';
 import { ChangePassword } from './application/change-password.use-case';
@@ -117,24 +113,14 @@ import { WorkspaceSwitchRequestGuard } from './presentation/workspace-switch-req
     PwnedPasswordsCompromiseChecker,
     PrismaEmailVerificationsRepository,
     PrismaPasswordResetTokensRepository,
-    SmtpEmailVerificationSender,
-    SmtpPasswordResetSender,
     { provide: PASSWORD_HASHER, useExisting: Argon2PasswordHasher },
     {
       provide: PASSWORD_COMPROMISE_CHECKER,
       useExisting: PwnedPasswordsCompromiseChecker,
     },
     {
-      provide: EMAIL_VERIFICATION_SENDER,
-      useExisting: SmtpEmailVerificationSender,
-    },
-    {
       provide: EMAIL_VERIFICATIONS_REPOSITORY,
       useExisting: PrismaEmailVerificationsRepository,
-    },
-    {
-      provide: PASSWORD_RESET_SENDER,
-      useExisting: SmtpPasswordResetSender,
     },
     {
       provide: PASSWORD_RESET_TOKENS_REPOSITORY,

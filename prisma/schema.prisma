@@ -42,6 +42,20 @@ enum MembershipInvitationRole {
   MEMBER
 }
 
+enum MailOutboxStatus {
+  PENDING
+  PROCESSING
+  RETRY_SCHEDULED
+  SENT
+  FAILED
+}
+
+enum MailPurpose {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+  MEMBERSHIP_INVITATION
+}
+
 model Identity {
   id                  String               @id @db.Uuid
   normalizedEmail     String               @unique(map: "identities_normalized_email_key") @map("normalized_email") @db.VarChar(254)
@@ -64,19 +78,19 @@ model PasswordCredential {
 }
 
 model User {
-  id                  String               @id @db.Uuid
-  identityId          String               @unique(map: "users_identity_id_key") @map("identity_id") @db.Uuid
-  displayName         String               @map("display_name") @db.VarChar(100)
-  status              UserStatus           @default(PENDING_VERIFICATION)
-  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt           DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
-  identity            Identity             @relation(fields: [identityId], references: [id], onDelete: Restrict)
-  ownedOrganizations  Organization[]
-  memberships         Membership[]
-  sessions            Session[]
-  auditLogs           AuditLog[]
-  emailVerifications  EmailVerification[]
-  passwordResetTokens PasswordResetToken[]
+  id                            String                 @id @db.Uuid
+  identityId                    String                 @unique(map: "users_identity_id_key") @map("identity_id") @db.Uuid
+  displayName                   String                 @map("display_name") @db.VarChar(100)
+  status                        UserStatus             @default(PENDING_VERIFICATION)
+  createdAt                     DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                     DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
+  identity                      Identity               @relation(fields: [identityId], references: [id], onDelete: Restrict)
+  ownedOrganizations            Organization[]
+  memberships                   Membership[]
+  sessions                      Session[]
+  auditLogs                     AuditLog[]
+  emailVerifications            EmailVerification[]
+  passwordResetTokens           PasswordResetToken[]
   sentMembershipInvitations     MembershipInvitation[] @relation("MembershipInvitationInviter")
   acceptedMembershipInvitations MembershipInvitation[] @relation("MembershipInvitationAcceptor")
 
@@ -137,17 +151,18 @@ model Organization {
 }
 
 model Workspace {
-  id                  String               @id @db.Uuid
-  organizationId      String               @map("organization_id") @db.Uuid
-  name                String               @db.VarChar(120)
-  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt           DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
-  organization        Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  memberships         Membership[]
-  auditLogs           AuditLog[]
-  emailVerifications  EmailVerification[]
-  passwordResetTokens PasswordResetToken[]
+  id                    String                 @id @db.Uuid
+  organizationId        String                 @map("organization_id") @db.Uuid
+  name                  String                 @db.VarChar(120)
+  createdAt             DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
+  organization          Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  memberships           Membership[]
+  auditLogs             AuditLog[]
+  emailVerifications    EmailVerification[]
+  passwordResetTokens   PasswordResetToken[]
   membershipInvitations MembershipInvitation[]
+  mailOutboxMessages    MailOutboxMessage[]
 
   @@index([organizationId], map: "workspaces_organization_id_idx")
   @@map("workspaces")
@@ -192,6 +207,32 @@ model MembershipInvitation {
   @@index([workspaceId, createdAt(sort: Desc)], map: "membership_invitations_workspace_id_created_at_idx")
   @@index([workspaceId, normalizedEmail, expiresAt], map: "membership_invitations_workspace_email_expires_at_idx")
   @@map("membership_invitations")
+}
+
+model MailOutboxMessage {
+  id               String           @id @db.Uuid
+  workspaceId      String           @map("workspace_id") @db.Uuid
+  purpose          MailPurpose
+  idempotencyKey   String           @unique(map: "mail_outbox_messages_idempotency_key_key") @map("idempotency_key") @db.VarChar(160)
+  messageId        String           @unique(map: "mail_outbox_messages_message_id_key") @map("message_id") @db.VarChar(320)
+  encryptedPayload String           @map("encrypted_payload") @db.Text
+  correlationId    String           @map("correlation_id") @db.VarChar(64)
+  status           MailOutboxStatus @default(PENDING)
+  attemptCount     Int              @default(0) @map("attempt_count")
+  nextAttemptAt    DateTime         @default(now()) @map("next_attempt_at") @db.Timestamptz(3)
+  lockedUntil      DateTime?        @map("locked_until") @db.Timestamptz(3)
+  lastAttemptAt    DateTime?        @map("last_attempt_at") @db.Timestamptz(3)
+  sentAt           DateTime?        @map("sent_at") @db.Timestamptz(3)
+  failedAt         DateTime?        @map("failed_at") @db.Timestamptz(3)
+  expiresAt        DateTime         @map("expires_at") @db.Timestamptz(3)
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  workspace        Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+
+  @@index([status, nextAttemptAt], map: "mail_outbox_messages_status_next_attempt_at_idx")
+  @@index([workspaceId, createdAt(sort: Desc)], map: "mail_outbox_messages_workspace_created_at_idx")
+  @@index([expiresAt], map: "mail_outbox_messages_expires_at_idx")
+  @@map("mail_outbox_messages")
 }
 
 model Session {

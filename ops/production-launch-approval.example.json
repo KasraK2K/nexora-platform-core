@@ -1,0 +1,45 @@
+{
+  "approvalId": null,
+  "approvedAt": null,
+  "approvedBy": null,
+  "environment": null,
+  "region": null,
+  "infrastructure": {
+    "postgresql": null,
+    "redis": null,
+    "smtp": null,
+    "secretManager": null,
+    "observability": null
+  },
+  "objectives": {
+    "rpoMinutes": null,
+    "rtoMinutes": null,
+    "availabilitySloPercent": null,
+    "latencyP95Milliseconds": null
+  },
+  "capacity": {
+    "requestsPerSecond": null,
+    "concurrentRequests": null,
+    "maximumMailQueueDepth": null,
+    "smtpMessagesPerHour": null
+  },
+  "alerts": {
+    "readinessFailures": null,
+    "mailQueueAgeSeconds": null,
+    "terminalMailFailures": null,
+    "errorRatePercent": null
+  },
+  "retentionDays": {
+    "sessions": null,
+    "verificationAndReset": null,
+    "invitations": null,
+    "mailOutbox": null,
+    "audit": null,
+    "logs": null,
+    "traces": null
+  },
+  "incidentContact": null,
+  "restoreDrillEvidence": null,
+  "rollbackOwner": null,
+  "privacyOwner": null
+}

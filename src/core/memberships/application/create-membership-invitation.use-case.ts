@@ -44,7 +44,10 @@ export class CreateMembershipInvitation {
     private readonly authorization: AuthorizationPolicy,
     private readonly auditLog: AuditLog,
     @Inject(MembershipInvitationDelivery)
-    private readonly delivery: Pick<MembershipInvitationDelivery, 'attempt'>,
+    private readonly delivery: Pick<
+      MembershipInvitationDelivery,
+      'enqueue' | 'attempt'
+    >,
     private readonly tokens: MembershipInvitationTokenService,
     private readonly identifiers: IdentifierFactory,
     private readonly clock: Clock,
@@ -137,6 +140,14 @@ export class CreateMembershipInvitation {
           ),
           expiresAt,
         });
+        await this.delivery.enqueue({
+          workspaceId: input.workspaceId,
+          invitationId,
+          email: normalizedEmail,
+          token: token.raw,
+          role: input.role,
+          expiresAt,
+        });
         await this.auditLog.append({
           id: this.identifiers.create(),
           workspaceId: input.workspaceId,
@@ -162,10 +173,6 @@ export class CreateMembershipInvitation {
     const emailSent = await this.delivery.attempt({
       workspaceId: input.workspaceId,
       invitationId,
-      email: normalizedEmail,
-      token: token.raw,
-      role: input.role,
-      expiresAt,
     });
 
     return Object.freeze({

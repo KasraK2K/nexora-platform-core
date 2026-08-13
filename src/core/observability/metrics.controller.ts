@@ -1,0 +1,48 @@
+import {
+  Controller,
+  Get,
+  HttpException,
+  HttpStatus,
+  Req,
+  Res,
+} from '@nestjs/common';
+import { timingSafeEqual } from 'node:crypto';
+import type { Request, Response } from 'express';
+import { PublicRoute } from '../authorization/presentation/route-admission';
+import { AppConfig } from '../configuration/app-config';
+import { OperationalTelemetry } from './application/operational-telemetry';
+
+@Controller('metrics')
+export class MetricsController {
+  constructor(
+    private readonly config: AppConfig,
+    private readonly telemetry: OperationalTelemetry,
+  ) {}
+
+  @Get()
+  @PublicRoute()
+  getMetrics(@Req() request: Request, @Res() response: Response): void {
+    const authorization = request.header('authorization');
+    const supplied = authorization?.startsWith('Bearer ')
+      ? authorization.slice('Bearer '.length)
+      : '';
+    if (
+      !this.config.metricsEnabled ||
+      !safeEqual(supplied, this.config.metricsBearerToken)
+    ) {
+      throw new HttpException('Not found', HttpStatus.NOT_FOUND);
+    }
+    response
+      .type('application/openmetrics-text; version=1.0.0; charset=utf-8')
+      .send(this.telemetry.renderOpenMetrics());
+  }
+}
+
+function safeEqual(left: string, right: string): boolean {
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+  return (
+    leftBuffer.length === rightBuffer.length &&
+    timingSafeEqual(leftBuffer, rightBuffer)
+  );
+}

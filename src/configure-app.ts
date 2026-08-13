@@ -10,15 +10,31 @@ import { AppConfig } from './core/configuration/app-config';
 
 export function configureApp(app: NestExpressApplication): void {
   const config = app.get(AppConfig);
+  app.disable('x-powered-by');
   app.set(
     'trust proxy',
     config.trustedProxies.length === 0 ? false : config.trustedProxies,
   );
   app.useGlobalFilters(new ApiExceptionFilter());
   app.enableShutdownHooks();
+  app.enableCors({
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+      'content-type',
+      'x-request-id',
+      'x-correlation-id',
+      'traceparent',
+    ],
+    origin(origin, callback) {
+      callback(null, origin === undefined || config.allowedOrigins.has(origin));
+    },
+  });
 
-  const document = createOpenApiDocument(app);
-  SwaggerModule.setup('docs', app, document);
+  if (config.apiDocsEnabled) {
+    const document = createOpenApiDocument(app);
+    SwaggerModule.setup('docs', app, document);
+  }
 }
 
 export function createOpenApiDocument(app: INestApplication): OpenAPIObject {

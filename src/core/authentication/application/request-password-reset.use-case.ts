@@ -87,6 +87,13 @@ export class RequestPasswordReset {
           tokenHash: token.hash,
           expiresAt,
         });
+        await this.delivery.enqueue({
+          resetId,
+          workspaceId: currentSessionContext.activeWorkspaceId,
+          email: identity.normalizedEmail,
+          token: token.raw,
+          expiresAt,
+        });
         return true;
       });
     } catch (error) {
@@ -100,12 +107,7 @@ export class RequestPasswordReset {
     }
 
     if (created) {
-      await this.delivery.attempt({
-        resetId,
-        email: identity.normalizedEmail,
-        token: token.raw,
-        expiresAt,
-      });
+      this.delivery.dispatch(resetId);
     }
   }
 }

@@ -22,7 +22,6 @@ import type { PasswordHasher } from './password-hasher.port';
 import { RegisterAccount } from './register-account.use-case';
 import type { SessionCachePort } from './session-cache.port';
 import { SessionTokenService } from './session-token.service';
-import type { EmailVerificationSender } from './email-verification-sender.port';
 import { EmailVerificationDelivery } from './email-verification-delivery';
 import { EmailVerificationTokenService } from './email-verification-token.service';
 import {
@@ -75,7 +74,7 @@ class RecordingSessionCache implements SessionCachePort {
   }
 }
 
-class RecordingEmailSender implements EmailVerificationSender {
+class RecordingEmailSender {
   deliveries: Array<{ to: string; token: string; expiresAt: Date }> = [];
   failure: Error | undefined;
 
@@ -295,6 +294,29 @@ function createFixture(): {
     revokeAllForUser: () => Promise.resolve([]),
   });
   const auditLog = new AuditLog({ append: () => Promise.resolve() });
+  const config = new AppConfig();
+  let queuedMail: { to: string; text: string; expiresAt: Date } | undefined;
+  const outbox = {
+    enqueue(input: { to: string; text: string; expiresAt: Date }) {
+      queuedMail = input;
+      return Promise.resolve();
+    },
+    async deliverNow(): Promise<boolean> {
+      if (!queuedMail) return false;
+      const match = queuedMail.text.match(/#token=([^\s]+)/);
+      if (!match) return false;
+      try {
+        await emailSender.send({
+          to: queuedMail.to,
+          token: decodeURIComponent(match[1]),
+          expiresAt: queuedMail.expiresAt,
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+  };
 
   return {
     hasher,
@@ -319,10 +341,15 @@ function createFixture(): {
       new SessionTokenService(),
       new EmailVerificationTokenService(),
       emailVerifications,
-      new EmailVerificationDelivery(emailSender, emailVerifications, clock),
+      new EmailVerificationDelivery(
+        outbox as never,
+        emailVerifications,
+        clock,
+        config,
+      ),
       new IdentifierFactory(),
       clock,
-      new AppConfig(),
+      config,
     ),
   };
 }

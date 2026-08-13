@@ -210,3 +210,19 @@ generated diff, and `THIRD_PARTY_NOTICES.md` before committing it.
 ```bash
 pnpm run db:test:down
 ```
+
+## Production-readiness controls
+
+The repository enforces a product-neutral runtime baseline, but it does not
+claim an actual production launch is approved. Stable operational endpoints are
+`GET /health/live`, `GET /health/ready`, and optionally bearer-protected
+`GET /metrics`. Production disables Swagger, requires exact HTTPS origins,
+validated proxies, secure cookies, TLS PostgreSQL/Redis/SMTP, and an encrypted
+durable mail outbox.
+
+Build the immutable non-root image with `docker build -t nexora-platform-core .`.
+Review `.env.production.example`,
+`docs/operations/production-runbook.md`, ADR-0011, and ADR-0012. A named
+operator must complete an uncommitted approval file and run
+`pnpm run check:production`. The development database policy remains
+`prisma db push`; no production migration transition has been announced.

@@ -18,7 +18,6 @@ import { AuthenticationSessions } from './authentication-sessions';
 import type { PasswordCompromiseChecker } from './password-compromise-checker.port';
 import type { PasswordHasher } from './password-hasher.port';
 import { PasswordResetDelivery } from './password-reset-delivery';
-import type { PasswordResetSender } from './password-reset-sender.port';
 import { PasswordResetTokenService } from './password-reset-token.service';
 import {
   PasswordResetTokens,
@@ -190,8 +189,9 @@ function createRequestFixture(latestWorkspaces?: readonly string[]) {
   const repository = new InMemoryResetTokens();
   const resets = new PasswordResetTokens(repository);
   const deliveries: Array<{ to: string; token: string; expiresAt: Date }> = [];
-  const sender: PasswordResetSender & {
+  const sender: {
     deliveries: Array<{ to: string; token: string; expiresAt: Date }>;
+    send(input: { to: string; token: string; expiresAt: Date }): Promise<void>;
   } = {
     deliveries,
     send(input) {
@@ -202,6 +202,26 @@ function createRequestFixture(latestWorkspaces?: readonly string[]) {
   const clock = fixedClock();
   const users = activeUsers();
   const sessions = sessionRepository(undefined, latestWorkspaces);
+  const config = new AppConfig();
+  let queuedMail: { to: string; text: string; expiresAt: Date } | undefined;
+  const outbox = {
+    enqueue(input: { to: string; text: string; expiresAt: Date }) {
+      queuedMail = input;
+      return Promise.resolve();
+    },
+    async deliverNow(): Promise<boolean> {
+      const match = queuedMail?.text.match(/#token=([^\s]+)/);
+      if (queuedMail && match) {
+        await sender.send({
+          to: queuedMail.to,
+          token: decodeURIComponent(match[1]),
+          expiresAt: queuedMail.expiresAt,
+        });
+        return true;
+      }
+      return false;
+    },
+  };
 
   return {
     repository,
@@ -218,11 +238,11 @@ function createRequestFixture(latestWorkspaces?: readonly string[]) {
       users,
       sessions,
       resets,
-      new PasswordResetDelivery(sender, resets, clock),
+      new PasswordResetDelivery(outbox as never, resets, clock, config),
       new PasswordResetTokenService(),
       new IdentifierFactory(),
       clock,
-      new AppConfig(),
+      config,
       new InlineTransactionManager(),
     ),
   };

@@ -118,6 +118,7 @@ export class MembershipsController {
       response,
       this.config.sessionCookieName,
       this.config.cookieSecure,
+      this.config.cookieSameSite,
     );
   }
 

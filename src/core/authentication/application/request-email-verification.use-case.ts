@@ -77,6 +77,13 @@ export class RequestEmailVerification {
           tokenHash: token.hash,
           expiresAt,
         });
+        await this.delivery.enqueue({
+          verificationId,
+          workspaceId: previous.workspaceId,
+          email: identity.normalizedEmail,
+          token: token.raw,
+          expiresAt,
+        });
         await this.auditLog.append({
           id: this.identifiers.create(),
           workspaceId: previous.workspaceId,
@@ -97,12 +104,7 @@ export class RequestEmailVerification {
     }
 
     if (created) {
-      await this.delivery.attempt({
-        verificationId,
-        email: identity.normalizedEmail,
-        token: token.raw,
-        expiresAt,
-      });
+      this.delivery.dispatch(verificationId);
     }
   }
 }
