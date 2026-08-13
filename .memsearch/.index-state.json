@@ -1,0 +1,18 @@
+{
+  "collection": "ms_nexora_platform_core_3a9dc9e9",
+  "failed_files": [],
+  "indexed_chunks": 1,
+  "indexed_files": 1,
+  "last_completed_at": "2026-08-13T13:43:29.492129Z",
+  "last_started_at": "2026-08-13T13:43:26.194023Z",
+  "last_success_at": "2026-08-13T13:43:29.492129Z",
+  "milvus_uri": "http://localhost:19530",
+  "operation": "index",
+  "paths": [
+    "D:/Workspace/Projects/nexora-platform-core/.memsearch/memory"
+  ],
+  "schema_version": 1,
+  "status": "ok",
+  "total_files": 1,
+  "updated_at": "2026-08-13T13:43:29.492129Z"
+}
