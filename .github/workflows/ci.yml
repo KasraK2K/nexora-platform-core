@@ -32,6 +32,7 @@ jobs:
       - run: pnpm run typecheck
       - run: pnpm run check:deprecated
       - run: pnpm run contract:check
+      - run: pnpm run docs:check
       - run: pnpm run test:architecture
       - run: pnpm run build
       - run: pnpm run test --runInBand

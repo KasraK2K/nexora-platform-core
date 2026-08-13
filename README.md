@@ -124,6 +124,25 @@ Platform Core must never import a downstream product module. Promote a product
 capability into Core only after a second proven consumer or an explicit platform
 requirement.
 
+## Documentation
+
+Start with [`docs/README.md`](docs/README.md). It links the project tour,
+architecture concepts, module ownership, end-to-end flows, how-to guides,
+OpenAPI reference, and accepted decisions.
+
+Generate the NestJS code-navigation reference locally with:
+
+```bash
+pnpm run docs:code
+pnpm run docs:code:serve
+```
+
+The generated `documentation/` directory is intentionally untracked. It is a
+searchable view of modules, controllers, injectables, dependencies, and source;
+the Markdown documents remain the canonical explanation of behavior and
+rationale. The committed HTTP contract is `docs/reference/openapi.json` and is
+checked with `pnpm run contract:check`.
+
 ## Prerequisites
 
 - Node.js 24

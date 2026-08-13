@@ -15,6 +15,10 @@ export type ApplicationAuthenticatedRouteOptions = Readonly<{
   requireTrustedOrigin?: boolean;
 }>;
 
+/**
+ * Explicit, deny-by-default admission policy for one HTTP handler. Missing or
+ * structurally invalid policy metadata is rejected by the global guard.
+ */
 export type RouteAdmissionPolicy = Readonly<
   | {
       access: 'public';
@@ -36,6 +40,7 @@ export const RouteAdmission = Reflector.createDecorator<RouteAdmissionPolicy>({
   key: 'nexora:route-admission',
 });
 
+/** Declares a route that does not require an authenticated tenant context. */
 export function PublicRoute(options: PublicRouteOptions = {}): MethodDecorator {
   return RouteAdmission(
     Object.freeze({

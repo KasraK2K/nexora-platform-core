@@ -19,6 +19,11 @@ type ProtectedMailPayload = Readonly<{
   text: string;
 }>;
 
+/**
+ * Durable, encrypted handoff for Core email. Callers enqueue while their
+ * business transaction is active, then may request immediate delivery after
+ * commit; persisted state remains available for bounded worker retries.
+ */
 @Injectable()
 export class MailOutbox {
   private readonly logger = new Logger(MailOutbox.name);
