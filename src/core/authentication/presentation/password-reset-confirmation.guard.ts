@@ -13,6 +13,7 @@ import {
 } from '../application/authentication-rate-limiter.port';
 import { PasswordResetUnavailableError } from '../domain/registration.errors';
 
+/** Throttles reset-token confirmation before token and password processing. */
 @Injectable()
 export class PasswordResetConfirmationGuard implements CanActivate {
   constructor(
@@ -20,6 +21,7 @@ export class PasswordResetConfirmationGuard implements CanActivate {
     private readonly rateLimiter: AuthenticationRateLimitPort,
   ) {}
 
+  /** Returns true when allowed; limiter failures map to a safe availability error. */
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const http = context.switchToHttp();
     const request = http.getRequest<Request>();

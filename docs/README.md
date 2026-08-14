@@ -67,8 +67,9 @@ pnpm run docs:code:serve
 ```
 
 The output is written to `documentation/`. Run `pnpm run docs:check` to verify
-that the code reference still generates. Compodoc is navigation, not the
-authority for business meaning or security policy.
+that production declarations retain plain-language JSDoc and that the code
+reference still generates. Compodoc is navigation, not the authority for
+business meaning or security policy.
 
 ## Writing and maintenance rules
 
@@ -76,8 +77,12 @@ authority for business meaning or security policy.
   obvious TypeScript.
 - Put public HTTP shapes in OpenAPI decorators and contract schemas.
 - Put accepted architecture changes in an ADR before implementation.
-- Add selective TSDoc to public application contracts and non-obvious security
-  or transaction boundaries so Compodoc can show the constraint beside code.
+- Add short, plain-language TSDoc to production classes, public methods,
+  application contracts, and named functions so IDE help and Compodoc explain
+  what each symbol contributes. Give extra detail to non-obvious security,
+  transaction, tenancy, and failure behavior.
+- Do not document generated source files or restate obvious TypeScript fields.
+  Generated source is excluded from the Compodoc input.
 - Every module guide should name its data owner, public contracts, consumers,
   transaction boundaries, tenant/security invariants, and behavioral tests.
 - Every flow guide should link the controller, guards, use case, repositories,

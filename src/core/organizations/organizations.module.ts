@@ -6,6 +6,7 @@ import {
 import { PrismaOrganizationsRepository } from './infrastructure/prisma-organizations.repository';
 import { CoreInfrastructureModule } from '../core-infrastructure.module';
 
+/** Wires the public Organizations facade to its Prisma storage adapter. */
 @Module({
   imports: [CoreInfrastructureModule],
   providers: [

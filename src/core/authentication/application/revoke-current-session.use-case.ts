@@ -11,6 +11,7 @@ import { SESSION_CACHE } from './session-cache.port';
 import type { SessionCachePort } from './session-cache.port';
 import { SessionTokenService } from './session-token.service';
 
+/** Idempotently revokes the session named by the current opaque cookie. */
 @Injectable()
 export class RevokeCurrentSession {
   constructor(
@@ -24,6 +25,11 @@ export class RevokeCurrentSession {
     private readonly clock: Clock,
   ) {}
 
+  /**
+   * Treats a missing or malformed cookie as already logged out. Durable
+   * revocation and audit append share a retryable transaction; cache removal is
+   * best effort after commit.
+   */
   async execute(rawToken: string | undefined): Promise<void> {
     const tokenHash = this.sessionTokens.hashIfValid(rawToken);
     if (!tokenHash) {
@@ -62,6 +68,7 @@ export class RevokeCurrentSession {
   }
 }
 
+/** Recognizes the normalized retryable write-conflict raised by persistence adapters. */
 function isWriteConflict(error: unknown): boolean {
   return isTransactionWriteConflict(error);
 }

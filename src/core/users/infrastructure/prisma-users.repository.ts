@@ -6,10 +6,12 @@ import type {
   UsersRepository,
 } from '../application/users';
 
+/** Prisma adapter for Users-owned profile and lifecycle rows. */
 @Injectable()
 export class PrismaUsersRepository implements UsersRepository {
   constructor(private readonly database: DatabaseContext) {}
 
+  /** Persists a user through the ambient caller-owned transaction. */
   async create(input: {
     id: string;
     identityId: string;
@@ -19,6 +21,7 @@ export class PrismaUsersRepository implements UsersRepository {
     await this.database.client.user.create({ data: input });
   }
 
+  /** Reads the minimal profile view, with `null` for an absent user. */
   findById(id: string): Promise<UserSummary | null> {
     return this.database.client.user.findUnique({
       where: { id },
@@ -26,6 +29,7 @@ export class PrismaUsersRepository implements UsersRepository {
     });
   }
 
+  /** Reads the user-to-identity link without exposing profile data. */
   findAuthenticationReferenceById(
     id: string,
   ): Promise<UserAuthenticationReference | null> {
@@ -35,6 +39,7 @@ export class PrismaUsersRepository implements UsersRepository {
     });
   }
 
+  /** Reads a profile by its unique identity link, or returns `null`. */
   findByIdentityId(identityId: string): Promise<UserSummary | null> {
     return this.database.client.user.findUnique({
       where: { identityId },
@@ -42,6 +47,7 @@ export class PrismaUsersRepository implements UsersRepository {
     });
   }
 
+  /** Reads by identity only when the user is currently active. */
   findActiveByIdentityId(identityId: string): Promise<UserSummary | null> {
     return this.database.client.user.findFirst({
       where: { identityId, status: 'ACTIVE' },
@@ -49,6 +55,7 @@ export class PrismaUsersRepository implements UsersRepository {
     });
   }
 
+  /** Transitions pending to active once; `false` means the precondition failed. */
   async activate(id: string): Promise<boolean> {
     const result = await this.database.client.user.updateMany({
       where: { id, status: 'PENDING_VERIFICATION' },
@@ -57,6 +64,10 @@ export class PrismaUsersRepository implements UsersRepository {
     return result.count === 1;
   }
 
+  /**
+   * Updates an active profile only when its prior display name still matches.
+   * The boolean exposes the compare-and-swap result to the use case.
+   */
   async updateDisplayName(input: {
     id: string;
     expectedDisplayName: string;

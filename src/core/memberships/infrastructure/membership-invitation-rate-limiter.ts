@@ -7,7 +7,10 @@ import type {
   MembershipInvitationRateLimiterPort,
 } from '../application/membership-invitation-rate-limiter.port';
 
+/** Fixed window used for every invitation throttling bucket. */
 const WINDOW_SECONDS = 15 * 60;
+
+/** Atomically increments a Redis bucket and returns its count and remaining TTL. */
 const SCRIPT = `
 local current = redis.call('INCR', KEYS[1])
 if current == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end
@@ -15,6 +18,7 @@ local ttl = redis.call('TTL', KEYS[1])
 return {current, ttl}
 `;
 
+/** Redis-backed, privacy-preserving limiter for invitation endpoints. */
 @Injectable()
 export class MembershipInvitationRateLimiter implements MembershipInvitationRateLimiterPort {
   constructor(
@@ -22,6 +26,7 @@ export class MembershipInvitationRateLimiter implements MembershipInvitationRate
     private readonly config: AppConfig,
   ) {}
 
+  /** Applies IP, actor/workspace, and optional target-email creation limits. */
   async checkCreate(input: {
     clientIp: string;
     actorUserId: string;
@@ -52,6 +57,7 @@ export class MembershipInvitationRateLimiter implements MembershipInvitationRate
     );
   }
 
+  /** Applies client-IP and authenticated-session acceptance limits. */
   async checkAccept(input: {
     clientIp: string;
     sessionId: string;
@@ -68,6 +74,7 @@ export class MembershipInvitationRateLimiter implements MembershipInvitationRate
     );
   }
 
+  /** Fails closed when Redis returns an unexpected script result. */
   private async increment(
     key: string,
     limit: number,
@@ -85,6 +92,7 @@ export class MembershipInvitationRateLimiter implements MembershipInvitationRate
     };
   }
 
+  /** HMACs identifying bucket material before it becomes a Redis key. */
   private digest(value: string): string {
     return createHmac('sha256', this.config.rateLimitKeySecret)
       .update(value, 'utf8')

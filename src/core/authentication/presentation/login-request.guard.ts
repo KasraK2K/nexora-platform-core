@@ -15,6 +15,7 @@ import {
 } from '../application/authentication-rate-limiter.port';
 import { readNormalizedEmail } from './request-email';
 
+/** Applies login throttling before password authentication work. */
 @Injectable()
 export class LoginRequestGuard implements CanActivate {
   constructor(
@@ -22,6 +23,7 @@ export class LoginRequestGuard implements CanActivate {
     private readonly rateLimiter: AuthenticationRateLimitPort,
   ) {}
 
+  /** Returns true when allowed, otherwise emits a stable 429 or availability error. */
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const http = context.switchToHttp();
     const request = http.getRequest<Request>();

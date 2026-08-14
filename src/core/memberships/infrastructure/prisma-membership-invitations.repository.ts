@@ -9,10 +9,12 @@ import {
   type InvitableMembershipRole,
 } from '../application/membership-role';
 
+/** Prisma adapter for hashed, workspace-scoped membership invitations. */
 @Injectable()
 export class PrismaMembershipInvitationsRepository implements MembershipInvitationsRepository {
   constructor(private readonly database: DatabaseContext) {}
 
+  /** Persists an invitation without ever receiving or storing its raw token. */
   async create(input: {
     id: string;
     workspaceId: string;
@@ -26,6 +28,7 @@ export class PrismaMembershipInvitationsRepository implements MembershipInvitati
     await this.database.client.membershipInvitation.create({ data: input });
   }
 
+  /** Revokes replaceable active invitations for one workspace and email. */
   async retireActive(
     workspaceId: string,
     normalizedEmail: string,
@@ -43,6 +46,7 @@ export class PrismaMembershipInvitationsRepository implements MembershipInvitati
     });
   }
 
+  /** Finds a usable invitation by token hash, independent of current workspace. */
   async findUsableByTokenHash(
     tokenHash: string,
     now: Date,
@@ -72,6 +76,7 @@ export class PrismaMembershipInvitationsRepository implements MembershipInvitati
     return { ...invitation, role };
   }
 
+  /** Finds a usable invitation by ID only inside the trusted workspace. */
   async findActiveById(
     workspaceId: string,
     id: string,
@@ -103,6 +108,7 @@ export class PrismaMembershipInvitationsRepository implements MembershipInvitati
     return { ...invitation, role };
   }
 
+  /** Finds a usable invitation by normalized email in one workspace. */
   async findActiveForEmail(
     workspaceId: string,
     normalizedEmail: string,
@@ -134,6 +140,7 @@ export class PrismaMembershipInvitationsRepository implements MembershipInvitati
     return { ...invitation, role };
   }
 
+  /** Compare-and-set revokes a still-active, unexpired scoped invitation. */
   async revoke(
     workspaceId: string,
     id: string,
@@ -153,6 +160,7 @@ export class PrismaMembershipInvitationsRepository implements MembershipInvitati
     return result.count === 1;
   }
 
+  /** Compare-and-set consumes a still-active invitation for the accepting user. */
   async accept(
     workspaceId: string,
     id: string,
@@ -173,6 +181,7 @@ export class PrismaMembershipInvitationsRepository implements MembershipInvitati
     return result.count === 1;
   }
 
+  /** Records only coarse delivery state for the scoped invitation. */
   async markDelivery(
     workspaceId: string,
     id: string,

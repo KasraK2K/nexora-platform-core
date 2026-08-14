@@ -4,6 +4,7 @@ import { MailOutbox } from '../../mail/application/mail-outbox';
 import { Clock } from '../../../shared/application/clock';
 import { PasswordResetTokens } from './password-reset-tokens';
 
+/** Writes password-reset mail to the durable outbox and triggers immediate delivery. */
 @Injectable()
 export class PasswordResetDelivery {
   constructor(
@@ -13,6 +14,10 @@ export class PasswordResetDelivery {
     private readonly config: AppConfig,
   ) {}
 
+  /**
+   * Enqueues mail using the reset ID as the outbox ID. Callers place this write
+   * in the same transaction as token creation.
+   */
   async enqueue(input: {
     resetId: string;
     workspaceId: string;
@@ -38,6 +43,7 @@ export class PasswordResetDelivery {
     });
   }
 
+  /** Attempts delivery now and best-effort records whether it was sent. */
   async attempt(resetId: string): Promise<boolean> {
     const sent = await this.outbox.deliverNow(resetId);
     await this.tokens
@@ -46,6 +52,7 @@ export class PasswordResetDelivery {
     return sent;
   }
 
+  /** Starts a non-blocking delivery attempt after the durable transaction commits. */
   dispatch(resetId: string): void {
     void this.attempt(resetId).catch(() => undefined);
   }

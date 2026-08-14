@@ -23,6 +23,7 @@ import { SESSION_CACHE } from './session-cache.port';
 import type { SessionCachePort } from './session-cache.port';
 import { SessionTokenService } from './session-token.service';
 
+/** Public session state returned after selecting an accessible workspace. */
 export type SwitchedWorkspaceSession = Readonly<{
   currentSession: CurrentSession;
   sessionToken: string;
@@ -30,6 +31,7 @@ export type SwitchedWorkspaceSession = Readonly<{
   rotated: boolean;
 }>;
 
+/** Changes one session's active tenant after revalidating both workspace memberships. */
 @Injectable()
 export class SwitchWorkspace {
   private readonly logger = new Logger(SwitchWorkspace.name);
@@ -48,6 +50,11 @@ export class SwitchWorkspace {
     private readonly clock: Clock,
   ) {}
 
+  /**
+   * Rechecks the exact request session and current memberships inside a retryable
+   * transaction. A real switch revokes and replaces the opaque token without
+   * extending expiry, auditing both tenant scopes; a no-op keeps the token.
+   */
   async execute(input: {
     rawSessionToken: string | undefined;
     expectedContext: AuthenticatedRequestContext;
@@ -175,6 +182,7 @@ export class SwitchWorkspace {
     return result;
   }
 
+  /** Rejects a stale or substituted session/context pair before tenant switching. */
   private requireCurrentContext(
     session: SessionRecord | null,
     expected: AuthenticatedRequestContext,
@@ -193,6 +201,7 @@ export class SwitchWorkspace {
     return session;
   }
 
+  /** Logs only safe error classification; session and tenant details are omitted. */
   private logFailure(error: unknown): void {
     this.logger.error(
       JSON.stringify({
@@ -204,10 +213,12 @@ export class SwitchWorkspace {
   }
 }
 
+/** Recognizes the normalized retryable write-conflict raised by persistence adapters. */
 function isWriteConflict(error: unknown): boolean {
   return isTransactionWriteConflict(error);
 }
 
+/** Extracts only a string error code that is safe to include in structured logs. */
 function readSafeErrorCode(error: unknown): string | undefined {
   if (typeof error !== 'object' || error === null || !('code' in error)) {
     return undefined;

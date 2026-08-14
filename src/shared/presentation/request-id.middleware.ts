@@ -3,6 +3,7 @@ import { NextFunction, Request, Response } from 'express';
 import { v7 as uuidv7 } from 'uuid';
 import { runWithRequestContext } from '../application/request-context';
 
+/** Express request after trusted request-tracing values have been attached. */
 export type RequestWithId = Request & {
   requestId: string;
   correlationId: string;
@@ -12,8 +13,14 @@ export type RequestWithId = Request & {
 const SAFE_REQUEST_ID = /^[A-Za-z0-9_-]{8,64}$/;
 const SAFE_TRACEPARENT = /^00-[a-f0-9]{32}-[a-f0-9]{16}-[a-f0-9]{2}$/;
 
+/** Establishes safe request, correlation, and trace identifiers for one request. */
 @Injectable()
 export class RequestIdMiddleware implements NestMiddleware {
+  /**
+   * Accepts only bounded identifiers with safe characters; unsafe or missing
+   * values are replaced. The resulting context is available for the rest of
+   * this asynchronous request chain.
+   */
   use(request: Request, response: Response, next: NextFunction): void {
     const supplied = request.header('x-request-id');
     const requestId =

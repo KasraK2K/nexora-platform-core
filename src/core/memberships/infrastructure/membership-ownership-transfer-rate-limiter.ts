@@ -7,7 +7,10 @@ import type {
   MembershipOwnershipTransferRateLimiterPort,
 } from '../application/membership-ownership-transfer-rate-limiter.port';
 
+/** Fixed window used for ownership-transfer throttling buckets. */
 const WINDOW_SECONDS = 15 * 60;
+
+/** Atomically increments a Redis bucket and returns its count and remaining TTL. */
 const SCRIPT = `
 local current = redis.call('INCR', KEYS[1])
 if current == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end
@@ -15,6 +18,7 @@ local ttl = redis.call('TTL', KEYS[1])
 return {current, ttl}
 `;
 
+/** Redis-backed, privacy-preserving limiter for ownership transfer attempts. */
 @Injectable()
 export class MembershipOwnershipTransferRateLimiter implements MembershipOwnershipTransferRateLimiterPort {
   constructor(
@@ -22,6 +26,7 @@ export class MembershipOwnershipTransferRateLimiter implements MembershipOwnersh
     private readonly config: AppConfig,
   ) {}
 
+  /** Applies client-IP and authenticated session/workspace limits. */
   async check(input: {
     clientIp: string;
     sessionId: string;
@@ -41,6 +46,7 @@ export class MembershipOwnershipTransferRateLimiter implements MembershipOwnersh
     );
   }
 
+  /** Fails closed when Redis returns an unexpected script result. */
   private async increment(
     key: string,
     limit: number,
@@ -58,6 +64,7 @@ export class MembershipOwnershipTransferRateLimiter implements MembershipOwnersh
     };
   }
 
+  /** HMACs identifying bucket material before it becomes a Redis key. */
   private digest(value: string): string {
     return createHmac('sha256', this.config.rateLimitKeySecret)
       .update(value, 'utf8')

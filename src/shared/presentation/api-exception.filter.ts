@@ -19,10 +19,18 @@ type SafeErrorBody = {
   details?: unknown;
 };
 
+/**
+ * Converts thrown values into the API's stable error envelope and prevents
+ * framework, database, stack, or unexpected error details from leaking.
+ *
+ * Known application messages and already safe-shaped HTTP errors remain a
+ * producer responsibility; this filter does not scan arbitrary text for PII.
+ */
 @Catch()
 export class ApiExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(ApiExceptionFilter.name);
 
+  /** Sends one safe JSON error response and logs only a code for server errors. */
   catch(exception: unknown, host: ArgumentsHost): void {
     const context = host.switchToHttp();
     const request = context.getRequest<Request>() as RequestWithId;
@@ -47,6 +55,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
     });
   }
 
+  /** Maps known application and HTTP errors; everything else becomes generic. */
   private mapException(exception: unknown): {
     status: number;
     body: SafeErrorBody;
@@ -90,6 +99,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
   }
 }
 
+/** Checks whether an HTTP exception already contains the approved safe shape. */
 function isSafeErrorBody(value: unknown): value is SafeErrorBody {
   return (
     typeof value === 'object' &&
@@ -103,6 +113,7 @@ function isSafeErrorBody(value: unknown): value is SafeErrorBody {
   );
 }
 
+/** Maps stable application error codes to their public HTTP status. */
 function applicationErrorStatus(code: string): number {
   switch (code) {
     case 'REGISTRATION_INVALID':
@@ -149,6 +160,10 @@ function applicationErrorStatus(code: string): number {
   }
 }
 
+/**
+ * Allows details only for workspace selection, the one application error whose
+ * bounded choices are part of its public response contract.
+ */
 function readApplicationErrorDetails(
   error: ApplicationError,
 ): Pick<SafeErrorBody, 'details'> | Record<string, never> {
@@ -159,6 +174,10 @@ function readApplicationErrorDetails(
   return details ? { details } : {};
 }
 
+/**
+ * Revalidates workspace-selection details at the final response boundary.
+ * Any unexpected field shape or more than 100 choices removes all details.
+ */
 function serializeWorkspaceSelectionDetails(value: unknown):
   | {
       availableWorkspaces: Array<{
@@ -203,6 +222,7 @@ function serializeWorkspaceSelectionDetails(value: unknown):
   return { availableWorkspaces };
 }
 
+/** Reads a safe `{id, name}` pair from a known nested response field. */
 function readIdAndName(
   value: Record<string, unknown>,
   key: 'organization' | 'workspace',
@@ -218,10 +238,12 @@ function readIdAndName(
   return undefined;
 }
 
+/** Narrows an unknown object before reading response fields from it. */
 function isUnknownRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
+/** Allows only the three membership roles that may be returned publicly. */
 function isSafeMembershipRole(value: unknown): value is SafeMembershipRole {
   return value === 'OWNER' || value === 'ADMIN' || value === 'MEMBER';
 }

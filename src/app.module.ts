@@ -10,6 +10,10 @@ import { HttpTelemetryMiddleware } from './core/observability/http-telemetry.mid
 import { RequestIdMiddleware } from './shared/presentation/request-id.middleware';
 import { SecurityHeadersMiddleware } from './shared/presentation/security-headers.middleware';
 
+/**
+ * Composes the deployable Platform Core application and installs middleware in
+ * the order in which every HTTP request must pass through it.
+ */
 @Module({
   imports: [
     CoreInfrastructureModule,
@@ -22,6 +26,7 @@ import { SecurityHeadersMiddleware } from './shared/presentation/security-header
   providers: [AppService],
 })
 export class AppModule implements NestModule {
+  /** Applies security headers, request context, and telemetry to every route. */
   configure(consumer: MiddlewareConsumer): void {
     consumer
       .apply(
@@ -31,6 +36,4 @@ export class AppModule implements NestModule {
       )
       .forRoutes('*');
   }
-
-  //
 }

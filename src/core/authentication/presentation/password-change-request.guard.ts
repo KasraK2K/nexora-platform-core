@@ -15,6 +15,7 @@ import {
 import { PasswordChangeUnavailableError } from '../domain/registration.errors';
 import { readCookie } from './session-cookie';
 
+/** Throttles password changes by pseudonymous IP and opaque-session buckets. */
 @Injectable()
 export class PasswordChangeRequestGuard implements CanActivate {
   constructor(
@@ -23,6 +24,7 @@ export class PasswordChangeRequestGuard implements CanActivate {
     private readonly config: AppConfig,
   ) {}
 
+  /** Returns true when allowed; limiter failures map to a safe availability error. */
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const http = context.switchToHttp();
     const request = http.getRequest<Request>();

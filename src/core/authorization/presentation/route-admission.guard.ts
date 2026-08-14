@@ -21,6 +21,14 @@ import {
 import { AuthorizationDeniedError } from '../application/authorization-denied.error';
 import { RouteAdmission, type RouteAdmissionPolicy } from './route-admission';
 
+/**
+ * Global deny-by-default guard for every Nest handler.
+ *
+ * It validates exact origin before resolving a session, rejects missing or
+ * malformed admission metadata, and evaluates only the closed Core permission
+ * catalog. Application-authenticated routes deliberately skip request-context
+ * resolution because their use case owns durable session validation.
+ */
 @Injectable()
 export class RouteAdmissionGuard implements CanActivate {
   private readonly logger = new Logger(RouteAdmissionGuard.name);
@@ -32,6 +40,11 @@ export class RouteAdmissionGuard implements CanActivate {
     private readonly authorization: AuthorizationPolicy,
   ) {}
 
+  /**
+   * Applies declared admission in security order: metadata, trusted origin,
+   * access kind, authenticated context, user status, then coarse permission.
+   * Any false nested-guard result or unusable context fails closed.
+   */
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const policy = this.reflector.get(RouteAdmission, context.getHandler());
 
@@ -97,6 +110,7 @@ export class RouteAdmissionGuard implements CanActivate {
   }
 }
 
+/** Strictly validates untrusted reflection metadata before admission uses it. */
 function isRouteAdmissionPolicy(value: unknown): value is RouteAdmissionPolicy {
   if (
     typeof value !== 'object' ||

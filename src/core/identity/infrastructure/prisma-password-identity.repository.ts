@@ -4,6 +4,7 @@ import type { PasswordIdentityRepository } from '../application/password-identit
 import type { PasswordCredentialManagementRepository } from '../application/password-credential-management';
 import type { PasswordCredentialVerificationRepository } from '../application/password-credential-verification';
 
+/** Prisma adapter shared by Identity's password read and write contracts. */
 @Injectable()
 export class PrismaPasswordIdentityRepository
   implements
@@ -13,6 +14,7 @@ export class PrismaPasswordIdentityRepository
 {
   constructor(private readonly database: DatabaseContext) {}
 
+  /** Finds a password record by canonical email, or returns `null`. */
   findByNormalizedEmail(normalizedEmail: string) {
     return this.database.client.passwordCredential.findFirst({
       where: { identity: { normalizedEmail } },
@@ -20,6 +22,7 @@ export class PrismaPasswordIdentityRepository
     });
   }
 
+  /** Finds the password record for a stable identity ID, or returns `null`. */
   findByIdentityId(identityId: string) {
     return this.database.client.passwordCredential.findUnique({
       where: { identityId },
@@ -27,6 +30,7 @@ export class PrismaPasswordIdentityRepository
     });
   }
 
+  /** Replaces one existing credential hash and reports whether a row changed. */
   async replacePasswordHash(
     identityId: string,
     passwordHash: string,
@@ -38,6 +42,10 @@ export class PrismaPasswordIdentityRepository
     return result.count === 1;
   }
 
+  /**
+   * Compare-and-swap replacement that rejects stale verification proof.
+   * `false` means the stored hash no longer equals `expectedPasswordHash`.
+   */
   async replacePasswordHashIfCurrent(input: {
     identityId: string;
     expectedPasswordHash: string;

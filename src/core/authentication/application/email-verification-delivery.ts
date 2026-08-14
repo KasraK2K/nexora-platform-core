@@ -4,6 +4,7 @@ import { MailOutbox } from '../../mail/application/mail-outbox';
 import { Clock } from '../../../shared/application/clock';
 import { EmailVerifications } from './email-verifications';
 
+/** Writes verification mail to the durable outbox and triggers immediate delivery. */
 @Injectable()
 export class EmailVerificationDelivery {
   constructor(
@@ -13,6 +14,10 @@ export class EmailVerificationDelivery {
     private readonly config: AppConfig,
   ) {}
 
+  /**
+   * Enqueues mail using the verification ID as the outbox ID. Callers place
+   * this write in the same transaction as token creation and audit records.
+   */
   async enqueue(input: {
     verificationId: string;
     workspaceId: string;
@@ -38,6 +43,7 @@ export class EmailVerificationDelivery {
     });
   }
 
+  /** Attempts delivery now and best-effort records whether it was sent. */
   async attempt(verificationId: string): Promise<boolean> {
     const sent = await this.outbox.deliverNow(verificationId);
     await this.verifications
@@ -46,6 +52,7 @@ export class EmailVerificationDelivery {
     return sent;
   }
 
+  /** Starts a non-blocking delivery attempt after the durable transaction commits. */
   dispatch(verificationId: string): void {
     void this.attempt(verificationId).catch(() => undefined);
   }

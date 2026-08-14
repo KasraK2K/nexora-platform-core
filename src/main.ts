@@ -5,6 +5,10 @@ import { configureApp } from './configure-app';
 import { AppConfig } from './core/configuration/app-config';
 import { JsonLogger } from './shared/presentation/json-logger';
 
+/**
+ * Starts the HTTP application with the same logger and global configuration
+ * used for every request, then listens on the configured public port.
+ */
 async function bootstrap(): Promise<void> {
   const logger = new JsonLogger();
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {

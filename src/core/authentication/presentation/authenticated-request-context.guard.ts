@@ -6,6 +6,7 @@ import { attachAuthenticatedRequestContext } from './authenticated-request-conte
 import { setPrivateResponseHeaders } from './private-response-headers';
 import { readCookie } from './session-cookie';
 
+/** Resolves the opaque cookie into immutable server-authoritative request context. */
 @Injectable()
 export class AuthenticatedRequestContextGuard implements CanActivate {
   constructor(
@@ -13,6 +14,10 @@ export class AuthenticatedRequestContextGuard implements CanActivate {
     private readonly config: AppConfig,
   ) {}
 
+  /**
+   * Revalidates durable session and tenant state, attaches it to the request,
+   * and fails closed through the use case when authority is absent or unavailable.
+   */
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
     const response = context.switchToHttp().getResponse<Response>();

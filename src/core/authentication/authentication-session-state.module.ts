@@ -12,6 +12,10 @@ import { SESSION_CACHE } from './application/session-cache.port';
 import { PrismaAuthenticationSessionsRepository } from './infrastructure/prisma-authentication-sessions.repository';
 import { SessionCache } from './infrastructure/session-cache';
 
+/**
+ * Shares Authentication-owned durable session access and disposable cache
+ * boundaries with modules that must verify or revoke membership sessions.
+ */
 @Module({
   imports: [CoreInfrastructureModule],
   providers: [

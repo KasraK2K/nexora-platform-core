@@ -17,11 +17,17 @@ import {
   type RenameCurrentWorkspaceRequest,
 } from './workspace-lifecycle.contract';
 
+/** HTTP adapter for operations on the session's active operational tenant. */
 @ApiTags('Workspaces')
 @Controller('v1/workspaces')
 export class WorkspacesController {
   constructor(private readonly renameCurrent: RenameCurrentWorkspace) {}
 
+  /**
+   * Renames the trusted active workspace selected by server-resolved context.
+   * Route admission checks coarse permission; the use case revalidates durable
+   * session, membership, resource, and organization linkage before writing.
+   */
   @Patch('current')
   @AuthenticatedRoute({
     requireTrustedOrigin: true,

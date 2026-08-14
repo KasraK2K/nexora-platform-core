@@ -5,6 +5,7 @@ import {
   type MembershipsRepository,
 } from './memberships';
 
+/** Narrow write capability used only while atomically accepting an invitation. */
 @Injectable()
 export class InvitedMembershipsWriter {
   constructor(
@@ -12,6 +13,7 @@ export class InvitedMembershipsWriter {
     private readonly repository: MembershipsRepository,
   ) {}
 
+  /** Creates or reactivates a non-owner membership in the invitation workspace. */
   create(input: {
     id: string;
     workspaceId: string;

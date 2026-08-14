@@ -12,10 +12,12 @@ const recordSelection = {
   workspaceId: true,
 } as const;
 
+/** Prisma adapter for Authentication-owned password-reset records. */
 @Injectable()
 export class PrismaPasswordResetTokensRepository implements PasswordResetTokensRepository {
   constructor(private readonly database: DatabaseContext) {}
 
+  /** Inserts a hashed reset record through the current database client. */
   async create(input: {
     id: string;
     identityId: string;
@@ -27,6 +29,7 @@ export class PrismaPasswordResetTokensRepository implements PasswordResetTokensR
     await this.database.client.passwordResetToken.create({ data: input });
   }
 
+  /** Invalidates all still-open reset tokens for one user. */
   async invalidateOpenForUser(
     userId: string,
     invalidatedAt: Date,
@@ -37,6 +40,7 @@ export class PrismaPasswordResetTokensRepository implements PasswordResetTokensR
     });
   }
 
+  /** Selects a token only when it is unconsumed, valid, and unexpired. */
   findUsableByTokenHash(
     tokenHash: string,
     now: Date,
@@ -52,6 +56,7 @@ export class PrismaPasswordResetTokensRepository implements PasswordResetTokensR
     });
   }
 
+  /** Conditionally consumes one still-usable record to enforce single use. */
   async consume(id: string, consumedAt: Date): Promise<boolean> {
     const result = await this.database.client.passwordResetToken.updateMany({
       where: {
@@ -65,6 +70,7 @@ export class PrismaPasswordResetTokensRepository implements PasswordResetTokensR
     return result.count === 1;
   }
 
+  /** Records the latest immediate mail-delivery outcome. */
   async markDelivery(
     id: string,
     status: 'SENT' | 'FAILED',

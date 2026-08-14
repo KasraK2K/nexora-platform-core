@@ -4,6 +4,7 @@ import { OperationalTelemetry } from '../../observability/application/operationa
 import { PrismaService } from '../../persistence/prisma.service';
 import { RedisService } from '../../redis/redis.service';
 
+/** Safe dependency status returned by readiness checks. */
 export type ReadinessResult = Readonly<{
   ready: boolean;
   checks: Readonly<{
@@ -12,6 +13,7 @@ export type ReadinessResult = Readonly<{
   }>;
 }>;
 
+/** Checks required infrastructure with bounded timeouts and records outcomes. */
 @Injectable()
 export class DependencyHealthService {
   private shuttingDown = false;
@@ -23,10 +25,12 @@ export class DependencyHealthService {
     private readonly telemetry: OperationalTelemetry,
   ) {}
 
+  /** Makes all later readiness checks fail without contacting dependencies. */
   markShuttingDown(): void {
     this.shuttingDown = true;
   }
 
+  /** Checks PostgreSQL and Redis in parallel and never exposes raw errors. */
   async readiness(): Promise<ReadinessResult> {
     if (this.shuttingDown) {
       return {
@@ -50,6 +54,7 @@ export class DependencyHealthService {
   }
 }
 
+/** Converts success, rejection, or timeout into the readiness `up`/`down` shape. */
 async function check(
   operation: () => Promise<unknown>,
   timeoutMs: number,

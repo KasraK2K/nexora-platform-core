@@ -8,6 +8,10 @@ import {
 import { AppConfig } from '../../configuration/app-config';
 import { MailOutbox } from '../application/mail-outbox';
 
+/**
+ * Polls the durable mail outbox without overlapping drain runs and makes a
+ * bounded attempt to finish an active run during graceful shutdown.
+ */
 @Injectable()
 export class MailOutboxWorker
   implements
@@ -24,6 +28,7 @@ export class MailOutboxWorker
     private readonly config: AppConfig,
   ) {}
 
+  /** Starts polling when enabled and performs the first drain immediately. */
   onApplicationBootstrap(): void {
     if (!this.config.mailWorkerEnabled) return;
     this.timer = setInterval(
@@ -34,10 +39,12 @@ export class MailOutboxWorker
     this.runOnce();
   }
 
+  /** Stops scheduling new drain runs before dependencies begin shutting down. */
   beforeApplicationShutdown(): void {
     if (this.timer) clearInterval(this.timer);
   }
 
+  /** Waits for the active drain or the configured shutdown timeout. */
   async onApplicationShutdown(): Promise<void> {
     if (!this.running) return;
     let timer: NodeJS.Timeout | undefined;
@@ -56,6 +63,7 @@ export class MailOutboxWorker
     if (timer) clearTimeout(timer);
   }
 
+  /** Starts one drain only when no previous drain is still running. */
   private runOnce(): void {
     if (this.running) return;
     this.running = this.outbox

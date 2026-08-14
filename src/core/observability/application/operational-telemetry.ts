@@ -1,15 +1,21 @@
 import { Injectable } from '@nestjs/common';
 
+/**
+ * Keeps low-cardinality process-local counters for the current application
+ * instance. These counters reset when the process restarts.
+ */
 @Injectable()
 export class OperationalTelemetry {
   private readonly httpRequests = new Map<string, number>();
   private readonly dependencyChecks = new Map<string, number>();
   private readonly mailDeliveries = new Map<string, number>();
 
+  /** Counts a completed request by method and broad HTTP status class. */
   recordHttpRequest(method: string, statusCode: number): void {
     increment(this.httpRequests, `${method}|${Math.floor(statusCode / 100)}xx`);
   }
 
+  /** Counts a PostgreSQL or Redis readiness outcome. */
   recordDependencyCheck(
     dependency: 'postgresql' | 'redis',
     outcome: 'up' | 'down',
@@ -17,10 +23,12 @@ export class OperationalTelemetry {
     increment(this.dependencyChecks, `${dependency}|${outcome}`);
   }
 
+  /** Counts one durable mail worker outcome without recording message content. */
   recordMailDelivery(outcome: 'sent' | 'retry' | 'failed'): void {
     increment(this.mailDeliveries, outcome);
   }
 
+  /** Renders all counters in deterministic OpenMetrics text format. */
   renderOpenMetrics(): string {
     const lines = [
       '# HELP nexora_http_server_requests_total Completed HTTP requests.',
@@ -53,6 +61,7 @@ export class OperationalTelemetry {
   }
 }
 
+/** Increments a map counter, creating it at one on first use. */
 function increment(values: Map<string, number>, key: string): void {
   values.set(key, (values.get(key) ?? 0) + 1);
 }

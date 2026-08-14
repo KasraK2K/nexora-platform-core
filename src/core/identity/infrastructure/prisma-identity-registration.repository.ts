@@ -6,10 +6,16 @@ import type {
 } from '../application/identity-registration';
 import { IdentityAlreadyExistsError } from '../domain/identity-already-exists.error';
 
+/** Prisma adapter that persists an identity and its password credential. */
 @Injectable()
 export class PrismaIdentityRegistrationRepository implements IdentityRegistrationRepository {
   constructor(private readonly database: DatabaseContext) {}
 
+  /**
+   * Creates both Identity-owned rows through the ambient database context.
+   * Registration orchestration supplies the transaction; uniqueness failures
+   * are translated to the module's stable domain error.
+   */
   async createPasswordIdentity(input: CreatePasswordIdentity): Promise<void> {
     try {
       await this.database.client.identity.create({
@@ -30,6 +36,7 @@ export class PrismaIdentityRegistrationRepository implements IdentityRegistratio
   }
 }
 
+/** Narrows Prisma's untrusted error shape without leaking its types inward. */
 function isUniqueConstraintError(error: unknown): boolean {
   return (
     typeof error === 'object' &&

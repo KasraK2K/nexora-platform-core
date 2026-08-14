@@ -82,6 +82,11 @@ import {
 } from './workspace-switch.contract';
 import { WorkspaceSwitchRequestGuard } from './workspace-switch-request.guard';
 
+/**
+ * HTTP adapter for registration, credential lifecycle, opaque sessions, and
+ * active-workspace selection. Validation and response mapping stay here while
+ * transactions and authorization-sensitive decisions remain in use cases.
+ */
 @ApiTags('Authentication')
 @Controller('v1/auth')
 export class AuthenticationController {
@@ -100,6 +105,7 @@ export class AuthenticationController {
     private readonly config: AppConfig,
   ) {}
 
+  /** Creates the default account graph and issues its pending-user session cookie. */
   @Post('registrations')
   @HttpCode(HttpStatus.CREATED)
   @PublicRoute({ requireTrustedOrigin: true })
@@ -170,6 +176,7 @@ export class AuthenticationController {
     };
   }
 
+  /** Accepts a replacement-link request with an enumeration-resistant response. */
   @Post('email-verification-requests')
   @HttpCode(HttpStatus.ACCEPTED)
   @PublicRoute({ requireTrustedOrigin: true })
@@ -188,6 +195,7 @@ export class AuthenticationController {
     return { data: null, meta: {} };
   }
 
+  /** Consumes a single-use verification token and activates the account. */
   @Post('email-verifications')
   @HttpCode(HttpStatus.NO_CONTENT)
   @PublicRoute({ requireTrustedOrigin: true })
@@ -203,6 +211,7 @@ export class AuthenticationController {
     await this.verifyEmail.execute(body.token);
   }
 
+  /** Accepts a reset-link request with an enumeration-resistant response. */
   @Post('password-reset-requests')
   @HttpCode(HttpStatus.ACCEPTED)
   @PublicRoute({ requireTrustedOrigin: true })
@@ -231,6 +240,7 @@ export class AuthenticationController {
     return { data: null, meta: {} };
   }
 
+  /** Replaces the password, revokes all sessions, and clears the presented cookie. */
   @Post('password-resets')
   @HttpCode(HttpStatus.NO_CONTENT)
   @PublicRoute({ requireTrustedOrigin: true })
@@ -278,6 +288,7 @@ export class AuthenticationController {
     );
   }
 
+  /** Changes the authenticated password and replaces the browser's session cookie. */
   @Put('password')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApplicationAuthenticatedRoute({ requireTrustedOrigin: true })
@@ -332,6 +343,7 @@ export class AuthenticationController {
     );
   }
 
+  /** Authenticates credentials, resolves an accessible tenant, and issues a session. */
   @Post('sessions')
   @HttpCode(HttpStatus.CREATED)
   @PublicRoute({ requireTrustedOrigin: true })
@@ -383,6 +395,7 @@ export class AuthenticationController {
     };
   }
 
+  /** Returns the session view already resolved by the route-admission guards. */
   @Get('session')
   @AuthenticatedRoute({ allowPendingVerification: true })
   @ApiCookieAuth()
@@ -396,6 +409,7 @@ export class AuthenticationController {
     return { data: session, meta: {} };
   }
 
+  /** Lists bounded workspace choices for the server-resolved actor. */
   @Get('session/workspaces')
   @AuthenticatedRoute()
   @ApiCookieAuth()
@@ -410,6 +424,7 @@ export class AuthenticationController {
     };
   }
 
+  /** Selects an accessible workspace and replaces the cookie when rotation occurs. */
   @Put('session/workspace')
   @AuthenticatedRoute({ requireTrustedOrigin: true })
   @UseGuards(WorkspaceSwitchRequestGuard)
@@ -457,6 +472,7 @@ export class AuthenticationController {
     };
   }
 
+  /** Idempotently revokes the presented session and clears its browser cookie. */
   @Delete('session')
   @HttpCode(HttpStatus.NO_CONTENT)
   @PublicRoute({ requireTrustedOrigin: true })
@@ -479,6 +495,7 @@ export class AuthenticationController {
     );
   }
 
+  /** Revokes every session for the authenticated user and clears this cookie. */
   @Delete('sessions')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApplicationAuthenticatedRoute({ requireTrustedOrigin: true })
@@ -502,6 +519,7 @@ export class AuthenticationController {
   }
 }
 
+/** Writes the opaque secret with browser-only access and configured CSRF policy. */
 function setSessionCookie(
   response: Response,
   config: AppConfig,

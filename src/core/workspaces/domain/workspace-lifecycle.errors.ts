@@ -1,5 +1,6 @@
 import { ApplicationError } from '../../../shared/domain/application-error';
 
+/** Stable failure for stale, revoked, or missing workspace lifecycle state. */
 export class WorkspaceLifecycleInvalidError extends ApplicationError {
   readonly code = 'WORKSPACE_LIFECYCLE_INVALID';
   readonly retryable = false;
@@ -9,6 +10,7 @@ export class WorkspaceLifecycleInvalidError extends ApplicationError {
   }
 }
 
+/** Retryable safe failure for workspace persistence or transaction problems. */
 export class WorkspaceLifecycleUnavailableError extends ApplicationError {
   readonly code = 'WORKSPACE_LIFECYCLE_UNAVAILABLE';
   readonly retryable = true;

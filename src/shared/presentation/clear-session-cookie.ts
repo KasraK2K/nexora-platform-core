@@ -1,5 +1,9 @@
 import type { Response } from 'express';
 
+/**
+ * Expires the session cookie using the same security attributes and root path
+ * used when it was created, so browsers reliably discard it.
+ */
 export function clearSessionCookie(
   response: Response,
   name: string,

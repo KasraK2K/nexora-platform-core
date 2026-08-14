@@ -3,10 +3,15 @@ import { Injectable } from '@nestjs/common';
 import { AppConfig } from '../../configuration/app-config';
 import type { MailPayloadProtector } from '../application/mail-payload-protector.port';
 
+/**
+ * Protects stored mail with the configured AES-256-GCM key and binds ciphertext
+ * to its message ID. The current `v1` format supports one active key.
+ */
 @Injectable()
 export class AesGcmMailPayloadProtector implements MailPayloadProtector {
   constructor(private readonly config: AppConfig) {}
 
+  /** Produces a versioned base64url envelope with a fresh nonce and auth tag. */
   protect(messageId: string, plaintext: string): string {
     const nonce = randomBytes(12);
     const cipher = createCipheriv(
@@ -27,6 +32,7 @@ export class AesGcmMailPayloadProtector implements MailPayloadProtector {
     ].join('.');
   }
 
+  /** Authenticates and decrypts a valid `v1` envelope for the same message ID. */
   unprotect(messageId: string, protectedValue: string): string {
     const [version, nonce, tag, ciphertext, extra] = protectedValue.split('.');
     if (version !== 'v1' || !nonce || !tag || !ciphertext || extra) {

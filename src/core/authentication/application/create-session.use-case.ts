@@ -20,12 +20,14 @@ import type { SessionCachePort } from './session-cache.port';
 import { SessionTokenService } from './session-token.service';
 import type { MembershipRole } from '../../memberships/application/membership-role';
 
+/** Credentials and optional workspace selector supplied by a login request. */
 export type CreateSessionCommand = {
   email: string;
   password: string;
   workspaceId?: string;
 };
 
+/** Login result containing a raw cookie secret and its resolved tenant view. */
 export type CreatedSession = {
   user: { id: string; displayName: string };
   organization: { id: string; name: string };
@@ -35,6 +37,7 @@ export type CreatedSession = {
   sessionExpiresAt: Date;
 };
 
+/** Authenticates a password identity and creates an audited opaque session. */
 @Injectable()
 export class CreateSession {
   private readonly logger = new Logger(CreateSession.name);
@@ -55,6 +58,10 @@ export class CreateSession {
     private readonly config: AppConfig,
   ) {}
 
+  /**
+   * Rechecks the selected membership, then persists the session and audit record
+   * atomically. Cache population happens after commit and is best effort.
+   */
   async execute(command: CreateSessionCommand): Promise<CreatedSession> {
     const context = await this.authenticateAndResolveContext(command);
     const session = this.sessionTokens.create();
@@ -108,6 +115,10 @@ export class CreateSession {
     };
   }
 
+  /**
+   * Authenticates credentials and resolves an accessible workspace without
+   * exposing whether a supplied workspace ID exists for another user.
+   */
   private async authenticateAndResolveContext(
     command: CreateSessionCommand,
   ): Promise<Omit<CreatedSession, 'sessionToken' | 'sessionExpiresAt'>> {
@@ -162,6 +173,7 @@ export class CreateSession {
     }
   }
 
+  /** Emits only safe error classification; credentials and provider details stay out of logs. */
   private logFailure(event: string, error: unknown): void {
     this.logger.error(
       JSON.stringify({
@@ -173,8 +185,10 @@ export class CreateSession {
   }
 }
 
+/** Signals that authoritative login context changed during session creation. */
 class LoginContextChangedError extends Error {}
 
+/** Extracts only a string error code that is safe to include in structured logs. */
 function readSafeErrorCode(error: unknown): string | undefined {
   if (typeof error !== 'object' || error === null || !('code' in error)) {
     return undefined;

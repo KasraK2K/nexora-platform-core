@@ -11,10 +11,12 @@ const recordSelection = {
   workspaceId: true,
 } as const;
 
+/** Prisma adapter for Authentication-owned email-verification records. */
 @Injectable()
 export class PrismaEmailVerificationsRepository implements EmailVerificationsRepository {
   constructor(private readonly database: DatabaseContext) {}
 
+  /** Inserts a hashed verification record through the current database client. */
   async create(input: {
     id: string;
     userId: string;
@@ -25,6 +27,7 @@ export class PrismaEmailVerificationsRepository implements EmailVerificationsRep
     await this.database.client.emailVerification.create({ data: input });
   }
 
+  /** Invalidates all still-open verifications for one user. */
   async invalidateOpenForUser(
     userId: string,
     invalidatedAt: Date,
@@ -35,6 +38,7 @@ export class PrismaEmailVerificationsRepository implements EmailVerificationsRep
     });
   }
 
+  /** Selects a token only when it is unconsumed, valid, and unexpired. */
   findUsableByTokenHash(
     tokenHash: string,
     now: Date,
@@ -50,6 +54,7 @@ export class PrismaEmailVerificationsRepository implements EmailVerificationsRep
     });
   }
 
+  /** Finds the user's latest verification record for replacement context. */
   findLatestForUser(userId: string): Promise<EmailVerificationRecord | null> {
     return this.database.client.emailVerification.findFirst({
       where: { userId },
@@ -58,6 +63,7 @@ export class PrismaEmailVerificationsRepository implements EmailVerificationsRep
     });
   }
 
+  /** Conditionally consumes one still-usable record to enforce single use. */
   async consume(id: string, consumedAt: Date): Promise<boolean> {
     const result = await this.database.client.emailVerification.updateMany({
       where: {
@@ -71,6 +77,7 @@ export class PrismaEmailVerificationsRepository implements EmailVerificationsRep
     return result.count === 1;
   }
 
+  /** Records the latest immediate mail-delivery outcome. */
   async markDelivery(
     id: string,
     status: 'SENT' | 'FAILED',

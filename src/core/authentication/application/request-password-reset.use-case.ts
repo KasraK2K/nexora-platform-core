@@ -18,6 +18,7 @@ import { PasswordResetDelivery } from './password-reset-delivery';
 import { PasswordResetTokenService } from './password-reset-token.service';
 import { PasswordResetTokens } from './password-reset-tokens';
 
+/** Creates a replacement password-reset link without revealing account existence. */
 @Injectable()
 export class RequestPasswordReset {
   private readonly logger = new Logger(RequestPasswordReset.name);
@@ -36,6 +37,11 @@ export class RequestPasswordReset {
     private readonly transactions: TransactionManager,
   ) {}
 
+  /**
+   * Returns normally for unknown or ineligible accounts. For an eligible active
+   * user, invalidation, replacement token, and mail outbox writes commit
+   * atomically before best-effort immediate delivery.
+   */
   async execute(email: string): Promise<void> {
     let identity: IdentitySummary | null;
     try {

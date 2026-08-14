@@ -358,6 +358,13 @@ const environmentSchema = z
     }
   });
 
+/**
+ * Validates all environment configuration once at startup and exposes typed,
+ * already-normalized values to the rest of the application.
+ *
+ * Invalid combinations fail startup. Production adds stricter requirements for
+ * TLS, cookies, mail, proxy trust, metrics, and secret material.
+ */
 @Injectable()
 export class AppConfig {
   private readonly environment = environmentSchema.parse(process.env);
@@ -418,15 +425,18 @@ export class AppConfig {
       .filter(Boolean),
   );
 
+  /** Tells security-sensitive callers whether production rules apply. */
   get isProduction(): boolean {
     return this.nodeEnvironment === 'production';
   }
 
+  /** Uses the `__Host-` cookie prefix only when the Secure attribute is enabled. */
   get sessionCookieName(): string {
     return this.cookieSecure ? '__Host-nexora_session' : 'nexora_session';
   }
 }
 
+/** Adds a configuration error unless every trusted proxy entry is explicit. */
 function validateTrustedProxies(value: string, context: z.RefinementCtx): void {
   if (value === 'none') return;
   const entries = value.split(',').map((entry) => entry.trim());
@@ -445,6 +455,7 @@ function validateTrustedProxies(value: string, context: z.RefinementCtx): void {
   }
 }
 
+/** Accepts one IP address or a deliberately bounded IPv4/IPv6 CIDR range. */
 function isIpOrCidr(value: string): boolean {
   const [address, prefix, extra] = value.split('/');
   if (extra !== undefined) return false;
@@ -456,6 +467,7 @@ function isIpOrCidr(value: string): boolean {
   return version === 4 ? bits >= 8 && bits <= 32 : bits >= 32 && bits <= 128;
 }
 
+/** Checks the syntax needed for the configured email Message-ID domain. */
 function isHostname(value: string): boolean {
   return (
     value.length <= 253 &&

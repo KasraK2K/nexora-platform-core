@@ -26,6 +26,7 @@ import {
   PasswordCredentialVerification,
 } from './application/password-credential-verification';
 
+/** Wires Identity application contracts to Prisma and Argon2 adapters. */
 @Module({
   imports: [CoreInfrastructureModule],
   providers: [

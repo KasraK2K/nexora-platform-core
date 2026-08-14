@@ -16,6 +16,7 @@ import {
 } from '../domain/membership-administration.errors';
 import { MembershipAdministration } from './membership-administration';
 
+/** Narrow current-password verifier used for ownership-transfer step-up. */
 type CurrentPasswordProof = {
   verify(input: {
     identityId: string;
@@ -23,6 +24,12 @@ type CurrentPasswordProof = {
   }): Promise<object | null>;
 };
 
+/**
+ * Transfers operational workspace ownership after current-session and password
+ * proof. Actor and target memberships, sole-owner state, compound role writes,
+ * and audit are rechecked and committed in one transaction; commercial
+ * organization ownership is intentionally unchanged.
+ */
 @Injectable()
 export class TransferWorkspaceOwnership {
   private readonly logger = new Logger(TransferWorkspaceOwnership.name);
@@ -46,6 +53,11 @@ export class TransferWorkspaceOwnership {
     private readonly transactions: TransactionManager,
   ) {}
 
+  /**
+   * Promotes one active non-owner and demotes the sole current owner atomically.
+   * Invalid session, password, target, or owner count share one safe confirmation
+   * error; unexpected failures become retryable administration unavailability.
+   */
   async execute(input: {
     sessionId: string;
     actorUserId: string;
@@ -140,6 +152,7 @@ export class TransferWorkspaceOwnership {
     }
   }
 
+  /** Logs safe failure metadata without password, session, or membership data. */
   private logFailure(error: unknown): void {
     this.logger.error(
       JSON.stringify({
@@ -151,8 +164,10 @@ export class TransferWorkspaceOwnership {
   }
 }
 
+/** Signals a compound compare-and-set miss for whole-transaction retry. */
 class MembershipWriteConflictError extends Error {}
 
+/** Recognizes local compare-and-set misses and adapter transaction conflicts. */
 function isWriteConflict(error: unknown): boolean {
   return (
     error instanceof MembershipWriteConflictError ||
@@ -160,6 +175,7 @@ function isWriteConflict(error: unknown): boolean {
   );
 }
 
+/** Extracts only a safe database-style code for redacted logging. */
 function readSafeErrorCode(error: unknown): string | undefined {
   if (typeof error !== 'object' || error === null || !('code' in error)) {
     return undefined;

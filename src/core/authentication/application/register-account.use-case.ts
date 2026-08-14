@@ -29,6 +29,7 @@ import { EmailVerificationDelivery } from './email-verification-delivery';
 import { EmailVerificationTokenService } from './email-verification-token.service';
 import { EmailVerifications } from './email-verifications';
 
+/** Validated onboarding data for the default Platform Core registration policy. */
 export type RegisterAccountCommand = {
   email: string;
   password: string;
@@ -37,6 +38,7 @@ export type RegisterAccountCommand = {
   workspaceName: string;
 };
 
+/** IDs, pending status, and session secret produced by successful onboarding. */
 export type RegisteredAccount = {
   userId: string;
   organizationId: string;
@@ -50,6 +52,7 @@ export type RegisteredAccount = {
   verificationEmailSent: boolean;
 };
 
+/** Implements the compatible default account-and-initial-workspace onboarding flow. */
 @Injectable()
 export class RegisterAccount {
   private readonly logger = new Logger(RegisterAccount.name);
@@ -78,6 +81,11 @@ export class RegisterAccount {
     private readonly config: AppConfig,
   ) {}
 
+  /**
+   * Screens and hashes the password before atomically creating identity, user,
+   * organization, workspace, OWNER membership, verification, session, mail,
+   * and audit state. Cache and immediate mail delivery occur after commit.
+   */
   async execute(command: RegisterAccountCommand): Promise<RegisteredAccount> {
     const normalizedEmail = command.email.trim().toLocaleLowerCase('en-US');
     const password = this.passwordPolicy.validateAndNormalize(command.password);
@@ -219,6 +227,7 @@ export class RegisterAccount {
   }
 }
 
+/** Extracts only a string error code that is safe to include in structured logs. */
 function readSafeErrorCode(error: unknown): string | undefined {
   if (typeof error !== 'object' || error === null || !('code' in error)) {
     return undefined;

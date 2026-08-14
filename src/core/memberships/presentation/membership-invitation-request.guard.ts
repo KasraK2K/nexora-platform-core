@@ -16,6 +16,7 @@ import {
 } from '../application/membership-invitation-rate-limiter.port';
 import { MembershipInvitationUnavailableError } from '../domain/membership-invitation.errors';
 
+/** Fails closed while rate-limiting invitation creation from trusted context. */
 @Injectable()
 export class MembershipInvitationCreateRequestGuard implements CanActivate {
   constructor(
@@ -23,6 +24,7 @@ export class MembershipInvitationCreateRequestGuard implements CanActivate {
     private readonly rateLimiter: MembershipInvitationRateLimiterPort,
   ) {}
 
+  /** Checks client, actor, workspace, and normalized target buckets before writes. */
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const http = context.switchToHttp();
     const request = http.getRequest<Request>();
@@ -45,6 +47,7 @@ export class MembershipInvitationCreateRequestGuard implements CanActivate {
   }
 }
 
+/** Fails closed while rate-limiting invitation acceptance by active session. */
 @Injectable()
 export class MembershipInvitationAcceptRequestGuard implements CanActivate {
   constructor(
@@ -52,6 +55,7 @@ export class MembershipInvitationAcceptRequestGuard implements CanActivate {
     private readonly rateLimiter: MembershipInvitationRateLimiterPort,
   ) {}
 
+  /** Checks client and authenticated-session buckets before token processing. */
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const http = context.switchToHttp();
     const request = http.getRequest<Request>();
@@ -72,6 +76,7 @@ export class MembershipInvitationAcceptRequestGuard implements CanActivate {
   }
 }
 
+/** Maps a denied limiter decision to a stable 429 response and Retry-After. */
 function enforceDecision(
   response: Response,
   decision: MembershipInvitationRateLimitDecision,
@@ -89,6 +94,7 @@ function enforceDecision(
   );
 }
 
+/** Safely extracts and normalizes an optional email from the untrusted body. */
 function readNormalizedEmail(body: unknown): string | undefined {
   if (
     typeof body !== 'object' ||

@@ -13,6 +13,7 @@ import { EmailVerificationTokenService } from './email-verification-token.servic
 import { EmailVerifications } from './email-verifications';
 import { Inject } from '@nestjs/common';
 
+/** Replaces an eligible pending user's verification link without revealing account state. */
 @Injectable()
 export class RequestEmailVerification {
   private readonly logger = new Logger(RequestEmailVerification.name);
@@ -31,6 +32,11 @@ export class RequestEmailVerification {
     private readonly transactions: TransactionManager,
   ) {}
 
+  /**
+   * Returns normally for unknown or ineligible accounts to resist enumeration.
+   * For an eligible pending user, invalidation, replacement token, mail outbox,
+   * and audit records commit atomically before delivery is dispatched.
+   */
   async execute(email: string): Promise<void> {
     const identity = await this.identities.findByEmail(email).catch(() => {
       throw new EmailVerificationUnavailableError();

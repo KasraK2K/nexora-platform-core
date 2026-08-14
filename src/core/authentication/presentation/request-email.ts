@@ -1,3 +1,7 @@
+/**
+ * Safely extracts a bounded normalized email for pre-validation rate limiting.
+ * This helper does not replace the route's Zod validation.
+ */
 export function readNormalizedEmail(body: unknown): string | undefined {
   if (
     typeof body !== 'object' ||

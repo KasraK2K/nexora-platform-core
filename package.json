@@ -33,7 +33,7 @@
     "contract:check": "dotenv -o -e .env.example -- ts-node --project tsconfig.json scripts/generate-openapi.ts --check",
     "docs:code": "compodoc -p tsconfig.doc.json -d documentation -n \"Nexora Platform Core code reference\" --disablePrivate --disableProtected --disableInternal",
     "docs:code:serve": "compodoc -p tsconfig.doc.json -d documentation -n \"Nexora Platform Core code reference\" --disablePrivate --disableProtected --disableInternal --serve",
-    "docs:check": "compodoc -p tsconfig.doc.json -d documentation -n \"Nexora Platform Core code reference\" --disablePrivate --disableProtected --disableInternal --silent",
+    "docs:check": "node scripts/check-source-documentation.mjs && compodoc -p tsconfig.doc.json -d documentation -n \"Nexora Platform Core code reference\" --disablePrivate --disableProtected --disableInternal --silent",
     "update:password-blocklist": "node scripts/update-common-password-blocklist.mjs",
     "db:generate": "dotenv -e .env.example -- prisma generate",
     "db:push": "dotenv -o -e .env.example -- ts-node --project tsconfig.json scripts/assert-local-mutation-target.ts development-schema && dotenv -o -e .env.example -- prisma db push",

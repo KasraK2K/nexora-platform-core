@@ -37,6 +37,7 @@ import {
   MembershipInvitationCreateRequestGuard,
 } from './membership-invitation-request.guard';
 
+/** HTTP adapter for trusted-context invitation lifecycle operations. */
 @ApiTags('Membership invitations')
 @Controller('v1/membership-invitations')
 export class MembershipInvitationsController {
@@ -46,6 +47,7 @@ export class MembershipInvitationsController {
     private readonly revokeInvitation: RevokeMembershipInvitation,
   ) {}
 
+  /** Creates an email-bound non-owner invitation in the active workspace. */
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @AuthenticatedRoute({
@@ -94,6 +96,10 @@ export class MembershipInvitationsController {
     };
   }
 
+  /**
+   * Accepts an invitation for the authenticated actor's email. The invitation's
+   * stored workspace, not the actor's current workspace, determines membership.
+   */
   @Post('acceptances')
   @HttpCode(HttpStatus.NO_CONTENT)
   @AuthenticatedRoute({ requireTrustedOrigin: true })
@@ -127,6 +133,7 @@ export class MembershipInvitationsController {
     });
   }
 
+  /** Revokes an invitation visible and manageable in the active workspace. */
   @Delete(':invitationId')
   @HttpCode(HttpStatus.NO_CONTENT)
   @AuthenticatedRoute({

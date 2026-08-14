@@ -15,6 +15,7 @@ import {
 } from '../application/authentication-rate-limiter.port';
 import { readNormalizedEmail } from './request-email';
 
+/** Applies registration throttling before validation, screening, and hashing work. */
 @Injectable()
 export class RegistrationRequestGuard implements CanActivate {
   constructor(
@@ -22,6 +23,7 @@ export class RegistrationRequestGuard implements CanActivate {
     private readonly rateLimiter: AuthenticationRateLimitPort,
   ) {}
 
+  /** Returns true when allowed, otherwise emits a stable 429 or availability error. */
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const http = context.switchToHttp();
     const request = http.getRequest<Request>();

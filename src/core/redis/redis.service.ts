@@ -7,6 +7,7 @@ import {
 import { createClient, RedisClientType } from 'redis';
 import { AppConfig } from '../configuration/app-config';
 
+/** Owns the shared Redis client and its connection lifecycle. */
 @Injectable()
 export class RedisService implements OnModuleInit, OnApplicationShutdown {
   private readonly logger = new Logger(RedisService.name);
@@ -16,6 +17,7 @@ export class RedisService implements OnModuleInit, OnApplicationShutdown {
     this.client = createClient({ url: config.redisUrl });
   }
 
+  /** Connects to Redis and installs a redacted error listener at module startup. */
   async onModuleInit(): Promise<void> {
     this.client.on('error', (error: unknown) => {
       this.logger.warn(
@@ -28,6 +30,7 @@ export class RedisService implements OnModuleInit, OnApplicationShutdown {
     await this.client.connect();
   }
 
+  /** Closes the Redis connection when it is open during shutdown. */
   async onApplicationShutdown(): Promise<void> {
     if (this.client.isOpen) {
       await this.client.close();

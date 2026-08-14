@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+/** Strict transport schema for default account and initial-workspace onboarding. */
 export const registrationRequestSchema = z
   .object({
     email: z.string().trim().toLowerCase().pipe(z.email().max(254)),
@@ -24,4 +25,5 @@ export const registrationRequestSchema = z
   })
   .strict();
 
+/** Validated registration request accepted by the controller. */
 export type RegistrationRequest = z.infer<typeof registrationRequestSchema>;

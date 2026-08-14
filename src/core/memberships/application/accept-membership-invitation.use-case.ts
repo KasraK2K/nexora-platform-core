@@ -17,6 +17,12 @@ import { MembershipInvitations } from './membership-invitations';
 import { Memberships } from './memberships';
 import { InvitedMembershipsWriter } from './invited-memberships-writer';
 
+/**
+ * Accepts an invitation against its stored workspace and normalized email.
+ * Acceptance does not depend on the session's current workspace: the actor,
+ * inviter authority, single-use invitation, membership, and audit are all
+ * rechecked and committed in one transaction.
+ */
 @Injectable()
 export class AcceptMembershipInvitation {
   private readonly logger = new Logger(AcceptMembershipInvitation.name);
@@ -38,6 +44,11 @@ export class AcceptMembershipInvitation {
     private readonly transactions: TransactionManager,
   ) {}
 
+  /**
+   * Consumes a valid email-bound token and creates a non-owner membership.
+   * Invalid, expired, raced, or unauthorized invitations share one safe error;
+   * one transaction write conflict is retried before infrastructure failure.
+   */
   async execute(input: { actorUserId: string; token: string }): Promise<void> {
     const tokenHash = this.tokens.hashIfValid(input.token);
     if (!tokenHash) {
@@ -126,6 +137,7 @@ export class AcceptMembershipInvitation {
     }
   }
 
+  /** Logs only a safe error category and code, never the invitation token. */
   private logFailure(error: unknown): void {
     this.logger.error(
       JSON.stringify({
@@ -137,14 +149,17 @@ export class AcceptMembershipInvitation {
   }
 }
 
+/** Recognizes the shared transaction conflict shape used for one retry. */
 function isWriteConflict(error: unknown): boolean {
   return isTransactionWriteConflict(error);
 }
 
+/** Treats duplicate membership creation as an invalid consumed invitation. */
 function isUniqueConflict(error: unknown): boolean {
   return readSafeErrorCode(error) === 'P2002';
 }
 
+/** Extracts only a safe database-style code for classification and logging. */
 function readSafeErrorCode(error: unknown): string | undefined {
   if (typeof error !== 'object' || error === null || !('code' in error)) {
     return undefined;

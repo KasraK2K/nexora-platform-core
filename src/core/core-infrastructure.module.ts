@@ -7,6 +7,11 @@ import { PrismaService } from './persistence/prisma.service';
 import { PrismaTransactionManager } from './persistence/prisma-transaction-manager';
 import { RedisService } from './redis/redis.service';
 
+/**
+ * Wires configuration, PostgreSQL, Redis, transactions, and security policy for
+ * other Core modules. These exports are internal application infrastructure,
+ * not public contracts for downstream product modules.
+ */
 @Module({
   providers: [
     AppConfig,

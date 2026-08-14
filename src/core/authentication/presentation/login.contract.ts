@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+/** Strict login schema with an optional accessible-workspace selector. */
 export const loginRequestSchema = z
   .object({
     email: z.string().trim().toLowerCase().pipe(z.email().max(254)),
@@ -22,4 +23,5 @@ export const loginRequestSchema = z
   })
   .strict();
 
+/** Validated login request accepted by the controller. */
 export type LoginRequest = z.infer<typeof loginRequestSchema>;

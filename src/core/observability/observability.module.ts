@@ -4,6 +4,7 @@ import { MetricsController } from './metrics.controller';
 import { OperationalTelemetry } from './application/operational-telemetry';
 import { HttpTelemetryMiddleware } from './http-telemetry.middleware';
 
+/** Provides in-process operational counters, HTTP telemetry, and metrics output. */
 @Module({
   imports: [CoreInfrastructureModule],
   controllers: [MetricsController],

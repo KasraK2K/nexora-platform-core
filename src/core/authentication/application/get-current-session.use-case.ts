@@ -17,6 +17,7 @@ import {
 } from './authenticated-request-context';
 import type { MembershipRole } from '../../memberships/application/membership-role';
 
+/** Public session view assembled from current user, tenant, and membership state. */
 export type CurrentSession = Readonly<{
   user: Readonly<{
     id: string;
@@ -28,11 +29,13 @@ export type CurrentSession = Readonly<{
   membership: Readonly<{ role: MembershipRole }>;
 }>;
 
+/** Trusted authority plus the public session view resolved from one cookie. */
 export type ResolvedAuthenticatedRequest = Readonly<{
   context: AuthenticatedRequestContext;
   currentSession: CurrentSession;
 }>;
 
+/** Resolves an opaque cookie against durable session and tenant state. */
 @Injectable()
 export class GetCurrentSession {
   constructor(
@@ -45,10 +48,16 @@ export class GetCurrentSession {
     private readonly sessionTokens: SessionTokenService,
   ) {}
 
+  /** Returns the public current-session view or throws a stable authentication error. */
   async execute(rawToken: string | undefined): Promise<CurrentSession> {
     return (await this.resolveAuthenticatedRequest(rawToken)).currentSession;
   }
 
+  /**
+   * Resolves both presentation data and immutable server authority. Malformed,
+   * expired, revoked, or incomplete state is unauthenticated; infrastructure
+   * failures become an availability error.
+   */
   async resolveAuthenticatedRequest(
     rawToken: string | undefined,
   ): Promise<ResolvedAuthenticatedRequest> {
@@ -71,6 +80,10 @@ export class GetCurrentSession {
     return authenticated;
   }
 
+  /**
+   * Revalidates the session, user, workspace, membership, and organization from
+   * authoritative stores before constructing trusted request context.
+   */
   private async resolveCurrentSession(
     tokenHash: string,
   ): Promise<ResolvedAuthenticatedRequest | undefined> {
@@ -125,6 +138,7 @@ export class GetCurrentSession {
     });
   }
 
+  /** Refreshes the disposable cache without affecting a valid durable session. */
   private async refreshCacheBestEffort(
     tokenHash: string,
     session: { userId: string; workspaceId: string },
@@ -139,6 +153,7 @@ export class GetCurrentSession {
     }
   }
 
+  /** Removes stale cache state without masking the authentication decision. */
   private async removeCacheBestEffort(tokenHash: string): Promise<void> {
     try {
       await this.sessionCache.remove(tokenHash);

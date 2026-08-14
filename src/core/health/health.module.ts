@@ -5,6 +5,7 @@ import { DependencyHealthService } from './infrastructure/dependency-health.serv
 import { HealthController } from './health.controller';
 import { HealthLifecycleService } from './health-lifecycle.service';
 
+/** Wires public liveness/readiness endpoints to infrastructure health checks. */
 @Module({
   imports: [CoreInfrastructureModule, ObservabilityModule],
   controllers: [HealthController],

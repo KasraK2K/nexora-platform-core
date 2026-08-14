@@ -5,12 +5,17 @@ import {
   type SecurityPolicy,
 } from '../application/security-policy';
 
+/** Adds conservative browser security headers before a request reaches a route. */
 @Injectable()
 export class SecurityHeadersMiddleware implements NestMiddleware {
   constructor(
     @Inject(SECURITY_POLICY) private readonly securityPolicy: SecurityPolicy,
   ) {}
 
+  /**
+   * Sets headers for every environment and adds CSP and HSTS in production.
+   * The middleware always calls `next` after the response headers are ready.
+   */
   use(_request: Request, response: Response, next: NextFunction): void {
     response.setHeader('x-content-type-options', 'nosniff');
     response.setHeader('x-frame-options', 'DENY');

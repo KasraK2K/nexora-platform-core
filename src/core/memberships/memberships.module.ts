@@ -42,6 +42,10 @@ import { MEMBERSHIP_OWNERSHIP_TRANSFER_RATE_LIMITER } from './application/member
 import { MembershipOwnershipTransferRateLimiter } from './infrastructure/membership-ownership-transfer-rate-limiter';
 import { MembershipOwnershipTransferRequestGuard } from './presentation/membership-ownership-transfer-request.guard';
 
+/**
+ * Composes product-neutral membership, invitation, administration, rate-limit,
+ * persistence, and HTTP adapters. Only the narrow Memberships facade is public.
+ */
 @Module({
   imports: [
     CoreInfrastructureModule,

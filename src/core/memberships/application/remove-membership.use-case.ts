@@ -15,6 +15,11 @@ import {
 } from '../domain/membership-administration.errors';
 import { MembershipAdministration } from './membership-administration';
 
+/**
+ * Soft-removes a lower-role membership after transaction-time authorization.
+ * Only sessions for the removed user in this workspace are revoked; Redis cache
+ * cleanup occurs best effort after the database transaction commits.
+ */
 @Injectable()
 export class RemoveMembership {
   private readonly logger = new Logger(RemoveMembership.name);
@@ -34,6 +39,11 @@ export class RemoveMembership {
     private readonly transactions: TransactionManager,
   ) {}
 
+  /**
+   * Removes a visible non-owner target and audits the change atomically.
+   * Missing targets are idempotent, while ownership and permission failures are
+   * explicit and concurrent compare-and-set misses are retried once.
+   */
   async execute(input: {
     actorUserId: string;
     workspaceId: string;
@@ -110,6 +120,7 @@ export class RemoveMembership {
     await this.sessionRevocations.clearCachesBestEffort(revokedSessions);
   }
 
+  /** Logs safe failure metadata without membership or session identifiers. */
   private logFailure(error: unknown): void {
     this.logger.error(
       JSON.stringify({
@@ -121,8 +132,10 @@ export class RemoveMembership {
   }
 }
 
+/** Signals a compare-and-set miss so revocation and removal roll back together. */
 class MembershipWriteConflictError extends Error {}
 
+/** Recognizes local compare-and-set misses and adapter transaction conflicts. */
 function isWriteConflict(error: unknown): boolean {
   return (
     error instanceof MembershipWriteConflictError ||
@@ -130,6 +143,7 @@ function isWriteConflict(error: unknown): boolean {
   );
 }
 
+/** Extracts only a safe database-style code for redacted logging. */
 function readSafeErrorCode(error: unknown): string | undefined {
   if (typeof error !== 'object' || error === null || !('code' in error)) {
     return undefined;

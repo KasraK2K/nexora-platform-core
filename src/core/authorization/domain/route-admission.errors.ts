@@ -1,5 +1,6 @@
 import { ApplicationError } from '../../../shared/domain/application-error';
 
+/** Stable fail-closed response for missing, malformed, or failed admission. */
 export class RouteAccessDeniedError extends ApplicationError {
   readonly code = 'ROUTE_ACCESS_DENIED';
   readonly retryable = false;
@@ -9,6 +10,7 @@ export class RouteAccessDeniedError extends ApplicationError {
   }
 }
 
+/** Stable denial for a valid session whose user still requires verification. */
 export class EmailVerificationRequiredError extends ApplicationError {
   readonly code = 'EMAIL_VERIFICATION_REQUIRED';
   readonly retryable = false;

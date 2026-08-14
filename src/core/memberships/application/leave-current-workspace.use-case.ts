@@ -16,6 +16,11 @@ import {
 } from '../domain/membership-administration.errors';
 import { MembershipAdministration } from './membership-administration';
 
+/**
+ * Performs protected self-leave for the active workspace. The presented session,
+ * active membership, non-owner rule, and another-workspace safeguard are all
+ * rechecked in the transaction before workspace-local session revocation.
+ */
 @Injectable()
 export class LeaveCurrentWorkspace {
   private readonly logger = new Logger(LeaveCurrentWorkspace.name);
@@ -35,6 +40,11 @@ export class LeaveCurrentWorkspace {
     private readonly transactions: TransactionManager,
   ) {}
 
+  /**
+   * Soft-removes the actor's current membership, revokes only sessions tied to
+   * that workspace, and audits atomically. Owners and users with no other active
+   * workspace are protected; cache cleanup is best effort after commit.
+   */
   async execute(input: {
     sessionId: string;
     actorUserId: string;
@@ -131,8 +141,10 @@ export class LeaveCurrentWorkspace {
   }
 }
 
+/** Signals a compare-and-set miss so session revocation and leave roll back. */
 class MembershipWriteConflictError extends Error {}
 
+/** Recognizes local compare-and-set misses and adapter transaction conflicts. */
 function isWriteConflict(error: unknown): boolean {
   return (
     error instanceof MembershipWriteConflictError ||
@@ -140,6 +152,7 @@ function isWriteConflict(error: unknown): boolean {
   );
 }
 
+/** Extracts only a safe database-style code for redacted logging. */
 function readSafeErrorCode(error: unknown): string | undefined {
   if (typeof error !== 'object' || error === null || !('code' in error)) {
     return undefined;

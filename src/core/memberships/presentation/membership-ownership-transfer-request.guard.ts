@@ -15,6 +15,7 @@ import {
 } from '../application/membership-ownership-transfer-rate-limiter.port';
 import { MembershipAdministrationUnavailableError } from '../domain/membership-administration.errors';
 
+/** Fails closed while rate-limiting step-up ownership transfer attempts. */
 @Injectable()
 export class MembershipOwnershipTransferRequestGuard implements CanActivate {
   constructor(
@@ -22,6 +23,7 @@ export class MembershipOwnershipTransferRequestGuard implements CanActivate {
     private readonly rateLimiter: MembershipOwnershipTransferRateLimiterPort,
   ) {}
 
+  /** Checks client and trusted session/workspace buckets before password work. */
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const http = context.switchToHttp();
     const request = http.getRequest<Request>();

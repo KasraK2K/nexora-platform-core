@@ -16,6 +16,7 @@ const CONTEXT_SPECIFIC_PASSWORDS = [
   'nexoraai20262026',
 ] as const;
 
+/** Screens passwords against local hashes and the Pwned Passwords range API. */
 @Injectable()
 export class PwnedPasswordsCompromiseChecker implements PasswordCompromiseChecker {
   private readonly logger = new Logger(PwnedPasswordsCompromiseChecker.name);
@@ -26,6 +27,10 @@ export class PwnedPasswordsCompromiseChecker implements PasswordCompromiseChecke
 
   constructor(private readonly config: AppConfig) {}
 
+  /**
+   * Checks local deny-list hashes first, then optionally uses k-anonymity remote
+   * lookup. Remote unavailability fails open and emits a content-free warning.
+   */
   async isCompromised(password: string): Promise<boolean> {
     const normalized = password.normalize('NFC');
     if (this.localHashes.has(localHash(normalized))) {
@@ -39,6 +44,7 @@ export class PwnedPasswordsCompromiseChecker implements PasswordCompromiseChecke
     return this.lookupPwnedPasswords(normalized);
   }
 
+  /** Sends only the first five SHA-1 hex characters and validates a bounded response. */
   private async lookupPwnedPasswords(password: string): Promise<boolean> {
     const hash = createHash('sha1')
       .update(password, 'utf8')
@@ -82,6 +88,7 @@ export class PwnedPasswordsCompromiseChecker implements PasswordCompromiseChecke
     }
   }
 
+  /** Records why remote screening was skipped without logging password material. */
   private warnFallback(reason: string): void {
     this.logger.warn(
       JSON.stringify({ event: 'pwned_passwords.fallback_used', reason }),
@@ -89,12 +96,14 @@ export class PwnedPasswordsCompromiseChecker implements PasswordCompromiseChecke
   }
 }
 
+/** Produces a normalized local deny-list hash without retaining plaintext. */
 function localHash(password: string): string {
   return createHash('sha256')
     .update(password.normalize('NFC').toLocaleLowerCase('en-US'), 'utf8')
     .digest('hex');
 }
 
+/** Reads a strictly bounded UTF-8 response to prevent oversized range data. */
 async function readBoundedText(
   response: Response,
 ): Promise<string | undefined> {
@@ -143,6 +152,7 @@ async function readBoundedText(
   }
 }
 
+/** Validates every range entry before matching the expected SHA-1 suffix. */
 function findSuffix(body: string, expectedSuffix: string): boolean | undefined {
   const lines = body.split(/\r?\n/).filter(Boolean);
   if (lines.length === 0) {

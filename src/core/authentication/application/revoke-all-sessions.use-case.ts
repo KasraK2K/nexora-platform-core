@@ -16,6 +16,7 @@ import { SESSION_CACHE } from './session-cache.port';
 import type { SessionCachePort } from './session-cache.port';
 import { SessionTokenService } from './session-token.service';
 
+/** Revokes every active session belonging to the authenticated user. */
 @Injectable()
 export class RevokeAllSessions {
   constructor(
@@ -29,6 +30,10 @@ export class RevokeAllSessions {
     private readonly clock: Clock,
   ) {}
 
+  /**
+   * Revalidates the presented session, then atomically revokes all user sessions
+   * and writes workspace-scoped audits. Cache removal follows the durable commit.
+   */
   async execute(rawToken: string | undefined): Promise<void> {
     const tokenHash = this.sessionTokens.hashIfValid(rawToken);
     if (!tokenHash) {

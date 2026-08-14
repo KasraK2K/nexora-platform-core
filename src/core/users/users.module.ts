@@ -9,6 +9,7 @@ import { IdentifierFactory } from '../../shared/application/identifier-factory';
 import { UpdateOwnProfile } from './application/update-own-profile.use-case';
 import { UsersController } from './presentation/users.controller';
 
+/** Wires the Users public facade and authenticated self-profile endpoint. */
 @Module({
   imports: [
     CoreInfrastructureModule,

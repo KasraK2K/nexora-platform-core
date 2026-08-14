@@ -57,6 +57,10 @@ import { ListSessionWorkspaces } from './application/list-session-workspaces.use
 import { SwitchWorkspace } from './application/switch-workspace.use-case';
 import { WorkspaceSwitchRequestGuard } from './presentation/workspace-switch-request.guard';
 
+/**
+ * Composes Platform Core registration, verification, password, login, session,
+ * and workspace-switching flows with their transport and infrastructure adapters.
+ */
 @Module({
   imports: [
     CoreInfrastructureModule,

@@ -11,6 +11,7 @@ import { IdentifierFactory } from '../../shared/application/identifier-factory';
 import { RenameCurrentWorkspace } from './application/rename-current-workspace.use-case';
 import { WorkspacesController } from './presentation/workspaces.controller';
 
+/** Wires Workspace persistence, policy dependencies, and tenant HTTP routes. */
 @Module({
   imports: [
     CoreInfrastructureModule,

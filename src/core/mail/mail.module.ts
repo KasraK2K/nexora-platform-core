@@ -10,6 +10,10 @@ import { MailOutboxWorker } from './infrastructure/mail-outbox.worker';
 import { PrismaMailOutboxRepository } from './infrastructure/prisma-mail-outbox.repository';
 import { SmtpOutboundMail } from './infrastructure/smtp-outbound-mail';
 
+/**
+ * Wires the provider-neutral mail contract to SMTP and exports the durable
+ * outbox used by Core workflows. SMTP details stay inside this module.
+ */
 @Module({
   imports: [CoreInfrastructureModule, ObservabilityModule],
   providers: [

@@ -4,6 +4,7 @@ import {
   type PasswordVerifier,
 } from './password-verifier.port';
 
+/** Injection token for password-backed identity authentication reads. */
 export const PASSWORD_IDENTITY_REPOSITORY = Symbol(
   'PASSWORD_IDENTITY_REPOSITORY',
 );
@@ -13,12 +14,15 @@ type PasswordIdentityRecord = {
   passwordHash: string;
 };
 
+/** Storage boundary that keeps password records inside the Identity module. */
 export interface PasswordIdentityRepository {
+  /** Returns password material for a canonical email, or `null`. */
   findByNormalizedEmail(
     normalizedEmail: string,
   ): Promise<PasswordIdentityRecord | null>;
 }
 
+/** Authenticates normalized email/password credentials without exposing hashes. */
 @Injectable()
 export class PasswordIdentityAuthentication {
   constructor(
@@ -28,6 +32,10 @@ export class PasswordIdentityAuthentication {
     private readonly passwordVerifier: PasswordVerifier,
   ) {}
 
+  /**
+   * Returns only the stable identity ID on success and `null` otherwise.
+   * Unknown emails still incur password verification to reduce timing leakage.
+   */
   async authenticate(input: {
     email: string;
     password: string;

@@ -11,12 +11,14 @@ import type {
   MembershipAdministrationRepository,
 } from '../application/membership-administration';
 
+/** Prisma adapter for active membership reads and administration writes. */
 @Injectable()
 export class PrismaMembershipsRepository
   implements MembershipsRepository, MembershipAdministrationRepository
 {
   constructor(private readonly database: DatabaseContext) {}
 
+  /** Creates the initial OWNER row under the caller's transaction context. */
   async createOwner(input: {
     id: string;
     workspaceId: string;
@@ -27,6 +29,7 @@ export class PrismaMembershipsRepository
     });
   }
 
+  /** Reactivates a removed row or creates a new invited non-owner membership. */
   async createInvited(input: {
     id: string;
     workspaceId: string;
@@ -46,6 +49,7 @@ export class PrismaMembershipsRepository
     await this.database.client.membership.create({ data: input });
   }
 
+  /** Finds an active membership by trusted workspace and user. */
   find(input: {
     workspaceId: string;
     userId: string;
@@ -56,6 +60,7 @@ export class PrismaMembershipsRepository
     });
   }
 
+  /** Lists a bounded, stable-ordered set of the user's active memberships. */
   listForUser(userId: string, limit: number): Promise<MembershipSummary[]> {
     return this.database.client.membership.findMany({
       where: { userId, removedAt: null },
@@ -65,6 +70,7 @@ export class PrismaMembershipsRepository
     });
   }
 
+  /** Reads at most two active rows to classify login workspace selection. */
   async resolveLoginWorkspace(
     userId: string,
   ): Promise<LoginWorkspaceResolution> {
@@ -84,6 +90,7 @@ export class PrismaMembershipsRepository
     return { kind: 'selected', membership: memberships[0] };
   }
 
+  /** Finds an active target by ID within the trusted workspace. */
   findActiveById(
     workspaceId: string,
     membershipId: string,
@@ -94,6 +101,7 @@ export class PrismaMembershipsRepository
     });
   }
 
+  /** Finds an active actor membership within the trusted workspace. */
   findActiveForUser(
     workspaceId: string,
     userId: string,
@@ -104,6 +112,7 @@ export class PrismaMembershipsRepository
     });
   }
 
+  /** Lists active rows after a cursor that must belong to the same workspace. */
   async listActive(input: {
     workspaceId: string;
     cursor?: string;
@@ -142,6 +151,7 @@ export class PrismaMembershipsRepository
     });
   }
 
+  /** Updates a non-owner role with workspace, lifecycle, and expected-role guards. */
   async updateRole(input: {
     workspaceId: string;
     membershipId: string;
@@ -160,6 +170,7 @@ export class PrismaMembershipsRepository
     return result.count === 1;
   }
 
+  /** Soft-removes a non-owner with workspace, lifecycle, and expected-role guards. */
   async remove(input: {
     workspaceId: string;
     membershipId: string;
@@ -178,12 +189,14 @@ export class PrismaMembershipsRepository
     return result.count === 1;
   }
 
+  /** Counts active OWNER rows only in the supplied workspace. */
   countActiveOwners(workspaceId: string): Promise<number> {
     return this.database.client.membership.count({
       where: { workspaceId, role: 'OWNER', removedAt: null },
     });
   }
 
+  /** Checks whether the user retains an active membership in another workspace. */
   async hasOtherActiveForUser(
     userId: string,
     excludingWorkspaceId: string,
@@ -199,6 +212,11 @@ export class PrismaMembershipsRepository
     );
   }
 
+  /**
+   * Validates both scoped rows, promotes the target, then demotes the current
+   * owner. Promotion-first preserves an owner only when the caller supplies the
+   * surrounding transaction required to roll back a failed demotion.
+   */
   async transferOwnership(input: {
     workspaceId: string;
     currentOwnerMembershipId: string;
@@ -251,6 +269,7 @@ export class PrismaMembershipsRepository
   }
 }
 
+/** Shared Prisma projection for active membership administration records. */
 const membershipAdministrationSelect = {
   id: true,
   workspaceId: true,

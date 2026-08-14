@@ -14,6 +14,7 @@ import {
 import { EmailVerificationUnavailableError } from '../domain/registration.errors';
 import { readNormalizedEmail } from './request-email';
 
+/** Throttles replacement verification requests by pseudonymous IP and email buckets. */
 @Injectable()
 export class EmailVerificationRequestGuard implements CanActivate {
   constructor(
@@ -21,6 +22,7 @@ export class EmailVerificationRequestGuard implements CanActivate {
     private readonly rateLimiter: AuthenticationRateLimitPort,
   ) {}
 
+  /** Returns true when allowed; limiter failures map to a safe availability error. */
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const http = context.switchToHttp();
     const request = http.getRequest<Request>();

@@ -16,6 +16,7 @@ import {
   type UserSummary,
 } from './users';
 
+/** Coordinates a trusted actor's atomic self-profile update and audit record. */
 @Injectable()
 export class UpdateOwnProfile {
   private readonly logger = new Logger(UpdateOwnProfile.name);
@@ -35,6 +36,12 @@ export class UpdateOwnProfile {
     private readonly transactions: TransactionManager,
   ) {}
 
+  /**
+   * Revalidates the session and active user inside the transaction, then uses
+   * compare-and-swap to prevent a stale profile overwrite. A no-op returns the
+   * existing snapshot without an audit write. One write conflict is retried;
+   * exhausted or unexpected failures become a safe retryable error.
+   */
   async execute(input: {
     sessionId: string;
     actorUserId: string;
@@ -95,14 +102,17 @@ export class UpdateOwnProfile {
   }
 }
 
+/** Internal signal that the optimistic profile update lost a race. */
 class UserWriteConflictError extends Error {}
 
+/** Recognizes both local CAS misses and adapter transaction conflicts. */
 function isWriteConflict(error: unknown): boolean {
   return (
     error instanceof UserWriteConflictError || isTransactionWriteConflict(error)
   );
 }
 
+/** Extracts only a safe diagnostic code for structured failure logging. */
 function readSafeErrorCode(error: unknown): string | undefined {
   if (typeof error !== 'object' || error === null || !('code' in error)) {
     return undefined;

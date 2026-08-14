@@ -1,5 +1,6 @@
 import { ApplicationError } from '../../../shared/domain/application-error';
 
+/** Safe failure for a cursor that is not active in the trusted workspace. */
 export class MembershipPageCursorInvalidError extends ApplicationError {
   readonly code = 'MEMBERSHIP_PAGE_CURSOR_INVALID';
   readonly retryable = false;
@@ -9,6 +10,7 @@ export class MembershipPageCursorInvalidError extends ApplicationError {
   }
 }
 
+/** Prevents implicit removal, role change, or self-leave by a workspace owner. */
 export class MembershipOwnershipProtectedError extends ApplicationError {
   readonly code = 'MEMBERSHIP_OWNERSHIP_PROTECTED';
   readonly retryable = false;
@@ -18,6 +20,7 @@ export class MembershipOwnershipProtectedError extends ApplicationError {
   }
 }
 
+/** Prevents self-service leave from removing a user's final active workspace. */
 export class MembershipLastWorkspaceProtectedError extends ApplicationError {
   readonly code = 'MEMBERSHIP_LAST_WORKSPACE_PROTECTED';
   readonly retryable = false;
@@ -27,6 +30,7 @@ export class MembershipLastWorkspaceProtectedError extends ApplicationError {
   }
 }
 
+/** Generic step-up failure that does not reveal which transfer proof was invalid. */
 export class MembershipOwnershipTransferInvalidError extends ApplicationError {
   readonly code = 'MEMBERSHIP_OWNERSHIP_TRANSFER_INVALID';
   readonly retryable = false;
@@ -36,6 +40,7 @@ export class MembershipOwnershipTransferInvalidError extends ApplicationError {
   }
 }
 
+/** Retryable safe failure for unexpected membership administration faults. */
 export class MembershipAdministrationUnavailableError extends ApplicationError {
   readonly code = 'MEMBERSHIP_ADMINISTRATION_UNAVAILABLE';
   readonly retryable = true;

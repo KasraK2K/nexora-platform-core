@@ -12,6 +12,7 @@ import {
 import { EmailVerificationTokenService } from './email-verification-token.service';
 import { EmailVerifications } from './email-verifications';
 
+/** Consumes an email-verification token and activates its pending user. */
 @Injectable()
 export class VerifyEmail {
   private readonly logger = new Logger(VerifyEmail.name);
@@ -27,6 +28,11 @@ export class VerifyEmail {
     private readonly transactions: TransactionManager,
   ) {}
 
+  /**
+   * Hashes the untrusted token, then atomically consumes it, activates the user,
+   * and appends an audit record. Invalid, expired, reused, or raced tokens share
+   * the same safe failure.
+   */
   async execute(rawToken: string): Promise<void> {
     const tokenHash = this.tokens.hashIfValid(rawToken);
     if (!tokenHash) {

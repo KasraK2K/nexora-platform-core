@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+/** Strict authenticated password-change transport schema. */
 export const passwordChangeSchema = z
   .object({
     currentPassword: passwordInput(),
@@ -7,8 +8,10 @@ export const passwordChangeSchema = z
   })
   .strict();
 
+/** Validated password-change request accepted by the controller. */
 export type PasswordChangeRequest = z.infer<typeof passwordChangeSchema>;
 
+/** Bounds raw password transport input before domain normalization and policy checks. */
 function passwordInput() {
   return z
     .string()

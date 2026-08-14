@@ -11,6 +11,11 @@ import { MembershipInvitationUnavailableError } from '../domain/membership-invit
 import { MembershipInvitations } from './membership-invitations';
 import { Memberships } from './memberships';
 
+/**
+ * Reauthorizes invitation revocation and scopes the target to the actor's
+ * trusted workspace inside a transaction. Missing or raced targets are
+ * intentionally idempotent; a successful revocation is audited atomically.
+ */
 @Injectable()
 export class RevokeMembershipInvitation {
   private readonly logger = new Logger(RevokeMembershipInvitation.name);
@@ -26,6 +31,7 @@ export class RevokeMembershipInvitation {
     private readonly transactions: TransactionManager,
   ) {}
 
+  /** Revokes a visible invitation without revealing cross-workspace targets. */
   async execute(input: {
     actorUserId: string;
     workspaceId: string;
@@ -98,6 +104,7 @@ export class RevokeMembershipInvitation {
   }
 }
 
+/** Extracts only a safe database-style code for redacted failure logging. */
 function readSafeErrorCode(error: unknown): string | undefined {
   if (typeof error !== 'object' || error === null || !('code' in error)) {
     return undefined;

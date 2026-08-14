@@ -19,6 +19,7 @@ import {
   type WorkspaceSummary,
 } from './workspaces';
 
+/** Coordinates an authorized, audited rename of the active operational tenant. */
 @Injectable()
 export class RenameCurrentWorkspace {
   private readonly logger = new Logger(RenameCurrentWorkspace.name);
@@ -40,6 +41,13 @@ export class RenameCurrentWorkspace {
     private readonly transactions: TransactionManager,
   ) {}
 
+  /**
+   * Revalidates durable session, membership, organization linkage, permission,
+   * and workspace state inside one transaction. The trusted request context is
+   * only a selector snapshot. Rename uses compare-and-swap, writes its audit
+   * fact atomically, retries one write conflict, and maps unexpected failures
+   * to a safe retryable error. An unchanged name is a no-op.
+   */
   async execute(input: {
     sessionId: string;
     actorUserId: string;
@@ -118,8 +126,10 @@ export class RenameCurrentWorkspace {
   }
 }
 
+/** Internal signal that optimistic workspace rename lost a race. */
 class WorkspaceWriteConflictError extends Error {}
 
+/** Recognizes local CAS misses and normalized transaction conflicts. */
 function isWriteConflict(error: unknown): boolean {
   return (
     error instanceof WorkspaceWriteConflictError ||
@@ -127,6 +137,7 @@ function isWriteConflict(error: unknown): boolean {
   );
 }
 
+/** Extracts only a safe adapter code for structured failure logs. */
 function readSafeErrorCode(error: unknown): string | undefined {
   if (typeof error !== 'object' || error === null || !('code' in error)) {
     return undefined;

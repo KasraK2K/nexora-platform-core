@@ -15,6 +15,7 @@ local ttl = redis.call('TTL', KEYS[1])
 return {current, ttl}
 `; // Atomic fixed-window counter rate-limiter
 
+/** Redis fixed-window limiter with HMAC-pseudonymous IP, email, and session keys. */
 @Injectable()
 export class AuthenticationRateLimiter implements AuthenticationRateLimitPort {
   constructor(
@@ -22,6 +23,7 @@ export class AuthenticationRateLimiter implements AuthenticationRateLimitPort {
     private readonly config: AppConfig,
   ) {}
 
+  /** Applies registration limits by IP and, when available, normalized email. */
   async checkRegistration(
     clientIp: string,
     normalizedEmail?: string,
@@ -29,6 +31,7 @@ export class AuthenticationRateLimiter implements AuthenticationRateLimitPort {
     return this.check('registration', clientIp, normalizedEmail, 10, 5);
   }
 
+  /** Applies login limits by IP and, when available, normalized email. */
   async checkLogin(
     clientIp: string,
     normalizedEmail?: string,
@@ -36,6 +39,7 @@ export class AuthenticationRateLimiter implements AuthenticationRateLimitPort {
     return this.check('login', clientIp, normalizedEmail, 20, 10);
   }
 
+  /** Applies verification-request limits without storing the email in Redis keys. */
   async checkEmailVerificationRequest(
     clientIp: string,
     normalizedEmail?: string,
@@ -49,6 +53,7 @@ export class AuthenticationRateLimiter implements AuthenticationRateLimitPort {
     );
   }
 
+  /** Applies an IP-only limit before verification-token processing. */
   async checkEmailVerificationConfirmation(
     clientIp: string,
   ): Promise<RateLimitDecision> {
@@ -61,6 +66,7 @@ export class AuthenticationRateLimiter implements AuthenticationRateLimitPort {
     );
   }
 
+  /** Applies reset-request limits by IP and, when available, normalized email. */
   async checkPasswordResetRequest(
     clientIp: string,
     normalizedEmail?: string,
@@ -74,6 +80,7 @@ export class AuthenticationRateLimiter implements AuthenticationRateLimitPort {
     );
   }
 
+  /** Applies an IP-only limit before reset-token and password processing. */
   async checkPasswordResetConfirmation(
     clientIp: string,
   ): Promise<RateLimitDecision> {
@@ -86,6 +93,7 @@ export class AuthenticationRateLimiter implements AuthenticationRateLimitPort {
     );
   }
 
+  /** Applies IP and hashed-session limits before current-password verification. */
   async checkPasswordChange(
     clientIp: string,
     sessionToken?: string,
@@ -104,6 +112,7 @@ export class AuthenticationRateLimiter implements AuthenticationRateLimitPort {
     );
   }
 
+  /** Applies IP and hashed-session limits before tenant switching. */
   async checkWorkspaceSwitch(
     clientIp: string,
     sessionToken?: string,
@@ -122,6 +131,7 @@ export class AuthenticationRateLimiter implements AuthenticationRateLimitPort {
     );
   }
 
+  /** Checks the IP bucket first so a blocked source cannot consume identifier work. */
   private async check(
     scope: string,
     clientIp: string,
@@ -143,6 +153,7 @@ export class AuthenticationRateLimiter implements AuthenticationRateLimitPort {
     );
   }
 
+  /** Executes the increment-and-expiry Lua script atomically and fails closed on bad output. */
   private async increment(
     key: string,
     limit: number,
@@ -161,6 +172,7 @@ export class AuthenticationRateLimiter implements AuthenticationRateLimitPort {
     return { allowed: count <= limit, retryAfterSeconds: ttl };
   }
 
+  /** Pseudonymizes sensitive limiter dimensions with a deployment secret. */
   private digest(value: string): string {
     return createHmac('sha256', this.config.rateLimitKeySecret)
       .update(value, 'utf8')

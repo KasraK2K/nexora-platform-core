@@ -38,6 +38,11 @@ export class MailOutbox {
     private readonly telemetry: OperationalTelemetry,
   ) {}
 
+  /**
+   * Encrypts and idempotently records one message. Call this while the owning
+   * business transaction is active so the business fact and mail handoff commit
+   * together; this method does not contact SMTP.
+   */
   async enqueue(input: {
     id: string;
     workspaceId: string;
@@ -69,6 +74,12 @@ export class MailOutbox {
     });
   }
 
+  /**
+   * Attempts one leased delivery and records sent, retry, or terminal failure.
+   * Returning `false` never removes a committed business change. Delivery is
+   * at-least-once: a crash after SMTP accepts mail but before `markSent` can
+   * cause a later resend with the same Message-ID.
+   */
   async deliverNow(id: string): Promise<boolean> {
     const now = new Date();
     let claimed;
@@ -146,6 +157,7 @@ export class MailOutbox {
     }
   }
 
+  /** Expires old messages and attempts a bounded, sequential batch of due IDs. */
   async drainDue(limit = 20): Promise<void> {
     const now = new Date();
     await this.repository.expireDue(now);
@@ -154,6 +166,7 @@ export class MailOutbox {
   }
 }
 
+/** Parses decrypted JSON and rejects any payload outside the expected text fields. */
 function readPayload(value: string): ProtectedMailPayload {
   const parsed: unknown = JSON.parse(value);
   if (

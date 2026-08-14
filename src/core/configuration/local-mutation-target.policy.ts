@@ -1,3 +1,4 @@
+/** Local operation whose database and environment target must be allow-listed. */
 export type LocalMutationPurpose =
   'development-schema' | 'test-schema' | 'seed';
 
@@ -9,6 +10,11 @@ type MutationEnvironment = Readonly<{
 
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 
+/**
+ * Stops schema pushes and seeds unless their database, user, ports, and
+ * environment exactly match the repository's approved loopback targets.
+ * Test schema work also validates its paired Redis target.
+ */
 export function assertSafeLocalMutationTargets(
   environment: MutationEnvironment,
   purpose: LocalMutationPurpose,
@@ -61,6 +67,7 @@ export function assertSafeLocalMutationTargets(
   }
 }
 
+/** Parses a required URL while keeping configuration errors short and secret-free. */
 function parseUrl(value: string | undefined, label: string): URL {
   if (!value) throw new Error(`${label} target is required.`);
   try {

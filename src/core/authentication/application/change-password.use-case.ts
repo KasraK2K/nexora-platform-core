@@ -32,6 +32,7 @@ import { SESSION_CACHE } from './session-cache.port';
 import type { SessionCachePort } from './session-cache.port';
 import { SessionTokenService } from './session-token.service';
 
+/** Rotated current-session secret returned after a successful password change. */
 export type ChangedPasswordSession = {
   sessionToken: string;
   sessionExpiresAt: Date;
@@ -42,6 +43,7 @@ type PasswordChangeContext = {
   identityId: string;
 };
 
+/** Changes the authenticated user's password while rotating their current session. */
 @Injectable()
 export class ChangePassword {
   private readonly logger = new Logger(ChangePassword.name);
@@ -65,6 +67,11 @@ export class ChangePassword {
     private readonly clock: Clock,
   ) {}
 
+  /**
+   * Proves the current credential, validates the replacement, then atomically
+   * replaces the hash, invalidates reset links, revokes every session, creates a
+   * replacement with the original absolute expiry, and appends audits.
+   */
   async execute(input: {
     rawSessionToken: string | undefined;
     currentPassword: string;
@@ -192,6 +199,7 @@ export class ChangePassword {
     };
   }
 
+  /** Resolves active user, membership, session, and identity authority before password work. */
   private async resolveContext(
     tokenHash: string,
   ): Promise<PasswordChangeContext> {
@@ -227,6 +235,7 @@ export class ChangePassword {
     }
   }
 
+  /** Verifies the supplied current password and preserves an optimistic credential proof. */
   private async verifyCurrentPassword(
     identityId: string,
     currentPassword: string,
@@ -249,6 +258,7 @@ export class ChangePassword {
     }
   }
 
+  /** Screens the new plaintext password, mapping checker failures to safe availability errors. */
   private async assertReplacementIsAllowed(password: string): Promise<void> {
     try {
       if (await this.compromiseChecker.isCompromised(password)) {
@@ -265,6 +275,7 @@ export class ChangePassword {
     }
   }
 
+  /** Hashes the validated replacement without leaking adapter errors. */
   private async hashReplacement(password: string): Promise<string> {
     try {
       return await this.passwordHasher.hash(password);
@@ -274,6 +285,10 @@ export class ChangePassword {
     }
   }
 
+  /**
+   * Revalidates the exact session, identity, status, and membership inside the
+   * transaction so stale preflight authority cannot change a credential.
+   */
   private async requireCurrentContext(
     current: SessionRecord | null,
     expected: PasswordChangeContext,
@@ -309,6 +324,7 @@ export class ChangePassword {
     return current;
   }
 
+  /** Logs only stable classification, never password or session material. */
   private logFailure(event: string, error: unknown): void {
     this.logger.error(
       JSON.stringify({
@@ -320,10 +336,12 @@ export class ChangePassword {
   }
 }
 
+/** Recognizes the normalized retryable write-conflict raised by persistence adapters. */
 function isWriteConflict(error: unknown): boolean {
   return isTransactionWriteConflict(error);
 }
 
+/** Extracts only a string error code that is safe to include in structured logs. */
 function readSafeErrorCode(error: unknown): string | undefined {
   if (typeof error !== 'object' || error === null || !('code' in error)) {
     return undefined;

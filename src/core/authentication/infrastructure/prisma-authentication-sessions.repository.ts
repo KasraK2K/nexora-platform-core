@@ -11,6 +11,7 @@ import type {
   RevokedMembershipSession,
 } from '../application/membership-session-revocations';
 
+/** Prisma adapter for Authentication-owned durable session state. */
 @Injectable()
 export class PrismaAuthenticationSessionsRepository
   implements
@@ -19,6 +20,7 @@ export class PrismaAuthenticationSessionsRepository
 {
   constructor(private readonly database: DatabaseContext) {}
 
+  /** Inserts a session through the current database or transaction client. */
   async create(input: {
     id: string;
     tokenHash: string;
@@ -29,6 +31,7 @@ export class PrismaAuthenticationSessionsRepository
     await this.database.client.session.create({ data: input });
   }
 
+  /** Selects authoritative session fields by unique token hash. */
   findByTokenHash(tokenHash: string): Promise<SessionRecord | null> {
     return this.database.client.session.findUnique({
       where: { tokenHash },
@@ -43,6 +46,7 @@ export class PrismaAuthenticationSessionsRepository
     });
   }
 
+  /** Finds the latest session whose backing membership has not been removed. */
   findLatestForUser(userId: string): Promise<SessionContext | null> {
     return this.database.client.session.findFirst({
       where: { userId, membership: { removedAt: null } },
@@ -51,6 +55,7 @@ export class PrismaAuthenticationSessionsRepository
     });
   }
 
+  /** Atomically marks one still-active session revoked and returns its audit fields. */
   async revokeByTokenHash(
     tokenHash: string,
     revokedAt: Date,
@@ -63,6 +68,7 @@ export class PrismaAuthenticationSessionsRepository
     return sessions[0] ?? null;
   }
 
+  /** Atomically revokes all still-active sessions for one user. */
   revokeAllForUser(userId: string, revokedAt: Date): Promise<RevokedSession[]> {
     return this.database.client.session.updateManyAndReturn({
       where: { userId, revokedAt: null },
@@ -71,6 +77,7 @@ export class PrismaAuthenticationSessionsRepository
     });
   }
 
+  /** Confirms an exact unexpired session, user, and workspace tuple. */
   async hasActiveContext(input: {
     sessionId: string;
     userId: string;
@@ -90,6 +97,7 @@ export class PrismaAuthenticationSessionsRepository
     );
   }
 
+  /** Revokes only sessions whose active tenant matches the affected membership. */
   revokeActiveForMembership(input: {
     userId: string;
     workspaceId: string;

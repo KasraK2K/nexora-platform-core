@@ -11,6 +11,7 @@ import {
 import { MembershipAdministration } from './membership-administration';
 import type { MembershipRole } from './membership-role';
 
+/** Public member data returned from an authorized workspace list. */
 export type WorkspaceMembershipListItem = Readonly<{
   id: string;
   user: Readonly<{
@@ -21,11 +22,13 @@ export type WorkspaceMembershipListItem = Readonly<{
   createdAt: Date;
 }>;
 
+/** Cursor page of active memberships within one trusted workspace. */
 export type WorkspaceMembershipPage = Readonly<{
   memberships: readonly WorkspaceMembershipListItem[];
   nextCursor: string | null;
 }>;
 
+/** Lists active memberships after transaction-time actor reauthorization. */
 @Injectable()
 export class ListWorkspaceMemberships {
   private readonly logger = new Logger(ListWorkspaceMemberships.name);
@@ -38,6 +41,10 @@ export class ListWorkspaceMemberships {
     private readonly transactions: TransactionManager,
   ) {}
 
+  /**
+   * Returns one bounded page from the trusted workspace and resolves public user
+   * display data. Foreign or removed cursors fail as invalid rather than leaking.
+   */
   async execute(input: {
     actorUserId: string;
     workspaceId: string;
@@ -104,6 +111,7 @@ export class ListWorkspaceMemberships {
     }
   }
 
+  /** Logs only safe failure metadata and omits member data. */
   private logFailure(error: unknown): void {
     this.logger.error(
       JSON.stringify({
@@ -115,8 +123,10 @@ export class ListWorkspaceMemberships {
   }
 }
 
+/** Signals an internal cross-module data mismatch without exposing details. */
 class MembershipAdministrationStateError extends Error {}
 
+/** Extracts only a safe database-style code for redacted logging. */
 function readSafeErrorCode(error: unknown): string | undefined {
   if (typeof error !== 'object' || error === null || !('code' in error)) {
     return undefined;

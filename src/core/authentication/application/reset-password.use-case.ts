@@ -26,6 +26,7 @@ import {
 import { SESSION_CACHE } from './session-cache.port';
 import type { SessionCachePort } from './session-cache.port';
 
+/** Replaces a credential through a single-use reset link and revokes all sessions. */
 @Injectable()
 export class ResetPassword {
   private readonly logger = new Logger(ResetPassword.name);
@@ -48,6 +49,11 @@ export class ResetPassword {
     private readonly clock: Clock,
   ) {}
 
+  /**
+   * Validates and screens the new password before entering a retryable
+   * transaction. Token consumption, credential replacement, all-session
+   * revocation, and audit writes commit together; cache cleanup is best effort.
+   */
   async execute(input: { token: string; newPassword: string }): Promise<void> {
     const tokenHash = this.tokens.hashIfValid(input.token);
     if (!tokenHash) {
@@ -167,6 +173,7 @@ export class ResetPassword {
   }
 }
 
+/** Recognizes the normalized retryable write-conflict raised by persistence adapters. */
 function isWriteConflict(error: unknown): boolean {
   return isTransactionWriteConflict(error);
 }

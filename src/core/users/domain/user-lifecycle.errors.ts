@@ -1,5 +1,6 @@
 import { ApplicationError } from '../../../shared/domain/application-error';
 
+/** Stable failure for a stale, revoked, missing, or inactive self-update. */
 export class UserLifecycleInvalidError extends ApplicationError {
   readonly code = 'USER_LIFECYCLE_INVALID';
   readonly retryable = false;
@@ -9,6 +10,7 @@ export class UserLifecycleInvalidError extends ApplicationError {
   }
 }
 
+/** Retryable safe failure for profile persistence or transaction problems. */
 export class UserLifecycleUnavailableError extends ApplicationError {
   readonly code = 'USER_LIFECYCLE_UNAVAILABLE';
   readonly retryable = true;

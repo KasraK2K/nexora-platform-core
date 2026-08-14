@@ -1,16 +1,19 @@
 import { Reflector } from '@nestjs/core';
 import type { Permission } from '../application/authorization-policy';
 
+/** Options for an explicitly unauthenticated handler. */
 export type PublicRouteOptions = Readonly<{
   requireTrustedOrigin?: boolean;
 }>;
 
+/** Options for a handler admitted from server-resolved session context. */
 export type AuthenticatedRouteOptions = Readonly<{
   allowPendingVerification?: boolean;
   requireTrustedOrigin?: boolean;
   permission?: Permission;
 }>;
 
+/** Options for a handler whose use case owns durable session validation. */
 export type ApplicationAuthenticatedRouteOptions = Readonly<{
   requireTrustedOrigin?: boolean;
 }>;
@@ -36,6 +39,7 @@ export type RouteAdmissionPolicy = Readonly<
     }
 >;
 
+/** Metadata key/decorator consumed exclusively by the global admission guard. */
 export const RouteAdmission = Reflector.createDecorator<RouteAdmissionPolicy>({
   key: 'nexora:route-admission',
 });
@@ -50,6 +54,11 @@ export function PublicRoute(options: PublicRouteOptions = {}): MethodDecorator {
   );
 }
 
+/**
+ * Declares a route admitted from authenticated request context.
+ * The context is a request snapshot, not durable authorization; sensitive use
+ * cases must revalidate session, membership, and resource state before writes.
+ */
 export function AuthenticatedRoute(
   options: AuthenticatedRouteOptions = {},
 ): MethodDecorator {

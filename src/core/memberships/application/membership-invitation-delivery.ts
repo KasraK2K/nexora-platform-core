@@ -5,6 +5,7 @@ import { Clock } from '../../../shared/application/clock';
 import type { InvitableMembershipRole } from './membership-role';
 import { MembershipInvitations } from './membership-invitations';
 
+/** Stages invitation email in the durable mail outbox and attempts delivery. */
 @Injectable()
 export class MembershipInvitationDelivery {
   constructor(
@@ -14,6 +15,10 @@ export class MembershipInvitationDelivery {
     private readonly config: AppConfig,
   ) {}
 
+  /**
+   * Enqueues the raw token inside the caller's invitation transaction.
+   * The token is placed in the URL fragment so ordinary HTTP requests omit it.
+   */
   async enqueue(input: {
     workspaceId: string;
     invitationId: string;
@@ -41,6 +46,10 @@ export class MembershipInvitationDelivery {
     });
   }
 
+  /**
+   * Attempts delivery after commit and records only coarse status.
+   * Status persistence is best effort and never rolls back the invitation.
+   */
   async attempt(input: {
     workspaceId: string;
     invitationId: string;

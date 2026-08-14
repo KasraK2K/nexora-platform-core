@@ -16,11 +16,16 @@ import {
   type UpdateOwnProfileRequest,
 } from './user-lifecycle.contract';
 
+/** HTTP adapter for authenticated self-service user operations. */
 @ApiTags('Users')
 @Controller('v1/users')
 export class UsersController {
   constructor(private readonly updateOwnProfile: UpdateOwnProfile) {}
 
+  /**
+   * Updates only the actor resolved from trusted session context. The context
+   * is a request snapshot; the use case revalidates durable session/user state.
+   */
   @Patch('me')
   @AuthenticatedRoute({ requireTrustedOrigin: true })
   @ApiCookieAuth()

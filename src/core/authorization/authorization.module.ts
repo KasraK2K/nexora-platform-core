@@ -4,6 +4,7 @@ import { AuthenticationModule } from '../authentication/authentication.module';
 import { AuthorizationPolicyModule } from './authorization-policy.module';
 import { RouteAdmissionGuard } from './presentation/route-admission.guard';
 
+/** Installs deny-by-default route admission as the application-wide guard. */
 @Module({
   imports: [AuthenticationModule, AuthorizationPolicyModule],
   providers: [

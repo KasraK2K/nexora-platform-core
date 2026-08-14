@@ -13,6 +13,10 @@ type RequestWithAuthenticatedContext = Request & {
   [AUTHENTICATED_REQUEST_CONTEXT]?: ResolvedAuthenticatedRequest;
 };
 
+/**
+ * Attaches server-resolved authority as a non-enumerable, immutable request
+ * property so later guards and handlers cannot source it from client input.
+ */
 export function attachAuthenticatedRequestContext(
   request: Request,
   authenticated: ResolvedAuthenticatedRequest,
@@ -25,6 +29,7 @@ export function attachAuthenticatedRequestContext(
   });
 }
 
+/** Reads authority previously attached by the authentication context guard. */
 export function readAuthenticatedRequestContext(
   request: Request,
 ): ResolvedAuthenticatedRequest | undefined {
@@ -33,6 +38,7 @@ export function readAuthenticatedRequestContext(
   ];
 }
 
+/** Injects the immutable authenticated actor and workspace authority into a handler. */
 export const CurrentAuthenticatedContext = createParamDecorator(
   (_data: unknown, context: ExecutionContext): AuthenticatedRequestContext =>
     requireAuthenticatedRequestContext(
@@ -40,6 +46,7 @@ export const CurrentAuthenticatedContext = createParamDecorator(
     ).context,
 );
 
+/** Injects the public current-session view into a handler. */
 export const CurrentAuthenticatedSession = createParamDecorator(
   (_data: unknown, context: ExecutionContext): CurrentSession =>
     requireAuthenticatedRequestContext(
@@ -47,6 +54,7 @@ export const CurrentAuthenticatedSession = createParamDecorator(
     ).currentSession,
 );
 
+/** Returns attached authority or fails closed when the guard did not establish it. */
 export function requireAuthenticatedRequestContext(
   request: Request,
 ): ResolvedAuthenticatedRequest {

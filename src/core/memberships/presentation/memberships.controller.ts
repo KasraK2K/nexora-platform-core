@@ -49,6 +49,7 @@ import {
 } from './membership-administration.contract';
 import { MembershipOwnershipTransferRequestGuard } from './membership-ownership-transfer-request.guard';
 
+/** HTTP adapter for active-workspace membership administration. */
 @ApiTags('Memberships')
 @Controller('v1/memberships')
 export class MembershipsController {
@@ -61,6 +62,7 @@ export class MembershipsController {
     private readonly config: AppConfig,
   ) {}
 
+  /** Lists a bounded page using the server-resolved active workspace. */
   @Get()
   @AuthenticatedRoute({ permission: 'membership:read' })
   @ApiCookieAuth()
@@ -86,6 +88,10 @@ export class MembershipsController {
     };
   }
 
+  /**
+   * Leaves the active workspace and clears the presented cookie only after the
+   * transactional leave succeeds and its workspace-local sessions are revoked.
+   */
   @Delete('me')
   @HttpCode(HttpStatus.NO_CONTENT)
   @AuthenticatedRoute({
@@ -122,6 +128,7 @@ export class MembershipsController {
     );
   }
 
+  /** Changes a visible non-owner role within the active workspace. */
   @Patch(':membershipId/role')
   @HttpCode(HttpStatus.NO_CONTENT)
   @AuthenticatedRoute({
@@ -157,6 +164,7 @@ export class MembershipsController {
     });
   }
 
+  /** Soft-removes a visible non-owner and revokes only that workspace's sessions. */
   @Delete(':membershipId')
   @HttpCode(HttpStatus.NO_CONTENT)
   @AuthenticatedRoute({
@@ -183,6 +191,7 @@ export class MembershipsController {
     });
   }
 
+  /** Transfers operational ownership with session and current-password proof. */
   @Put('owner')
   @HttpCode(HttpStatus.NO_CONTENT)
   @AuthenticatedRoute({

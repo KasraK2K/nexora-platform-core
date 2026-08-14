@@ -13,6 +13,10 @@ import {
 import { MembershipAdministration } from './membership-administration';
 import type { InvitableMembershipRole } from './membership-role';
 
+/**
+ * Changes a non-owner role after reauthorizing both actor and target in the
+ * trusted workspace. The expected-role write and audit share one transaction.
+ */
 @Injectable()
 export class ChangeMembershipRole {
   private readonly logger = new Logger(ChangeMembershipRole.name);
@@ -26,6 +30,10 @@ export class ChangeMembershipRole {
     private readonly transactions: TransactionManager,
   ) {}
 
+  /**
+   * Applies an allowed lower-role change, treating missing or unchanged targets
+   * as no-ops and protecting OWNER changes behind explicit ownership transfer.
+   */
   async execute(input: {
     actorUserId: string;
     workspaceId: string;
@@ -99,6 +107,7 @@ export class ChangeMembershipRole {
     }
   }
 
+  /** Logs safe failure metadata without actor or target identifiers. */
   private logFailure(error: unknown): void {
     this.logger.error(
       JSON.stringify({
@@ -110,8 +119,10 @@ export class ChangeMembershipRole {
   }
 }
 
+/** Signals a compare-and-set miss so the whole transaction can be retried. */
 class MembershipWriteConflictError extends Error {}
 
+/** Recognizes local compare-and-set misses and adapter transaction conflicts. */
 function isWriteConflict(error: unknown): boolean {
   return (
     error instanceof MembershipWriteConflictError ||
@@ -119,6 +130,7 @@ function isWriteConflict(error: unknown): boolean {
   );
 }
 
+/** Extracts only a safe database-style code for redacted logging. */
 function readSafeErrorCode(error: unknown): string | undefined {
   if (typeof error !== 'object' || error === null || !('code' in error)) {
     return undefined;

@@ -21,6 +21,7 @@ import { MembershipInvitationTokenService } from './membership-invitation-token.
 import { MembershipInvitations } from './membership-invitations';
 import { Memberships } from './memberships';
 
+/** Invitation response safe for the API; the raw token is deliberately absent. */
 export type CreatedMembershipInvitation = Readonly<{
   id: string;
   workspaceId: string;
@@ -30,6 +31,11 @@ export type CreatedMembershipInvitation = Readonly<{
   emailSent: boolean;
 }>;
 
+/**
+ * Reauthorizes the actor in the trusted workspace, replaces any permitted
+ * active invitation, and commits the hashed email-bound invitation, outbox mail,
+ * and audit record together. Delivery is attempted only after commit.
+ */
 @Injectable()
 export class CreateMembershipInvitation {
   private readonly logger = new Logger(CreateMembershipInvitation.name);
@@ -57,6 +63,11 @@ export class CreateMembershipInvitation {
     private readonly transactions: TransactionManager,
   ) {}
 
+  /**
+   * Creates an ADMIN or MEMBER invitation for a normalized email.
+   * Permission/existence races become safe denial or conflict errors; unexpected
+   * persistence failures become a retryable unavailable error.
+   */
   async execute(input: {
     actorUserId: string;
     workspaceId: string;
@@ -185,6 +196,7 @@ export class CreateMembershipInvitation {
     });
   }
 
+  /** Logs only a safe error category and code, never email or token material. */
   private logFailure(error: unknown): void {
     this.logger.error(
       JSON.stringify({
@@ -196,6 +208,7 @@ export class CreateMembershipInvitation {
   }
 }
 
+/** Extracts an allow-listed database-style code without serializing the error. */
 function readSafeErrorCode(error: unknown): string | undefined {
   if (typeof error !== 'object' || error === null || !('code' in error)) {
     return undefined;
@@ -203,10 +216,12 @@ function readSafeErrorCode(error: unknown): string | undefined {
   return typeof error.code === 'string' ? error.code : undefined;
 }
 
+/** Normalizes transaction adapter conflicts for stable invitation behavior. */
 function isWriteConflict(error: unknown): boolean {
   return isTransactionWriteConflict(error);
 }
 
+/** Identifies uniqueness races without exposing the persistence error. */
 function isUniqueConflict(error: unknown): boolean {
   return readSafeErrorCode(error) === 'P2002';
 }

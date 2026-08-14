@@ -4,6 +4,7 @@ import type {
   MembershipRole,
 } from '../../memberships/application/membership-role';
 
+/** Closed catalog of product-neutral permissions understood by Core policy. */
 export const PERMISSIONS = [
   'membership-invitation:create',
   'membership-invitation:revoke',
@@ -14,10 +15,13 @@ export const PERMISSIONS = [
   'workspace:update',
   'membership:self:leave',
 ] as const;
+/** One permission from Core's closed permission catalog. */
 export type Permission = (typeof PERMISSIONS)[number];
 
+/** Pure base-RBAC policy; all unknown permission branches deny access. */
 @Injectable()
 export class AuthorizationPolicy {
+  /** Evaluates coarse role permission and denies any unrecognized branch. */
   permits(role: MembershipRole, permission: Permission): boolean {
     switch (permission) {
       case 'membership-invitation:create':
@@ -36,6 +40,7 @@ export class AuthorizationPolicy {
     }
   }
 
+  /** Allows owners to invite admins/members and admins to invite members. */
   mayInvite(
     actorRole: MembershipRole,
     targetRole: InvitableMembershipRole,
@@ -46,6 +51,7 @@ export class AuthorizationPolicy {
     return actorRole === 'ADMIN' && targetRole === 'MEMBER';
   }
 
+  /** Allows only an owner to change a different non-owner's assignable role. */
   mayChangeMembershipRole(
     actor: { userId: string; role: MembershipRole },
     target: { userId: string; role: MembershipRole },
@@ -59,6 +65,7 @@ export class AuthorizationPolicy {
     );
   }
 
+  /** Prevents self-removal and permits only management of lower roles. */
   mayRemoveMembership(
     actor: { userId: string; role: MembershipRole },
     target: { userId: string; role: MembershipRole },
@@ -70,6 +77,11 @@ export class AuthorizationPolicy {
     return actor.role === 'ADMIN' && target.role === 'MEMBER';
   }
 
+  /**
+   * Allows an owner to replace themselves with a different active non-owner.
+   * This is operational workspace ownership only; it does not change the
+   * commercial `Organization.ownerUserId`.
+   */
   mayTransferWorkspaceOwnership(
     actor: { userId: string; role: MembershipRole },
     target: { userId: string; role: MembershipRole },
@@ -81,11 +93,13 @@ export class AuthorizationPolicy {
     );
   }
 
+  /** Allows only non-owner members to use the protected self-leave flow. */
   mayLeaveWorkspace(role: MembershipRole): boolean {
     return role === 'ADMIN' || role === 'MEMBER';
   }
 }
 
+/** Narrows untrusted decorator metadata to Core's closed permission catalog. */
 export function isPermission(value: unknown): value is Permission {
   return PERMISSIONS.some((permission) => permission === value);
 }

@@ -8,10 +8,16 @@ import {
 import type { Request, Response } from 'express';
 import { AppConfig } from '../../configuration/app-config';
 
+/** Enforces exact configured browser origins before protected authentication work. */
 @Injectable()
 export class TrustedOriginGuard implements CanActivate {
   constructor(private readonly config: AppConfig) {}
 
+  /**
+   * Denies missing or non-allow-listed origins with a stable 403 response and
+   * marks the response private. Route admission must run this before session or
+   * password processing.
+   */
   canActivate(context: ExecutionContext): boolean {
     const http = context.switchToHttp();
     const request = http.getRequest<Request>();

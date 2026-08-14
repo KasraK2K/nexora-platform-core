@@ -7,6 +7,7 @@ import type { MembershipRole } from '../../memberships/application/membership-ro
 
 const MAX_ACCESSIBLE_WORKSPACES = 100;
 
+/** Resolves the bounded set of workspaces a user may select for a session. */
 @Injectable()
 export class AccessibleWorkspaces {
   constructor(
@@ -15,6 +16,10 @@ export class AccessibleWorkspaces {
     private readonly organizations: Organizations,
   ) {}
 
+  /**
+   * Builds safe workspace-selection summaries from current memberships.
+   * Incomplete cross-module state or more than the bounded maximum fails closed.
+   */
   async listForUser(userId: string): Promise<WorkspaceSelectionOption[]> {
     const memberships = await this.memberships.listForUser(
       userId,
@@ -49,6 +54,10 @@ export class AccessibleWorkspaces {
     });
   }
 
+  /**
+   * Resolves one requested workspace only when the user currently has a
+   * membership. A missing membership is indistinguishable from an unknown ID.
+   */
   async findForUser(input: {
     userId: string;
     workspaceId: string;
@@ -64,6 +73,7 @@ export class AccessibleWorkspaces {
     return accessible;
   }
 
+  /** Resolves the workspace and its organization for an authoritative membership. */
   private async resolveMembership(membership: {
     userId: string;
     workspaceId: string;
@@ -82,6 +92,7 @@ export class AccessibleWorkspaces {
     return this.createOption(membership, workspace, organization);
   }
 
+  /** Freezes the bounded public summary so callers cannot mutate authority data. */
   private createOption(
     membership: { role: MembershipRole },
     workspace: { id: string; name: string },
@@ -95,5 +106,8 @@ export class AccessibleWorkspaces {
   }
 }
 
+/** Signals that workspace discovery found an impossible or inconsistent state. */
 class AccessibleWorkspaceStateError extends Error {}
+
+/** Signals that workspace discovery exceeded its safe bounded result size. */
 class AccessibleWorkspaceLimitError extends Error {}

@@ -1,3 +1,4 @@
+/** Parses and decodes one named cookie, returning no value for malformed input. */
 export function readCookie(
   header: string | undefined,
   name: string,

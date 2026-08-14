@@ -1,5 +1,6 @@
 import { ApplicationError } from '../../../shared/domain/application-error';
 
+/** Safe failure for a malformed, expired, consumed, or unauthorized invitation. */
 export class MembershipInvitationInvalidError extends ApplicationError {
   readonly code = 'MEMBERSHIP_INVITATION_INVALID';
   readonly retryable = false;
@@ -9,6 +10,7 @@ export class MembershipInvitationInvalidError extends ApplicationError {
   }
 }
 
+/** Safe conflict when the requested workspace membership or invitation exists. */
 export class MembershipInvitationConflictError extends ApplicationError {
   readonly code = 'MEMBERSHIP_INVITATION_CONFLICT';
   readonly retryable = false;
@@ -18,6 +20,7 @@ export class MembershipInvitationConflictError extends ApplicationError {
   }
 }
 
+/** Retryable failure used when invitation infrastructure cannot respond safely. */
 export class MembershipInvitationUnavailableError extends ApplicationError {
   readonly code = 'MEMBERSHIP_INVITATION_UNAVAILABLE';
   readonly retryable = true;
