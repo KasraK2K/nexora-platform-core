@@ -368,7 +368,6 @@ function createFixture(options?: {
           : { ...input, role: 'OWNER' },
       ),
     listForUser: () => Promise.resolve([]),
-    resolveLoginWorkspace: () => Promise.resolve({ kind: 'none' }),
   });
   const credentialsRepository = new RecordingCredentialRepository();
   const verifier: PasswordVerifier = {

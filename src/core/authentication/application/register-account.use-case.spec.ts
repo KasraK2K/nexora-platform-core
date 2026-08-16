@@ -284,7 +284,6 @@ function createFixture(): {
     createInvited: () => Promise.resolve(),
     find: () => Promise.resolve(null),
     listForUser: () => Promise.resolve([]),
-    resolveLoginWorkspace: () => Promise.resolve({ kind: 'none' }),
   });
   const sessions = new AuthenticationSessions({
     create: () => Promise.resolve(),

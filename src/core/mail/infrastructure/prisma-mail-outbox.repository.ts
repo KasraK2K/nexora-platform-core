@@ -30,10 +30,15 @@ export class PrismaMailOutboxRepository implements MailOutboxRepository {
   }
 
   /** Finds due pending messages and processing messages whose lease expired. */
-  async findDueIds(now: Date, limit: number): Promise<string[]> {
+  async findDueIds(
+    now: Date,
+    limit: number,
+    maxAttempts: number,
+  ): Promise<string[]> {
     const messages = await this.database.client.mailOutboxMessage.findMany({
       where: {
         expiresAt: { gt: now },
+        attemptCount: { lt: maxAttempts },
         OR: [
           {
             status: { in: ['PENDING', 'RETRY_SCHEDULED'] },
@@ -58,95 +63,162 @@ export class PrismaMailOutboxRepository implements MailOutboxRepository {
     id: string,
     now: Date,
     lockedUntil: Date,
+    maxAttempts: number,
   ): Promise<ClaimedMail | null> {
+    const claimed =
+      await this.database.client.mailOutboxMessage.updateManyAndReturn({
+        where: {
+          id,
+          expiresAt: { gt: now },
+          attemptCount: { lt: maxAttempts },
+          OR: [
+            {
+              status: { in: ['PENDING', 'RETRY_SCHEDULED'] },
+              nextAttemptAt: { lte: now },
+              lockedUntil: null,
+            },
+            { status: 'PROCESSING', lockedUntil: { lt: now } },
+          ],
+        },
+        data: {
+          status: 'PROCESSING',
+          lockedUntil,
+          lastAttemptAt: now,
+          attemptCount: { increment: 1 },
+        },
+        select: {
+          id: true,
+          encryptedPayload: true,
+          messageId: true,
+          correlationId: true,
+          attemptCount: true,
+          expiresAt: true,
+        },
+      });
+    return claimed[0] ? { ...claimed[0], lockedUntil } : null;
+  }
+
+  /** Renews only the same live processing generation before message expiry. */
+  async renewLease(input: {
+    id: string;
+    attemptCount: number;
+    now: Date;
+    lockedUntil: Date;
+  }): Promise<boolean> {
     const result = await this.database.client.mailOutboxMessage.updateMany({
       where: {
-        id,
-        expiresAt: { gt: now },
+        id: input.id,
+        status: 'PROCESSING',
+        attemptCount: input.attemptCount,
+        expiresAt: { gt: input.now },
+        lockedUntil: { gt: input.now },
+      },
+      data: { lockedUntil: input.lockedUntil },
+    });
+    return result.count === 1;
+  }
+
+  /** Completes only the currently fenced processing attempt as sent. */
+  async markSent(input: {
+    id: string;
+    attemptCount: number;
+    sentAt: Date;
+  }): Promise<void> {
+    const result = await this.database.client.mailOutboxMessage.updateMany({
+      where: {
+        id: input.id,
+        status: 'PROCESSING',
+        attemptCount: input.attemptCount,
+      },
+      data: {
+        status: 'SENT',
+        sentAt: input.sentAt,
+        lockedUntil: null,
+        encryptedPayload: '',
+      },
+    });
+    ensureUpdated(result.count);
+  }
+
+  /** Reschedules only the currently fenced processing attempt. */
+  async markRetry(input: {
+    id: string;
+    attemptCount: number;
+    attemptedAt: Date;
+    nextAttemptAt: Date;
+  }): Promise<void> {
+    const result = await this.database.client.mailOutboxMessage.updateMany({
+      where: {
+        id: input.id,
+        status: 'PROCESSING',
+        attemptCount: input.attemptCount,
+      },
+      data: {
+        status: 'RETRY_SCHEDULED',
+        lastAttemptAt: input.attemptedAt,
+        nextAttemptAt: input.nextAttemptAt,
+        lockedUntil: null,
+      },
+    });
+    ensureUpdated(result.count);
+  }
+
+  /** Fails only the currently fenced processing attempt and erases its content. */
+  async markFailed(input: {
+    id: string;
+    attemptCount: number;
+    failedAt: Date;
+  }): Promise<void> {
+    const result = await this.database.client.mailOutboxMessage.updateMany({
+      where: {
+        id: input.id,
+        status: 'PROCESSING',
+        attemptCount: input.attemptCount,
+      },
+      data: {
+        status: 'FAILED',
+        failedAt: input.failedAt,
+        lockedUntil: null,
+        encryptedPayload: '',
+      },
+    });
+    ensureUpdated(result.count);
+  }
+
+  /** Fails expired/exhausted rows, preserving any active processing lease. */
+  async expireDue(now: Date, maxAttempts: number): Promise<number> {
+    const result = await this.database.client.mailOutboxMessage.updateMany({
+      where: {
         OR: [
           {
             status: { in: ['PENDING', 'RETRY_SCHEDULED'] },
-            nextAttemptAt: { lte: now },
-            lockedUntil: null,
+            OR: [
+              { expiresAt: { lte: now } },
+              { attemptCount: { gte: maxAttempts } },
+            ],
           },
-          { status: 'PROCESSING', lockedUntil: { lt: now } },
+          {
+            status: 'PROCESSING',
+            AND: [
+              {
+                OR: [
+                  { expiresAt: { lte: now } },
+                  { attemptCount: { gte: maxAttempts } },
+                ],
+              },
+              {
+                OR: [{ lockedUntil: null }, { lockedUntil: { lte: now } }],
+              },
+            ],
+          },
         ],
       },
       data: {
-        status: 'PROCESSING',
-        lockedUntil,
-        lastAttemptAt: now,
-        attemptCount: { increment: 1 },
-      },
-    });
-    if (result.count !== 1) return null;
-    return this.database.client.mailOutboxMessage.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        encryptedPayload: true,
-        messageId: true,
-        correlationId: true,
-        attemptCount: true,
-        expiresAt: true,
-      },
-    });
-  }
-
-  /** Marks a processing row sent and erases its encrypted content. */
-  async markSent(id: string, sentAt: Date): Promise<void> {
-    const result = await this.database.client.mailOutboxMessage.updateMany({
-      where: { id, status: 'PROCESSING' },
-      data: {
-        status: 'SENT',
-        sentAt,
-        lockedUntil: null,
-        encryptedPayload: '',
-      },
-    });
-    ensureUpdated(result.count);
-  }
-
-  /** Moves a processing row to its next attempt time. */
-  async markRetry(
-    id: string,
-    attemptedAt: Date,
-    nextAttemptAt: Date,
-  ): Promise<void> {
-    const result = await this.database.client.mailOutboxMessage.updateMany({
-      where: { id, status: 'PROCESSING' },
-      data: {
-        status: 'RETRY_SCHEDULED',
-        lastAttemptAt: attemptedAt,
-        nextAttemptAt,
-        lockedUntil: null,
-      },
-    });
-    ensureUpdated(result.count);
-  }
-
-  /** Marks a processing row terminally failed and erases its encrypted content. */
-  async markFailed(id: string, failedAt: Date): Promise<void> {
-    const result = await this.database.client.mailOutboxMessage.updateMany({
-      where: { id, status: 'PROCESSING' },
-      data: {
         status: 'FAILED',
-        failedAt,
+        failedAt: now,
         lockedUntil: null,
         encryptedPayload: '',
       },
-    });
-    ensureUpdated(result.count);
-  }
-
-  /** Fails expired pending/retry messages before they can be claimed. */
-  async expireDue(now: Date): Promise<number> {
-    const result = await this.database.client.mailOutboxMessage.updateMany({
-      where: {
-        status: { in: ['PENDING', 'RETRY_SCHEDULED'] },
-        expiresAt: { lte: now },
-      },
-      data: { status: 'FAILED', failedAt: now, encryptedPayload: '' },
     });
     return result.count;
   }

@@ -11,12 +11,6 @@ export type MembershipSummary = {
   role: MembershipRole;
 };
 
-/** Bounded result used to select a workspace during login. */
-export type LoginWorkspaceResolution =
-  | { kind: 'selected'; membership: MembershipSummary }
-  | { kind: 'none' }
-  | { kind: 'ambiguous' };
-
 /**
  * Persistence contract for active workspace membership lookups and creation.
  * Implementations must exclude soft-removed rows from every read.
@@ -42,9 +36,6 @@ export interface MembershipsRepository {
   }): Promise<void>;
   /** Lists a bounded set of the user's active workspace memberships. */
   listForUser(userId: string, limit: number): Promise<MembershipSummary[]>;
-
-  /** Distinguishes zero, one, and multiple active workspaces for login. */
-  resolveLoginWorkspace(userId: string): Promise<LoginWorkspaceResolution>;
 }
 
 /** Public application facade for active membership capabilities. */
@@ -75,10 +66,5 @@ export class Memberships {
   /** Lists up to `limit` active memberships for an authenticated user. */
   listForUser(userId: string, limit: number): Promise<MembershipSummary[]> {
     return this.repository.listForUser(userId, limit);
-  }
-
-  /** Resolves whether login can select one workspace without user input. */
-  resolveLoginWorkspace(userId: string): Promise<LoginWorkspaceResolution> {
-    return this.repository.resolveLoginWorkspace(userId);
   }
 }

@@ -1,18 +1,18 @@
 {
   "collection": "ms_nexora_platform_core_3a9dc9e9",
   "failed_files": [],
-  "indexed_chunks": 0,
-  "indexed_files": 1,
-  "last_completed_at": "2026-08-13T14:26:14.932910Z",
-  "last_started_at": "2026-08-13T14:26:12.234907Z",
-  "last_success_at": "2026-08-13T14:26:14.932910Z",
+  "indexed_chunks": 2,
+  "indexed_files": 2,
+  "last_completed_at": "2026-08-16T19:29:26.561587Z",
+  "last_started_at": "2026-08-16T19:29:21.698745Z",
+  "last_success_at": "2026-08-16T19:29:26.561587Z",
   "milvus_uri": "http://localhost:19530",
-  "operation": "watch",
+  "operation": "index",
   "paths": [
     "D:/Workspace/Projects/nexora-platform-core/.memsearch/memory"
   ],
   "schema_version": 1,
   "status": "ok",
-  "total_files": 1,
-  "updated_at": "2026-08-13T14:26:14.932910Z"
+  "total_files": 2,
+  "updated_at": "2026-08-16T19:29:26.561587Z"
 }

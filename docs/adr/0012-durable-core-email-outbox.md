@@ -26,9 +26,13 @@ durable delivery state.
 - The existing SMTP adapter remains behind provider-neutral `OutboundMail`.
   It enforces configured bounded timeouts and production STARTTLS/TLS.
 - An in-process poller claims rows with a PostgreSQL compare-and-set lease,
-  increments durable attempt count, retries with bounded exponential backoff,
-  recovers expired leases, and reaches terminal `SENT` or `FAILED` state.
-  Terminal rows erase the encrypted payload.
+  increments durable attempt count, and requires that attempt generation on
+  every completion transition. This fences an older worker after a lease is
+  reclaimed. A generation-fenced heartbeat renews the lease during a long SMTP
+  call without extending it past message expiry. The poller refuses claims at
+  the configured attempt bound, terminally erases an exhausted abandoned row
+  after its lease ends, retries with bounded exponential backoff, and reaches
+  terminal `SENT` or `FAILED` state. Terminal rows erase the encrypted payload.
 - Enqueue idempotency and deterministic RFC Message-ID use the source record ID.
   SMTP is at-least-once: provider acceptance followed by process failure may
   duplicate a message, so exactly-once delivery is not claimed.
@@ -77,9 +81,11 @@ are unchanged.
 Unit tests cover encryption authentication, retry/terminal decisions, and safe
 payload parsing. E2E covers transactionally persisted ciphertext, no plaintext
 token at rest, successful and degraded delivery, retry state, and health
-behavior. The repository claim uses an atomic compare-and-set; the unit suite
-covers a rejected competing claim. Container smoke tests cover startup and
-shutdown.
+behavior. Real-PostgreSQL repository cases in the E2E suite cover
+claim-generation fencing, heartbeat renewal, attempt-bound enforcement,
+abandoned expired-lease cleanup, terminal payload erasure, and active lease
+preservation. Unit tests also hold provider delivery open to verify heartbeat
+and lost-lease behavior. Container smoke tests cover startup and shutdown.
 
 ## Rollout and rollback
 

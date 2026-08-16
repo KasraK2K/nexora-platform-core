@@ -164,7 +164,6 @@ function createIssueFixture(
             : null,
       ),
     listForUser: () => Promise.resolve([]),
-    resolveLoginWorkspace: () => Promise.resolve({ kind: 'none' }),
   });
   const identities = {
     findByEmail: () =>
@@ -268,7 +267,6 @@ function createAcceptanceFixture(
           : null,
       ),
     listForUser: () => Promise.resolve([]),
-    resolveLoginWorkspace: () => Promise.resolve({ kind: 'none' as const }),
   } satisfies MembershipsRepository;
   const memberships = new Memberships(membershipsRepository);
   const users = {

@@ -1,8 +1,8 @@
 {
-  "generated_at": "2026-08-14T13:18:51.244323+00:00",
+  "generated_at": "2026-08-16T20:42:17.269039+00:00",
   "nodes": {
     "src_core_authentication_application_authenticated_request_context_authenticatedrequestcontext": {
-      "code_fingerprint": "534f79746e69b9ce87fc00aa16a133251b978ff5c6953d168602406c46dbd6de",
+      "code_fingerprint": "adba88a2c2f516275aa0261eea68c35af5abf686d61d9db4a7d6c485dd2d51f1",
       "label": "AuthenticatedRequestContext",
       "last": "2026-08-10T02:44:12.773803+00:00",
       "provenance": [
@@ -12,13 +12,13 @@
           "q": "Implement Multi-workspace selection and switching task"
         }
       ],
-      "score": 0.902485651,
+      "score": 0.855621454,
       "source_file": "src/core/authentication/application/authenticated-request-context.ts",
       "status": "tentative",
       "uses": 1
     },
     "src_core_authentication_application_authentication_sessions_authenticationsessions": {
-      "code_fingerprint": "70bf3500613681e10ed63ba4fe87fdd169e011de0e47f3b8d22866729420a85a",
+      "code_fingerprint": "bafca5c29d75cfd4ea88b611c3b3ac4ee862f1eb10bcbafadb59e6dea71da3ef",
       "label": "AuthenticationSessions",
       "last": "2026-08-10T02:44:12.773803+00:00",
       "provenance": [
@@ -28,13 +28,13 @@
           "q": "Implement Multi-workspace selection and switching task"
         }
       ],
-      "score": 0.902485651,
+      "score": 0.855621454,
       "source_file": "src/core/authentication/application/authentication-sessions.ts",
       "status": "tentative",
       "uses": 1
     },
     "src_core_workspaces_workspaces_module_workspacesmodule": {
-      "code_fingerprint": "805568b7709df8e9df730c4b88024ca99de1743507f93571401951ed154ad5db",
+      "code_fingerprint": "ebae8dc6b3aaeed7f1b8347b6a35454c391016e24b32a1df141080082fb8f115",
       "label": "WorkspacesModule",
       "last": "2026-08-10T02:44:12.773803+00:00",
       "provenance": [
@@ -44,7 +44,7 @@
           "q": "Implement Multi-workspace selection and switching task"
         }
       ],
-      "score": 0.902485651,
+      "score": 0.855621454,
       "source_file": "src/core/workspaces/workspaces.module.ts",
       "status": "tentative",
       "uses": 1

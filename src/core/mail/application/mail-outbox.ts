@@ -5,6 +5,7 @@ import { currentRequestContext } from '../../../shared/application/request-conte
 import { OUTBOUND_MAIL, type OutboundMail } from './outbound-mail.port';
 import {
   MAIL_OUTBOX_REPOSITORY,
+  type ClaimedMail,
   type MailOutboxRepository,
   type MailPurpose,
 } from './mail-outbox.repository';
@@ -17,6 +18,10 @@ type ProtectedMailPayload = Readonly<{
   to: string;
   subject: string;
   text: string;
+}>;
+
+type LeaseHeartbeat = Readonly<{
+  stop(): Promise<boolean>;
 }>;
 
 /**
@@ -88,6 +93,7 @@ export class MailOutbox {
         id,
         now,
         new Date(now.getTime() + this.config.mailClaimTtlMs),
+        this.config.mailMaxAttempts,
       );
     } catch (error) {
       this.logger.error(
@@ -105,11 +111,35 @@ export class MailOutbox {
       const payload = readPayload(
         this.protector.unprotect(claimed.id, claimed.encryptedPayload),
       );
-      await this.outboundMail.send({
-        ...payload,
-        messageId: claimed.messageId,
+      const heartbeat = this.startLeaseHeartbeat(claimed);
+      let delivered = false;
+      let deliveryError: unknown;
+      try {
+        await this.outboundMail.send({
+          ...payload,
+          messageId: claimed.messageId,
+        });
+        delivered = true;
+      } catch (error) {
+        deliveryError = error;
+      }
+      if (!(await heartbeat.stop())) {
+        this.logger.warn(
+          JSON.stringify({
+            event: 'mail.delivery_lease_lost',
+            deliveryId: claimed.id,
+            correlationId: claimed.correlationId,
+            attempt: claimed.attemptCount,
+          }),
+        );
+        return false;
+      }
+      if (!delivered) throw deliveryError;
+      await this.repository.markSent({
+        id: claimed.id,
+        attemptCount: claimed.attemptCount,
+        sentAt: new Date(),
       });
-      await this.repository.markSent(claimed.id, new Date());
       this.telemetry.recordMailDelivery('sent');
       return true;
     } catch (error) {
@@ -119,18 +149,23 @@ export class MailOutbox {
           claimed.attemptCount >= this.config.mailMaxAttempts ||
           claimed.expiresAt <= attemptedAt
         ) {
-          await this.repository.markFailed(claimed.id, attemptedAt);
+          await this.repository.markFailed({
+            id: claimed.id,
+            attemptCount: claimed.attemptCount,
+            failedAt: attemptedAt,
+          });
           this.telemetry.recordMailDelivery('failed');
         } else {
           const delay = Math.min(
             this.config.mailRetryMaxMs,
             this.config.mailRetryBaseMs * 2 ** (claimed.attemptCount - 1),
           );
-          await this.repository.markRetry(
-            claimed.id,
+          await this.repository.markRetry({
+            id: claimed.id,
+            attemptCount: claimed.attemptCount,
             attemptedAt,
-            new Date(attemptedAt.getTime() + delay),
-          );
+            nextAttemptAt: new Date(attemptedAt.getTime() + delay),
+          });
           this.telemetry.recordMailDelivery('retry');
         }
       } catch (stateError) {
@@ -160,9 +195,90 @@ export class MailOutbox {
   /** Expires old messages and attempts a bounded, sequential batch of due IDs. */
   async drainDue(limit = 20): Promise<void> {
     const now = new Date();
-    await this.repository.expireDue(now);
-    const ids = await this.repository.findDueIds(now, limit);
+    await this.repository.expireDue(now, this.config.mailMaxAttempts);
+    const ids = await this.repository.findDueIds(
+      now,
+      limit,
+      this.config.mailMaxAttempts,
+    );
     for (const id of ids) await this.deliverNow(id);
+  }
+
+  /** Keeps a long provider call owned by this attempt without crossing expiry. */
+  private startLeaseHeartbeat(claimed: ClaimedMail): LeaseHeartbeat {
+    const intervalMs = Math.max(1, Math.floor(this.config.mailClaimTtlMs / 3));
+    const repository = this.repository;
+    const logger = this.logger;
+    const claimTtlMs = this.config.mailClaimTtlMs;
+    let timer: NodeJS.Timeout | undefined;
+    let renewal: Promise<void> | undefined;
+    let stopped = false;
+    let retained = true;
+    let retainedUntil = new Date(
+      Math.min(claimed.lockedUntil.getTime(), claimed.expiresAt.getTime()),
+    );
+
+    /** Schedules another non-overlapping renewal while the send is pending. */
+    function schedule(): void {
+      if (stopped || !retained) return;
+      const remainingMs = claimed.expiresAt.getTime() - Date.now();
+      if (remainingMs <= 0) {
+        retained = false;
+        return;
+      }
+      timer = setTimeout(renew, Math.min(intervalMs, remainingMs));
+      timer.unref();
+    }
+
+    /** Renews the fenced generation and then schedules its next heartbeat. */
+    function renew(): void {
+      if (stopped || !retained || renewal) return;
+      const now = new Date();
+      const lockedUntil = new Date(
+        Math.min(now.getTime() + claimTtlMs, claimed.expiresAt.getTime()),
+      );
+      if (lockedUntil <= now) {
+        retained = false;
+        return;
+      }
+      renewal = repository
+        .renewLease({
+          id: claimed.id,
+          attemptCount: claimed.attemptCount,
+          now,
+          lockedUntil,
+        })
+        .then((renewed) => {
+          retained = renewed;
+          if (renewed) retainedUntil = lockedUntil;
+        })
+        .catch((error: unknown) => {
+          retained = false;
+          logger.error(
+            JSON.stringify({
+              event: 'mail.delivery_lease_renewal_failed',
+              deliveryId: claimed.id,
+              correlationId: claimed.correlationId,
+              attempt: claimed.attemptCount,
+              errorType: error instanceof Error ? error.name : 'UnknownError',
+            }),
+          );
+        })
+        .finally(() => {
+          renewal = undefined;
+          schedule();
+        });
+    }
+
+    schedule();
+    return {
+      stop: async () => {
+        stopped = true;
+        if (timer) clearTimeout(timer);
+        await renewal;
+        return retained && retainedUntil.getTime() > Date.now();
+      },
+    };
   }
 }
 

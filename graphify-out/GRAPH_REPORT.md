@@ -1,35 +1,35 @@
-# Graph Report - nexora-platform-core  (2026-08-14)
+# Graph Report - nexora-platform-core  (2026-08-17)
 
 ## Corpus Check
-- 272 files · ~109,944 words
+- 274 files · ~111,729 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 2374 nodes · 5317 edges · 170 communities (128 shown, 42 thin omitted)
+- 2380 nodes · 5330 edges · 171 communities (129 shown, 42 thin omitted)
 - Extraction: 95% EXTRACTED · 5% INFERRED · 0% AMBIGUOUS · INFERRED: 289 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `106e8511`
+- Built from commit: `a81a65ed`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
-- authentication.module.ts
+- Clock
 - MembershipRole
-- membership-ownership-transfer-request.guard.ts
-- SessionRecord
+- MembershipOwnershipTransferRateLimiter
+- prisma-authentication-sessions.repository.ts
 - TransactionManager
 - PublicRoute
-- PrismaPasswordResetTokensRepository
+- AuthenticatedRoute
 - Nexora Platform Core - Implementation Baseline
-- .enqueue
+- api-exception.filter.ts
 - What You Must Do When Invoked
 - app.e2e-spec.ts
 - authentication.controller.ts
 - dependencies
 - compilerOptions
-- password-identity-authentication.ts
+- identity.module.ts
 - Nexora Platform Core Repository Guidance
 - ADR-0010: Retain the single-package modular monolith with executable foundation gates
 - ADR-0004: Propagate a trusted authenticated request context
@@ -40,49 +40,49 @@
 - ADR-0002: Keep this repository product-neutral
 - ADR-0003: Rotate the current session after authenticated password change
 - DatabaseContext
-- .listForUser
+- .execute
 - architecture.spec.ts
-- OperationalTelemetry
-- AuthenticationRateLimitPort
-- PrismaPasswordIdentityRepository
+- core-infrastructure.module.ts
+- authentication.module.ts
+- JsonLogger
 - RecordingSessionCache
 - check-source-documentation.mjs
-- organizations.ts
+- PrismaOrganizationsRepository
 - WorkspacesRepository
 - Nexora Platform Engineering
 - .execute
-- request-password-reset.use-case.ts
+- registration.errors.ts
 - membership-invitations.controller.ts
 - ADR-XXXX: Decision title
 - jest
 - membership-role.ts
 - ADR-0006: Select and switch the active workspace per session
-- identity.module.ts
+- password-reset.use-cases.spec.ts
 - check-deprecated-apis.mjs
 - prisma-identity-registration.repository.ts
-- dependency-health.service.ts
+- DependencyHealthService
 - Foundation modules
 - .create
-- identity-lookup.ts
+- AuthorizationPolicy
 - Nexora Platform Engineering Change Checklists
 - graphify reference: extra exports and benchmark
-- transfer-workspace-ownership.use-case.ts
+- ApplicationError
 - package.json
 - exclude
 - update-common-password-blocklist.mjs
 - .error
 - ADR-0005: Deny routes unless admission policy is explicit
 - Create a downstream product from Nexora Platform Core
-- eslint
+- AuthenticatedRequestContext
 - Nexora Platform Core
-- prisma-audit-log.repository.ts
+- isTransactionWriteConflict
 - graphify reference: query, path, explain
 - nest-cli.json
 - ADR-0007: Base RBAC and email-bound membership invitations
-- PrismaMailOutboxRepository
-- IdentifierFactory
-- EmailVerificationConfirmationGuard
-- PasswordCredentialVerificationRepository
+- database-context.ts
+- SessionRecord
+- presentation/authenticated-request-context.ts
+- PrismaPasswordResetTokensRepository
 - ADR-0009: Bounded user and workspace lifecycle
 - ts-loader
 - .now
@@ -91,31 +91,32 @@
 - graphify reference: commit hook and native CLAUDE.md integration
 - graphify reference: incremental update and cluster-only
 - local-mutation-target.policy.ts
-- api-exception.filter.ts
-- RecordingSessionCache
+- generate-openapi.ts
+- register-account.use-case.spec.ts
 - AppConfig
 - graphify reference: GitHub clone and cross-repo merge
 - graphify reference: transcribe video and audio
-- SmtpOutboundMail
-- dotenv-cli
+- LoginRequestGuard
+- MembershipInvitationRateLimiter
 - Third-party notices
 - extraction-spec.md
-- AuditLog
-- PrismaEmailVerificationsRepository
+- IdentifierFactory
+- PasswordResetRequestGuard
+- EmailVerificationsRepository
 - devDependencies
 - globals
-- AuthenticatedRequestContext
-- UnsafeDetailsError
-- memberships.module.ts
+- MailOutboxRepository
+- EmailVerificationRequestGuard
+- audit.module.ts
 - RecordingInvitations
 - @nestjs/schematics
 - @nestjs/testing
 - Nexora Platform Engineering
-- .leave
+- CurrentAuthenticatedContext
 - prisma
 - source-map-support
 - supertest
-- UnsafeWorkspaceSelectionDetailsError
+- ListWorkspaceMemberships
 - ADR-0008: Workspace membership administration and ownership safety
 - ts-node
 - tsconfig-paths
@@ -124,33 +125,35 @@
 - @types/nodemailer
 - @types/supertest
 - typescript
-- app.module.ts
-- AuthenticatedRoute
+- route-admission.guard.spec.ts
 - ts-jest
 - Q: Implement Multi-workspace selection and switching task
-- MembershipInvitations
-- registration.errors.ts
-- RecordingCache
+- ListSessionWorkspaces
+- authenticated-request-context.guard.ts
+- Argon2PasswordHasher
 - workspaces.controller.ts
-- RecordingSessionCache
-- HealthController
+- switch-workspace.use-case.spec.ts
+- eslint
 - security-headers.middleware.ts
-- MailOutboxRepository
+- MailModule
 - AuthenticationRateLimiter
 - pwned-passwords-compromise-checker.ts
 - ADR-0011: Production runtime and operations baseline
-- password-credential-verification.ts
+- Nexora Platform Core Module Catalog
+- update-own-profile.use-case.ts
 - users.controller.ts
-- Clock
-- MailOutboxWorker
+- memberships.module.ts
+- .execute
 - ADR-0012: Durable encrypted Core email outbox
 - memberships.controller.ts
 - GetCurrentSession
 - @eslint/js
 - Tenant isolation matrices
 - Production operations runbook
+- Session 22:59
 - check-operations-docs.mjs
 - jest
+- @compodoc/compodoc
 - SessionCache
 - prettier
 - eslint-config-prettier
@@ -158,8 +161,7 @@
 - docs/README.md
 - RecordingSessionCache
 - @eslint/eslintrc
-- MailPayloadProtector
-- WorkspaceSwitchRequestGuard
+- PasswordResetConfirmationGuard
 - How to change a Core capability safely
 - 2026-08-13.md
 - Authentication module
@@ -171,8 +173,7 @@
 - Registration flow
 - Project tour
 - .execute
-- EmailVerificationsRepository
-- register
+- RecordingEmailVerifications
 - OpenAPI reference workflow
 - settings.json
 - Nexora Platform Core — Claude Code
@@ -187,9 +188,9 @@
 5. `AuditLog` - 53 edges
 6. `ApplicationError` - 45 edges
 7. `Users` - 42 edges
-8. `scripts` - 35 edges
-9. `SessionCachePort` - 35 edges
-10. `DatabaseContext` - 35 edges
+8. `DatabaseContext` - 36 edges
+9. `scripts` - 35 edges
+10. `SessionCachePort` - 35 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `main()` --calls--> `assertSafeLocalMutationTargets()`  [EXTRACTED]
@@ -206,55 +207,55 @@
 ## Import Cycles
 - None detected.
 
-## Communities (170 total, 42 thin omitted)
+## Communities (171 total, 42 thin omitted)
 
-### Community 0 - "authentication.module.ts"
+### Community 0 - "Clock"
 Cohesion: 0.07
-Nodes (30): EmailVerificationDelivery, Injectable, EmailVerificationToken, EmailVerificationTokenService, Injectable, EMAIL_VERIFICATIONS_REPOSITORY, EmailVerifications, Inject (+22 more)
+Nodes (37): AppendAuditLog, AuditLog, Inject, Injectable, EmailVerificationDelivery, Injectable, EmailVerificationToken, EmailVerificationTokenService (+29 more)
 
 ### Community 1 - "MembershipRole"
-Cohesion: 0.06
-Nodes (10): Inject, MembershipAdministrationRecord, MembershipAdministrationRepository, MembershipRole, LoginWorkspaceResolution, MembershipsRepository, MembershipSummary, membershipAdministrationSelect (+2 more)
-
-### Community 2 - "membership-ownership-transfer-request.guard.ts"
-Cohesion: 0.18
-Nodes (8): MEMBERSHIP_OWNERSHIP_TRANSFER_RATE_LIMITER, MembershipOwnershipTransferRateLimitDecision, MembershipOwnershipTransferRateLimiterPort, MembershipOwnershipTransferRateLimiter, Injectable, MembershipOwnershipTransferRequestGuard, Inject, Injectable
-
-### Community 3 - "SessionRecord"
 Cohesion: 0.07
-Nodes (9): AuthenticationSessionsRepository, RevokedSession, SessionContext, SessionRecord, RecordingSessionsRepository, MembershipSessionRevocationsRepository, RecordingSessionsRepository, PrismaAuthenticationSessionsRepository (+1 more)
+Nodes (13): Inject, MEMBERSHIP_ADMINISTRATION_REPOSITORY, MembershipAdministration, MembershipAdministrationRecord, MembershipAdministrationRepository, Inject, Injectable, MembershipRole (+5 more)
+
+### Community 2 - "MembershipOwnershipTransferRateLimiter"
+Cohesion: 0.53
+Nodes (3): MembershipOwnershipTransferRateLimitDecision, MembershipOwnershipTransferRateLimiter, Injectable
+
+### Community 3 - "prisma-authentication-sessions.repository.ts"
+Cohesion: 0.14
+Nodes (5): SessionContext, MembershipSessionRevocationsRepository, PrismaAuthenticationSessionsRepository, revokedSessionSelect, Injectable
 
 ### Community 4 - "TransactionManager"
-Cohesion: 0.06
-Nodes (17): InlineTransactionManager, InlineTransactionManager, MembershipSessionRevocations, Inject, Injectable, InlineTransactionManager, InlineTransactionManager, InlineTransactionManager (+9 more)
+Cohesion: 0.10
+Nodes (10): InlineTransactionManager, InlineTransactionManager, InlineTransactionManager, InlineTransactionManager, InlineTransactionManager, InlineTransactionManager, InlineTransactionManager, Inject (+2 more)
 
 ### Community 5 - "PublicRoute"
-Cohesion: 0.22
-Nodes (23): ApiAcceptedResponse, AuthenticationController, setSessionCookie(), ApiBody, ApiConflictResponse, ApiCookieAuth, ApiCreatedResponse, ApiForbiddenResponse (+15 more)
+Cohesion: 0.11
+Nodes (33): ApiAcceptedResponse, AppController, Controller, Get, AppService, Injectable, AuthenticationController, setSessionCookie() (+25 more)
 
-### Community 6 - "PrismaPasswordResetTokensRepository"
-Cohesion: 0.20
-Nodes (4): PasswordResetTokenRecord, PrismaPasswordResetTokensRepository, recordSelection, Injectable
+### Community 6 - "AuthenticatedRoute"
+Cohesion: 0.15
+Nodes (9): Permission, ApplicationAuthenticatedRoute(), ApplicationAuthenticatedRouteOptions, AuthenticatedRoute(), AuthenticatedRouteOptions, RouteAdmissionExamples, PublicRouteOptions, RouteAdmission (+1 more)
 
 ### Community 7 - "Nexora Platform Core - Implementation Baseline"
 Cohesion: 0.09
 Nodes (22): A downstream product repository owns, Accepted decisions, API and observability, Architecture style, Commercial and metered capabilities, Current state, Current structure, Data ownership and persistence (+14 more)
 
-### Community 8 - ".enqueue"
-Cohesion: 0.33
-Nodes (3): currentRequestContext(), RequestContext, storage
+### Community 8 - "api-exception.filter.ts"
+Cohesion: 0.13
+Nodes (18): Catch, currentRequestContext(), RequestContext, runWithRequestContext(), storage, ApiExceptionFilter, applicationErrorStatus(), isSafeErrorBody() (+10 more)
 
 ### Community 9 - "What You Must Do When Invoked"
 Cohesion: 0.08
 Nodes (24): For /graphify add and --watch, For /graphify query, For the commit hook and native CLAUDE.md integration, For --update and --cluster-only, /graphify, Honesty Rules, Interpreter guard for subcommands, Part A - Structural extraction for code files (+16 more)
 
 ### Community 10 - "app.e2e-spec.ts"
-Cohesion: 0.06
-Nodes (13): invitationDeliveries, login(), loginBody(), readCookieHeader(), readSetCookie(), recordingEmailSender, recordingMembershipInvitationSender, recordingOutboundMail (+5 more)
+Cohesion: 0.05
+Nodes (21): confirmEmail(), invitationDeliveries, login(), loginBody(), readCookieHeader(), readSetCookie(), readVerificationToken(), recordingEmailSender (+13 more)
 
 ### Community 11 - "authentication.controller.ts"
-Cohesion: 0.10
-Nodes (22): RequestPasswordReset, Injectable, ResetPassword, Injectable, Injectable, VerifyEmail, EmailVerificationConfirmation, emailVerificationConfirmationSchema (+14 more)
+Cohesion: 0.11
+Nodes (20): CreateSession, Injectable, RevokeCurrentSession, Injectable, EmailVerificationConfirmation, emailVerificationConfirmationSchema, EmailVerificationRequest, emailVerificationRequestSchema (+12 more)
 
 ### Community 12 - "dependencies"
 Cohesion: 0.07
@@ -264,9 +265,9 @@ Nodes (29): argon2, dotenv, @nestjs/common, @nestjs/core, @nestjs/platform-expre
 Cohesion: 0.07
 Nodes (26): compilerOptions, allowSyntheticDefaultImports, baseUrl, declaration, emitDecoratorMetadata, esModuleInterop, experimentalDecorators, forceConsistentCasingInFileNames (+18 more)
 
-### Community 14 - "password-identity-authentication.ts"
-Cohesion: 0.16
-Nodes (10): PASSWORD_IDENTITY_REPOSITORY, PasswordIdentityAuthentication, PasswordIdentityRecord, RecordingVerifier, Inject, Injectable, PASSWORD_VERIFIER, PasswordVerifier (+2 more)
+### Community 14 - "identity.module.ts"
+Cohesion: 0.05
+Nodes (30): RecordingCredentialRepository, IDENTITY_LOOKUP_REPOSITORY, IdentityLookupRepository, IdentitySummary, IDENTITY_REGISTRATION_REPOSITORY, PASSWORD_CREDENTIAL_MANAGEMENT_REPOSITORY, PasswordCredentialManagementRepository, PASSWORD_CREDENTIAL_VERIFICATION_REPOSITORY (+22 more)
 
 ### Community 15 - "Nexora Platform Core Repository Guidance"
 Cohesion: 0.10
@@ -285,8 +286,8 @@ Cohesion: 0.06
 Nodes (35): scripts, build, check:deprecated, check:operations, check:production, contract:check, contract:generate, db:dev:down (+27 more)
 
 ### Community 19 - "mail-outbox.ts"
-Cohesion: 0.28
-Nodes (7): ProtectedMailPayload, MAIL_OUTBOX_REPOSITORY, MAIL_PAYLOAD_PROTECTOR, OUTBOUND_MAIL, OutboundMail, MailModule, Module
+Cohesion: 0.07
+Nodes (17): LeaseHeartbeat, MailOutbox, ProtectedMailPayload, readPayload(), MAIL_OUTBOX_REPOSITORY, Inject, Injectable, MAIL_PAYLOAD_PROTECTOR (+9 more)
 
 ### Community 20 - "UsersRepository"
 Cohesion: 0.11
@@ -305,36 +306,32 @@ Cohesion: 0.11
 Nodes (17): ADR-0003: Rotate the current session after authenticated password change, Compatibility and migration, Consequences, Considered options, Context, Decision, Decision drivers, Follow-up work (+9 more)
 
 ### Community 24 - "DatabaseContext"
-Cohesion: 0.15
-Nodes (8): revokedSessionSelect, DatabaseContext, Injectable, PrismaService, Injectable, PrismaTransactionManager, Injectable, TransactionWriteConflictError
-
-### Community 25 - ".listForUser"
-Cohesion: 0.23
-Nodes (3): ListSessionWorkspaces, Injectable, WorkspaceSelectionOption
+Cohesion: 0.24
+Nodes (4): DatabaseContext, Injectable, PrismaTransactionManager, Injectable
 
 ### Community 26 - "architecture.spec.ts"
 Cohesion: 0.17
 Nodes (16): APPROVED_CROSS_MODULE_EXCEPTIONS, collectTypeScriptFiles(), DELEGATE_OWNERS, Dependency, dependencyViolation(), isApprovedException(), isLayer(), Layer (+8 more)
 
-### Community 27 - "OperationalTelemetry"
-Cohesion: 0.15
-Nodes (11): increment(), OperationalTelemetry, Injectable, HttpTelemetryMiddleware, Injectable, MetricsController, safeEqual(), Controller (+3 more)
+### Community 27 - "core-infrastructure.module.ts"
+Cohesion: 0.11
+Nodes (18): CoreInfrastructureModule, Module, HealthModule, Module, increment(), OperationalTelemetry, Injectable, HttpTelemetryMiddleware (+10 more)
 
-### Community 28 - "AuthenticationRateLimitPort"
-Cohesion: 0.07
-Nodes (23): AUTHENTICATION_RATE_LIMITER, AuthenticationRateLimitPort, EmailVerificationUnavailableError, PasswordResetUnavailableError, EmailVerificationRequestGuard, Inject, Injectable, LoginRequestGuard (+15 more)
+### Community 28 - "authentication.module.ts"
+Cohesion: 0.13
+Nodes (15): AUTHENTICATION_RATE_LIMITER, AuthenticationRateLimitPort, EMAIL_VERIFICATIONS_REPOSITORY, PASSWORD_RESET_TOKENS_REPOSITORY, EmailVerificationUnavailableError, PasswordResetUnavailableError, EmailVerificationConfirmationGuard, Inject (+7 more)
 
-### Community 29 - "PrismaPasswordIdentityRepository"
-Cohesion: 0.22
-Nodes (3): PasswordIdentityRepository, PrismaPasswordIdentityRepository, Injectable
+### Community 29 - "JsonLogger"
+Cohesion: 0.30
+Nodes (4): isRecord(), JsonLogger, normalizeMessage(), redact()
 
 ### Community 31 - "check-source-documentation.mjs"
 Cohesion: 0.25
 Nodes (8): collectSourceFiles(), hasPlainLanguageJsDoc(), isIncludedSourcePath(), missing, reportMissing(), sourceFiles, sourceRoot, verifyScannerContract()
 
-### Community 32 - "organizations.ts"
-Cohesion: 0.18
-Nodes (7): ORGANIZATIONS_REPOSITORY, OrganizationsRepository, OrganizationSummary, PrismaOrganizationsRepository, Injectable, OrganizationsModule, Module
+### Community 32 - "PrismaOrganizationsRepository"
+Cohesion: 0.21
+Nodes (4): OrganizationsRepository, OrganizationSummary, PrismaOrganizationsRepository, Injectable
 
 ### Community 33 - "WorkspacesRepository"
 Cohesion: 0.16
@@ -344,17 +341,13 @@ Nodes (5): createFixture(), WorkspacesRepository, WorkspaceSummary, PrismaWorksp
 Cohesion: 0.14
 Nodes (14): Apply cross-cutting controls, Architecture debt guards, Classify the repository boundary first, Classify the request, Define and implement the slice, Delegate when useful, Downstream product repository, Load the right context (+6 more)
 
-### Community 35 - ".execute"
-Cohesion: 0.22
-Nodes (3): readSafeErrorCode(), SwitchWorkspace, Injectable
-
-### Community 36 - "request-password-reset.use-case.ts"
-Cohesion: 0.15
-Nodes (9): PasswordResetDelivery, Injectable, PasswordResetToken, PasswordResetTokenService, Injectable, PASSWORD_RESET_TOKENS_REPOSITORY, PasswordResetTokens, Inject (+1 more)
+### Community 36 - "registration.errors.ts"
+Cohesion: 0.11
+Nodes (18): ChangedPasswordSession, PasswordChangeContext, EXPIRES_AT, NOW, RAW_TOKEN, Inject, PASSWORD_COMPROMISE_CHECKER, PasswordCompromiseChecker (+10 more)
 
 ### Community 37 - "membership-invitations.controller.ts"
-Cohesion: 0.06
-Nodes (39): AcceptMembershipInvitation, Injectable, CreateMembershipInvitation, isUniqueConflict(), readSafeErrorCode(), Injectable, MEMBERSHIP_INVITATION_RATE_LIMITER, MembershipInvitationRateLimitDecision (+31 more)
+Cohesion: 0.15
+Nodes (13): normalizeIdentityEmail(), MEMBERSHIP_INVITATION_RATE_LIMITER, MembershipInvitationRateLimiterPort, AcceptMembershipInvitationRequest, acceptMembershipInvitationSchema, CreateMembershipInvitationRequest, createMembershipInvitationSchema, enforceDecision() (+5 more)
 
 ### Community 38 - "ADR-XXXX: Decision title"
 Cohesion: 0.12
@@ -366,15 +359,15 @@ Nodes (13): jest, collectCoverageFrom, coverageDirectory, moduleFileExtensions, 
 
 ### Community 40 - "membership-role.ts"
 Cohesion: 0.08
-Nodes (13): InvitedMembershipsWriter, Injectable, MembershipInvitationDelivery, Injectable, MEMBERSHIP_INVITATIONS_REPOSITORY, MembershipInvitationRecord, MembershipInvitationsRepository, InvitableMembershipRole (+5 more)
+Nodes (10): MembershipInvitationDelivery, Injectable, MEMBERSHIP_INVITATIONS_REPOSITORY, MembershipInvitationRecord, MembershipInvitationsRepository, InvitableMembershipRole, isInvitableMembershipRole(), MEMBERSHIP_ROLES (+2 more)
 
 ### Community 41 - "ADR-0006: Select and switch the active workspace per session"
 Cohesion: 0.11
 Nodes (17): ADR-0006: Select and switch the active workspace per session, Choose the most recent workspace automatically, Compatibility and migration, Consequences, Considered options, Context, Decision, Decision drivers (+9 more)
 
-### Community 42 - "identity.module.ts"
-Cohesion: 0.19
-Nodes (8): IDENTITY_REGISTRATION_REPOSITORY, PASSWORD_CREDENTIAL_MANAGEMENT_REPOSITORY, PasswordCredentialManagement, PasswordCredentialManagementRepository, Inject, Injectable, IdentityModule, Module
+### Community 42 - "password-reset.use-cases.spec.ts"
+Cohesion: 0.09
+Nodes (24): PasswordResetToken, PasswordResetTokenService, Injectable, PasswordResetTokens, Inject, Injectable, activeUsers(), createRequestFixture() (+16 more)
 
 ### Community 43 - "check-deprecated-apis.mjs"
 Cohesion: 0.27
@@ -384,21 +377,21 @@ Nodes (8): addFinding(), configPath, deprecatedMessage(), findDeprecatedSymbol()
 Cohesion: 0.24
 Nodes (5): IdentityRegistrationRepository, IdentityAlreadyExistsError, isUniqueConstraintError(), PrismaIdentityRegistrationRepository, Injectable
 
-### Community 45 - "dependency-health.service.ts"
-Cohesion: 0.17
-Nodes (9): HealthLifecycleService, Injectable, HealthModule, Module, DependencyHealthService, ReadinessResult, Injectable, ObservabilityModule (+1 more)
+### Community 45 - "DependencyHealthService"
+Cohesion: 0.12
+Nodes (9): HealthController, Controller, Get, Res, HealthLifecycleService, Injectable, check(), DependencyHealthService (+1 more)
 
 ### Community 46 - "Foundation modules"
-Cohesion: 0.13
-Nodes (15): Audit, Authentication, Authorization and roles, Configuration and persistence, Downstream product modules, Foundation modules, Identity, Memberships (+7 more)
+Cohesion: 0.18
+Nodes (11): Audit, Authentication, Authorization and roles, Configuration and persistence, Foundation modules, Identity, Mail, Memberships (+3 more)
 
 ### Community 47 - ".create"
-Cohesion: 0.14
+Cohesion: 0.22
 Nodes (3): readSafeErrorCode(), readSafeErrorCode(), readSafeErrorCode()
 
-### Community 48 - "identity-lookup.ts"
-Cohesion: 0.24
-Nodes (5): IDENTITY_LOOKUP_REPOSITORY, IdentityLookupRepository, IdentitySummary, PrismaIdentityLookupRepository, Injectable
+### Community 48 - "AuthorizationPolicy"
+Cohesion: 0.12
+Nodes (15): AuditModule, Module, AuthorizationPolicy, PERMISSIONS, Injectable, AuthorizationPolicyModule, Module, MembershipsModule (+7 more)
 
 ### Community 49 - "Nexora Platform Engineering Change Checklists"
 Cohesion: 0.22
@@ -408,9 +401,9 @@ Nodes (9): ADR triggers, Change design and layering, Commercial and metered capa
 Cohesion: 0.22
 Nodes (8): graphify reference: extra exports and benchmark, Step 6b - Wiki (only if --wiki flag), Step 7 - Neo4j export (only if --neo4j or --neo4j-push flag), Step 7a - FalkorDB export (only if --falkordb or --falkordb-push flag), Step 7b - SVG export (only if --svg flag), Step 7c - GraphML export (only if --graphml flag), Step 7d - MCP server (only if --mcp flag), Step 8 - Token reduction benchmark (only if total_words > 5000)
 
-### Community 51 - "transfer-workspace-ownership.use-case.ts"
-Cohesion: 0.08
-Nodes (36): isWriteConflict(), RevokedMembershipSession, isWriteConflict(), isWriteConflict(), isWriteConflict(), AuthorizationDeniedError, PERMISSIONS, isWriteConflict() (+28 more)
+### Community 51 - "ApplicationError"
+Cohesion: 0.07
+Nodes (28): RevokedMembershipSession, AuthorizationDeniedError, LeaveCurrentWorkspace, MembershipWriteConflictError, Injectable, MembershipAdministrationStateError, WorkspaceMembershipListItem, WorkspaceMembershipPage (+20 more)
 
 ### Community 52 - "package.json"
 Cohesion: 0.20
@@ -426,7 +419,7 @@ Nodes (7): hashes, OUTPUT_PATH, sha256(), sourceBytes, sourcePasswords, sourceSh
 
 ### Community 55 - ".error"
 Cohesion: 0.30
-Nodes (4): ChangePassword, readSafeErrorCode(), Injectable, VerifiedPasswordCredential
+Nodes (4): ChangePassword, isWriteConflict(), readSafeErrorCode(), Injectable
 
 ### Community 56 - "ADR-0005: Deny routes unless admission policy is explicit"
 Cohesion: 0.11
@@ -436,13 +429,17 @@ Nodes (17): ADR-0005: Deny routes unless admission policy is explicit, Compatibi
 Cohesion: 0.29
 Nodes (6): Create a downstream product from Nexora Platform Core, Define the product boundary, Minimum product repository guidance, Protect Core boundaries, Review inherited runtime identity, Start from a reviewed base
 
+### Community 58 - "AuthenticatedRequestContext"
+Cohesion: 0.17
+Nodes (17): AuthenticatedRequestContext, MembershipInvitationsController, ApiBody, ApiConflictResponse, ApiCookieAuth, ApiCreatedResponse, ApiForbiddenResponse, ApiNoContentResponse (+9 more)
+
 ### Community 59 - "Nexora Platform Core"
 Cohesion: 0.22
 Nodes (8): Documentation, Implemented, Local development, Nexora Platform Core, Prerequisites, Product extension model, Production-readiness controls, Verification
 
-### Community 60 - "prisma-audit-log.repository.ts"
-Cohesion: 0.33
-Nodes (3): AuditLogRepository, PrismaAuditLogRepository, Injectable
+### Community 60 - "isTransactionWriteConflict"
+Cohesion: 0.16
+Nodes (12): ChangeMembershipRole, isWriteConflict(), MembershipWriteConflictError, readSafeErrorCode(), Inject, Injectable, isWriteConflict(), isWriteConflict() (+4 more)
 
 ### Community 62 - "graphify reference: query, path, explain"
 Cohesion: 0.33
@@ -456,25 +453,25 @@ Nodes (5): collection, compilerOptions, deleteOutDir, $schema, sourceRoot
 Cohesion: 0.11
 Nodes (17): Add base roles with transactional grant checks and email-bound tokens, ADR-0007: Base RBAC and email-bound membership invitations, Compatibility and migration, Consequences, Considered options, Context, Decision, Decision drivers (+9 more)
 
-### Community 65 - "PrismaMailOutboxRepository"
-Cohesion: 0.20
+### Community 65 - "database-context.ts"
+Cohesion: 0.18
 Nodes (5): ClaimedMail, MailPurpose, ensureUpdated(), PrismaMailOutboxRepository, Injectable
 
-### Community 66 - "IdentifierFactory"
+### Community 66 - "SessionRecord"
 Cohesion: 0.12
-Nodes (15): AppendAuditLog, EmailVerificationInvalidError, Injectable, UpdateOwnProfile, UserWriteConflictError, USERS_REPOSITORY, UserStatus, UserLifecycleInvalidError (+7 more)
+Nodes (5): AuthenticationSessionsRepository, RevokedSession, SessionRecord, RecordingSessionsRepository, RecordingSessionsRepository
 
-### Community 67 - "EmailVerificationConfirmationGuard"
-Cohesion: 0.33
-Nodes (3): EmailVerificationConfirmationGuard, Inject, Injectable
+### Community 67 - "presentation/authenticated-request-context.ts"
+Cohesion: 0.16
+Nodes (12): createAuthenticatedRequestContext(), ResolvedAuthenticatedRequest, AUTHENTICATED_REQUEST_CONTEXT, CurrentAuthenticatedSession, readAuthenticatedRequestContext(), RequestWithAuthenticatedContext, requireAuthenticatedRequestContext(), MEMBERSHIP_OWNERSHIP_TRANSFER_RATE_LIMITER (+4 more)
+
+### Community 68 - "PrismaPasswordResetTokensRepository"
+Cohesion: 0.20
+Nodes (3): PrismaPasswordResetTokensRepository, recordSelection, Injectable
 
 ### Community 69 - "ADR-0009: Bounded user and workspace lifecycle"
 Cohesion: 0.11
 Nodes (17): Add bounded renames plus protected self-leave, Add user deactivation and workspace archival now, ADR-0009: Bounded user and workspace lifecycle, Compatibility and migration, Consequences, Considered options, Context, Decision (+9 more)
-
-### Community 71 - ".now"
-Cohesion: 0.09
-Nodes (4): readSafeErrorCode(), createFixture(), normalizeIdentityEmail(), readPayload()
 
 ### Community 72 - "Core module map"
 Cohesion: 0.50
@@ -496,33 +493,49 @@ Nodes (3): For --cluster-only, For --update (incremental re-extraction), graphif
 Cohesion: 0.23
 Nodes (8): main(), SEED, assertSafeLocalMutationTargets(), LocalMutationPurpose, LOOPBACK_HOSTS, MutationEnvironment, parseUrl(), developmentEnvironment
 
-### Community 77 - "api-exception.filter.ts"
-Cohesion: 0.07
-Nodes (30): Catch, compareObjectKeys(), contractPath, isRecord(), main(), sortObjectKeys(), validateSecurityReferences(), AppModule (+22 more)
+### Community 77 - "generate-openapi.ts"
+Cohesion: 0.24
+Nodes (11): compareObjectKeys(), contractPath, isRecord(), main(), sortObjectKeys(), validateSecurityReferences(), AppModule, Module (+3 more)
+
+### Community 78 - "register-account.use-case.spec.ts"
+Cohesion: 0.11
+Nodes (9): RecordingEmailSender, RecordingHasher, RecordingPasswordCompromiseChecker, RecordingSessionCache, RegistrationUnavailableError, CreatePasswordIdentity, IdentityRegistration, Inject (+1 more)
 
 ### Community 79 - "AppConfig"
-Cohesion: 0.10
-Nodes (14): approvalSchema, AppConfig, environmentSchema, isHostname(), isIpOrCidr(), MANAGED_KEYS, TRUST_PROXY_NAMES, Injectable (+6 more)
+Cohesion: 0.09
+Nodes (15): approvalSchema, CachedSession, AppConfig, environmentSchema, isHostname(), isIpOrCidr(), MANAGED_KEYS, TRUST_PROXY_NAMES (+7 more)
 
-### Community 86 - "AuditLog"
-Cohesion: 0.07
-Nodes (41): AuditLog, Inject, Injectable, AuthenticationSessions, Inject, Injectable, ChangedPasswordSession, PasswordChangeContext (+33 more)
+### Community 82 - "LoginRequestGuard"
+Cohesion: 0.33
+Nodes (3): LoginRequestGuard, Inject, Injectable
 
-### Community 88 - "PrismaEmailVerificationsRepository"
-Cohesion: 0.20
-Nodes (4): EmailVerificationRecord, PrismaEmailVerificationsRepository, recordSelection, Injectable
+### Community 83 - "MembershipInvitationRateLimiter"
+Cohesion: 0.57
+Nodes (3): MembershipInvitationRateLimitDecision, MembershipInvitationRateLimiter, Injectable
+
+### Community 86 - "IdentifierFactory"
+Cohesion: 0.08
+Nodes (31): AUTHENTICATION_SESSIONS_REPOSITORY, AuthenticationSessions, Inject, Injectable, CreatedSession, CreateSessionCommand, LoginContextChangedError, Inject (+23 more)
+
+### Community 87 - "PasswordResetRequestGuard"
+Cohesion: 0.33
+Nodes (3): PasswordResetRequestGuard, Inject, Injectable
+
+### Community 88 - "EmailVerificationsRepository"
+Cohesion: 0.12
+Nodes (5): EmailVerificationRecord, EmailVerificationsRepository, PrismaEmailVerificationsRepository, recordSelection, Injectable
 
 ### Community 89 - "devDependencies"
 Cohesion: 0.29
-Nodes (7): @compodoc/compodoc, eslint-plugin-prettier, @nestjs/cli, devDependencies, @compodoc/compodoc, eslint-plugin-prettier, @nestjs/cli
+Nodes (7): dotenv-cli, eslint-plugin-prettier, @nestjs/cli, devDependencies, dotenv-cli, eslint-plugin-prettier, @nestjs/cli
 
-### Community 91 - "AuthenticatedRequestContext"
-Cohesion: 0.14
-Nodes (15): AuthenticatedRequestContext, createAuthenticatedRequestContext(), CurrentSession, ResolvedAuthenticatedRequest, AUTHENTICATED_REQUEST_CONTEXT, CurrentAuthenticatedContext, CurrentAuthenticatedSession, readAuthenticatedRequestContext() (+7 more)
+### Community 92 - "EmailVerificationRequestGuard"
+Cohesion: 0.33
+Nodes (3): EmailVerificationRequestGuard, Inject, Injectable
 
-### Community 93 - "memberships.module.ts"
-Cohesion: 0.16
-Nodes (18): AUDIT_LOG_REPOSITORY, AuditModule, Module, AUTHENTICATION_SESSIONS_REPOSITORY, MEMBERSHIP_SESSION_REVOCATIONS_REPOSITORY, AuthenticationSessionStateModule, Module, AuthorizationPolicyModule (+10 more)
+### Community 93 - "audit.module.ts"
+Cohesion: 0.28
+Nodes (4): AUDIT_LOG_REPOSITORY, AuditLogRepository, PrismaAuditLogRepository, Injectable
 
 ### Community 94 - "RecordingInvitations"
 Cohesion: 0.17
@@ -532,41 +545,41 @@ Nodes (5): createAcceptanceFixture(), createIssueFixture(), fixedClock(), inline
 Cohesion: 0.14
 Nodes (14): Apply cross-cutting controls, Architecture debt guards, Classify the repository boundary first, Classify the request, Define and implement the slice, Delegate when useful, Downstream product repository, Load the right context (+6 more)
 
-### Community 98 - ".leave"
+### Community 98 - "CurrentAuthenticatedContext"
 Cohesion: 0.15
-Nodes (22): ApiBadRequestResponse, ApiQuery, Query, MembershipsController, ApiBody, ApiConflictResponse, ApiCookieAuth, ApiForbiddenResponse (+14 more)
+Nodes (23): ApiBadRequestResponse, ApiQuery, Query, CurrentAuthenticatedContext, MembershipsController, ApiBody, ApiConflictResponse, ApiCookieAuth (+15 more)
+
+### Community 102 - "ListWorkspaceMemberships"
+Cohesion: 0.33
+Nodes (4): ListWorkspaceMemberships, readSafeErrorCode(), Inject, Injectable
 
 ### Community 103 - "ADR-0008: Workspace membership administration and ownership safety"
 Cohesion: 0.11
 Nodes (18): ADR-0008: Workspace membership administration and ownership safety, Compatibility and migration, Consequences, Considered options, Context, Decision, Decision drivers, Follow-up work (+10 more)
 
-### Community 111 - "app.module.ts"
-Cohesion: 0.20
-Nodes (9): AppController, Controller, Get, AppService, Injectable, AuthenticationModule, Module, AuthorizationModule (+1 more)
-
-### Community 112 - "AuthenticatedRoute"
-Cohesion: 0.09
-Nodes (23): attachAuthenticatedRequestContext(), AuthenticatedRequestContextGuard, Injectable, TrustedOriginGuard, Injectable, isPermission(), Permission, EmailVerificationRequiredError (+15 more)
+### Community 112 - "route-admission.guard.spec.ts"
+Cohesion: 0.11
+Nodes (18): AuthenticationModule, Module, attachAuthenticatedRequestContext(), AuthenticatedRequestContextGuard, Injectable, TrustedOriginGuard, Injectable, isPermission() (+10 more)
 
 ### Community 116 - "Q: Implement Multi-workspace selection and switching task"
 Cohesion: 0.40
 Nodes (4): Answer, Outcome, Q: Implement Multi-workspace selection and switching task, Source Nodes
 
-### Community 117 - "MembershipInvitations"
+### Community 118 - "authenticated-request-context.guard.ts"
 Cohesion: 0.11
-Nodes (8): isUniqueConflict(), readSafeErrorCode(), MembershipInvitationTokenService, Injectable, MembershipInvitations, Inject, Injectable, readSafeErrorCode()
+Nodes (9): PasswordChangeUnavailableError, WorkspaceSwitchUnavailableError, PasswordChangeRequestGuard, Inject, Injectable, readCookie(), Inject, Injectable (+1 more)
 
-### Community 118 - "registration.errors.ts"
-Cohesion: 0.07
-Nodes (26): AccessibleWorkspaceLimitError, AccessibleWorkspaces, AccessibleWorkspaceStateError, Injectable, CreatedSession, CreateSessionCommand, LoginContextChangedError, EXPECTED_CONTEXT (+18 more)
+### Community 119 - "Argon2PasswordHasher"
+Cohesion: 0.19
+Nodes (6): Argon2PasswordHasher, Injectable, OrganizationsModule, Module, Module, UsersModule
 
 ### Community 120 - "workspaces.controller.ts"
-Cohesion: 0.14
-Nodes (14): RenameCurrentWorkspace, Injectable, RenameCurrentWorkspaceRequest, renameCurrentWorkspaceSchema, ApiBody, ApiCookieAuth, ApiForbiddenResponse, ApiOkResponse (+6 more)
+Cohesion: 0.15
+Nodes (12): RenameCurrentWorkspaceRequest, renameCurrentWorkspaceSchema, ApiBody, ApiCookieAuth, ApiForbiddenResponse, ApiOkResponse, ApiOperation, ApiTags (+4 more)
 
-### Community 122 - "HealthController"
-Cohesion: 0.22
-Nodes (5): HealthController, Controller, Get, Res, check()
+### Community 121 - "switch-workspace.use-case.spec.ts"
+Cohesion: 0.08
+Nodes (19): AccessibleWorkspaceLimitError, AccessibleWorkspaces, AccessibleWorkspaceStateError, Injectable, EXPECTED_CONTEXT, EXPIRES_AT, NOW, RAW_TOKEN (+11 more)
 
 ### Community 123 - "security-headers.middleware.ts"
 Cohesion: 0.29
@@ -577,32 +590,36 @@ Cohesion: 0.37
 Nodes (3): RateLimitDecision, AuthenticationRateLimiter, Injectable
 
 ### Community 126 - "pwned-passwords-compromise-checker.ts"
-Cohesion: 0.22
+Cohesion: 0.23
 Nodes (7): COMMON_PASSWORD_SHA256_HASHES, CONTEXT_SPECIFIC_PASSWORDS, findSuffix(), localHash(), PwnedPasswordsCompromiseChecker, readBoundedText(), Injectable
 
 ### Community 127 - "ADR-0011: Production runtime and operations baseline"
 Cohesion: 0.17
 Nodes (11): ADR-0011: Production runtime and operations baseline, Alternatives considered, Consequences, Context, Contracts and data, Decision, Open operator decisions, Reliability and observability (+3 more)
 
-### Community 128 - "password-credential-verification.ts"
-Cohesion: 0.20
-Nodes (6): PASSWORD_CREDENTIAL_VERIFICATION_REPOSITORY, PasswordCredentialRecord, PasswordCredentialVerification, Inject, Injectable, VERIFIED_PASSWORD_HASH
+### Community 128 - "Nexora Platform Core Module Catalog"
+Cohesion: 0.40
+Nodes (5): Downstream product modules, Nexora Platform Core Module Catalog, Optional reusable capability packs, Ownership rules, Shared kernel and contracts
+
+### Community 129 - "update-own-profile.use-case.ts"
+Cohesion: 0.12
+Nodes (11): MEMBERSHIP_SESSION_REVOCATIONS_REPOSITORY, MembershipSessionRevocations, Inject, Injectable, AuthenticationSessionStateModule, Module, isWriteConflict(), readSafeErrorCode() (+3 more)
 
 ### Community 130 - "users.controller.ts"
 Cohesion: 0.12
 Nodes (13): UpdateOwnProfileRequest, updateOwnProfileSchema, ApiBody, ApiCookieAuth, ApiOkResponse, ApiOperation, ApiTags, Body (+5 more)
 
-### Community 131 - "Clock"
-Cohesion: 0.10
-Nodes (19): Inject, AuthorizationPolicy, Injectable, IdentityLookup, Inject, Injectable, Inject, CreatedMembershipInvitation (+11 more)
+### Community 131 - "memberships.module.ts"
+Cohesion: 0.08
+Nodes (25): AcceptMembershipInvitation, isUniqueConflict(), isWriteConflict(), readSafeErrorCode(), Injectable, CreatedMembershipInvitation, CreateMembershipInvitation, isUniqueConflict() (+17 more)
 
 ### Community 133 - "ADR-0012: Durable encrypted Core email outbox"
 Cohesion: 0.18
 Nodes (10): ADR-0012: Durable encrypted Core email outbox, Compatibility and schema impact, Context, Decision, Ownership and transaction boundaries, Reliability and observability, Residual risks and follow-up, Rollout and rollback (+2 more)
 
 ### Community 134 - "memberships.controller.ts"
-Cohesion: 0.09
-Nodes (23): ChangeMembershipRole, readSafeErrorCode(), Injectable, LeaveCurrentWorkspace, Injectable, ListWorkspaceMemberships, readSafeErrorCode(), Injectable (+15 more)
+Cohesion: 0.29
+Nodes (8): ChangeMembershipRoleRequest, changeMembershipRoleSchema, LeaveCurrentWorkspaceBody, leaveCurrentWorkspaceBodySchema, ListWorkspaceMembershipsRequest, listWorkspaceMembershipsSchema, TransferWorkspaceOwnershipRequest, transferWorkspaceOwnershipSchema
 
 ### Community 137 - "Tenant isolation matrices"
 Cohesion: 0.33
@@ -616,25 +633,17 @@ Nodes (9): Backup and restore drill, Deployment, Incident response, Objectives, 
 Cohesion: 0.25
 Nodes (7): configKeys, configSource, example, headings, missingHeadings, missingKeys, runbook
 
-### Community 144 - "SessionCache"
-Cohesion: 0.31
-Nodes (3): CachedSession, SessionCache, Injectable
-
 ### Community 148 - "PasswordResetTokensRepository"
-Cohesion: 0.09
-Nodes (8): RecordingResetTokensRepository, PasswordResetTokensRepository, activeUsers(), createRequestFixture(), createResetFixture(), fixedClock(), InMemoryResetTokens, sessionRepository()
+Cohesion: 0.11
+Nodes (3): RecordingResetTokensRepository, PasswordResetTokensRepository, InMemoryResetTokens
 
 ### Community 149 - "docs/README.md"
 Cohesion: 0.31
 Nodes (3): Core module catalog, Module guide checklist, Ownership rules
 
-### Community 153 - "MailPayloadProtector"
-Cohesion: 0.24
-Nodes (3): MailPayloadProtector, AesGcmMailPayloadProtector, Injectable
-
-### Community 154 - "WorkspaceSwitchRequestGuard"
+### Community 154 - "PasswordResetConfirmationGuard"
 Cohesion: 0.33
-Nodes (3): Inject, Injectable, WorkspaceSwitchRequestGuard
+Nodes (3): PasswordResetConfirmationGuard, Inject, Injectable
 
 ### Community 155 - "How to change a Core capability safely"
 Cohesion: 0.22
@@ -677,12 +686,8 @@ Cohesion: 0.29
 Nodes (7): Directory map, How modules communicate, Project tour, Request lifecycle, Run the project and references, The shortest useful reading path, Where to answer common questions
 
 ### Community 166 - ".execute"
-Cohesion: 0.27
-Nodes (3): CreateSession, readSafeErrorCode(), Injectable
-
-### Community 171 - "register"
-Cohesion: 0.47
-Nodes (6): confirmEmail(), readVerificationToken(), register(), registerUnverified(), registerWithPassword(), registrationBody()
+Cohesion: 0.18
+Nodes (5): isWriteConflict(), isWriteConflict(), readSafeErrorCode(), SwitchWorkspace, Injectable
 
 ### Community 172 - "OpenAPI reference workflow"
 Cohesion: 0.40
@@ -693,24 +698,24 @@ Cohesion: 0.50
 Nodes (3): hooks, PreToolUse, $schema
 
 ## Knowledge Gaps
-- **616 isolated node(s):** `$schema`, `PreToolUse`, `$schema`, `collection`, `sourceRoot` (+611 more)
+- **619 isolated node(s):** `$schema`, `PreToolUse`, `$schema`, `collection`, `sourceRoot` (+614 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **42 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `AppConfig` connect `AppConfig` to `authentication.module.ts`, `membership-ownership-transfer-request.guard.ts`, `Clock`, `memberships.controller.ts`, `GetCurrentSession`, `authentication.controller.ts`, `mail-outbox.ts`, `DatabaseContext`, `MailPayloadProtector`, `WorkspaceSwitchRequestGuard`, `OperationalTelemetry`, `AuthenticationRateLimitPort`, `request-password-reset.use-case.ts`, `membership-role.ts`, `dependency-health.service.ts`, `api-exception.filter.ts`, `SmtpOutboundMail`, `AuditLog`, `AuthenticatedRequestContext`, `memberships.module.ts`, `AuthenticatedRoute`, `registration.errors.ts`, `pwned-passwords-compromise-checker.ts`?**
-  _High betweenness centrality (0.028) - this node is a cross-community bridge._
-- **Why does `PublicRoute()` connect `PublicRoute` to `app.e2e-spec.ts`, `authentication.controller.ts`, `AuthenticatedRequestContext`, `dependency-health.service.ts`, `app.module.ts`, `AuthenticatedRoute`, `HealthController`, `OperationalTelemetry`?**
+- **Why does `AppConfig` connect `AppConfig` to `Clock`, `presentation/authenticated-request-context.ts`, `memberships.module.ts`, `memberships.controller.ts`, `membership-role.ts`, `password-reset.use-cases.spec.ts`, `authentication.controller.ts`, `generate-openapi.ts`, `register-account.use-case.spec.ts`, `route-admission.guard.spec.ts`, `mail-outbox.ts`, `ApplicationError`, `IdentifierFactory`, `authenticated-request-context.guard.ts`, `core-infrastructure.module.ts`, `pwned-passwords-compromise-checker.ts`?**
+  _High betweenness centrality (0.034) - this node is a cross-community bridge._
+- **Why does `PublicRoute()` connect `PublicRoute` to `AuthenticatedRoute`, `app.e2e-spec.ts`, `authentication.controller.ts`, `DependencyHealthService`, `route-admission.guard.spec.ts`, `core-infrastructure.module.ts`?**
   _High betweenness centrality (0.027) - this node is a cross-community bridge._
-- **Why does `TransactionManager` connect `TransactionManager` to `authentication.module.ts`, `IdentifierFactory`, `Clock`, `request-password-reset.use-case.ts`, `transfer-workspace-ownership.use-case.ts`, `registration.errors.ts`, `AuditLog`, `DatabaseContext`?**
-  _High betweenness centrality (0.021) - this node is a cross-community bridge._
+- **Why does `TransactionManager` connect `TransactionManager` to `Clock`, `update-own-profile.use-case.ts`, `memberships.module.ts`, `registration.errors.ts`, `ListWorkspaceMemberships`, `password-reset.use-cases.spec.ts`, `register-account.use-case.spec.ts`, `AuthorizationPolicy`, `ApplicationError`, `IdentifierFactory`, `DatabaseContext`, `switch-workspace.use-case.spec.ts`, `isTransactionWriteConflict`?**
+  _High betweenness centrality (0.020) - this node is a cross-community bridge._
 - **What connects `$schema`, `PreToolUse`, `$schema` to the rest of the system?**
-  _616 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `authentication.module.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.06988120195667366 - nodes in this community are weakly interconnected._
+  _619 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Should `Clock` be split into smaller, more focused modules?**
+  _Cohesion score 0.06944444444444445 - nodes in this community are weakly interconnected._
 - **Should `MembershipRole` be split into smaller, more focused modules?**
-  _Cohesion score 0.06060606060606061 - nodes in this community are weakly interconnected._
-- **Should `SessionRecord` be split into smaller, more focused modules?**
-  _Cohesion score 0.07142857142857142 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.06659619450317125 - nodes in this community are weakly interconnected._
+- **Should `prisma-authentication-sessions.repository.ts` be split into smaller, more focused modules?**
+  _Cohesion score 0.14166666666666666 - nodes in this community are weakly interconnected._

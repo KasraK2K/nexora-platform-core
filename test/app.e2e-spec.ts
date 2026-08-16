@@ -20,6 +20,7 @@ import {
   OUTBOUND_MAIL,
   type OutboundMail,
 } from '../src/core/mail/application/outbound-mail.port';
+import { PrismaMailOutboxRepository } from '../src/core/mail/infrastructure/prisma-mail-outbox.repository';
 import { MembershipInvitationRateLimiter } from '../src/core/memberships/infrastructure/membership-invitation-rate-limiter';
 import { MembershipOwnershipTransferRateLimiter } from '../src/core/memberships/infrastructure/membership-ownership-transfer-rate-limiter';
 import { PrismaMembershipInvitationsRepository } from '../src/core/memberships/infrastructure/prisma-membership-invitations.repository';
@@ -189,6 +190,7 @@ describe('Nexora API (e2e)', () => {
   let authenticationRateLimiter: AuthenticationRateLimiter;
   let membershipInvitationRateLimiter: MembershipInvitationRateLimiter;
   let membershipOwnershipTransferRateLimiter: MembershipOwnershipTransferRateLimiter;
+  let mailOutboxRepository: PrismaMailOutboxRepository;
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -214,6 +216,7 @@ describe('Nexora API (e2e)', () => {
     membershipOwnershipTransferRateLimiter = app.get(
       MembershipOwnershipTransferRateLimiter,
     );
+    mailOutboxRepository = app.get(PrismaMailOutboxRepository);
   });
 
   beforeEach(async () => {
@@ -654,6 +657,211 @@ describe('Nexora API (e2e)', () => {
       'delivery-failed@example.com',
     );
     expect(outbox.encryptedPayload).not.toContain('token=');
+  });
+
+  it('expires abandoned processing mail without stealing an active lease', async () => {
+    const workspaceId = await createMailOutboxWorkspace(prisma);
+    const now = new Date('2099-01-02T00:00:00.000Z');
+    const abandonedId = randomUUID();
+    const activeId = randomUUID();
+    const activeLease = new Date('2099-01-03T00:00:00.000Z');
+    await prisma.mailOutboxMessage.createMany({
+      data: [
+        processingMailMessage({
+          id: abandonedId,
+          workspaceId,
+          suffix: 'abandoned',
+          expiresAt: new Date('2099-01-01T00:00:00.000Z'),
+          lockedUntil: new Date('2099-01-01T23:59:00.000Z'),
+        }),
+        processingMailMessage({
+          id: activeId,
+          workspaceId,
+          suffix: 'active',
+          expiresAt: new Date('2099-01-01T00:00:00.000Z'),
+          lockedUntil: activeLease,
+        }),
+      ],
+    });
+
+    await expect(mailOutboxRepository.expireDue(now, 3)).resolves.toBe(1);
+    await expect(
+      prisma.mailOutboxMessage.findUniqueOrThrow({
+        where: { id: abandonedId },
+      }),
+    ).resolves.toMatchObject({
+      status: 'FAILED',
+      failedAt: now,
+      lockedUntil: null,
+      encryptedPayload: '',
+    });
+    await expect(
+      prisma.mailOutboxMessage.findUniqueOrThrow({ where: { id: activeId } }),
+    ).resolves.toMatchObject({
+      status: 'PROCESSING',
+      failedAt: null,
+      lockedUntil: activeLease,
+      encryptedPayload: 'encrypted-sensitive-payload',
+    });
+
+    const afterActiveLease = new Date('2099-01-04T00:00:00.000Z');
+    await expect(
+      mailOutboxRepository.expireDue(afterActiveLease, 3),
+    ).resolves.toBe(1);
+    await expect(
+      prisma.mailOutboxMessage.findUniqueOrThrow({ where: { id: activeId } }),
+    ).resolves.toMatchObject({
+      status: 'FAILED',
+      failedAt: afterActiveLease,
+      lockedUntil: null,
+      encryptedPayload: '',
+    });
+  });
+
+  it('renews a live mail lease and rejects every stale completion after reclaim', async () => {
+    const workspaceId = await createMailOutboxWorkspace(prisma);
+    const id = randomUUID();
+    const firstClaimAt = new Date('2099-01-02T00:00:00.000Z');
+    const firstLease = new Date('2099-01-02T00:01:00.000Z');
+    const renewalAt = new Date('2099-01-02T00:00:30.000Z');
+    const renewedLease = new Date('2099-01-02T00:03:00.000Z');
+    const blockedClaimAt = new Date('2099-01-02T00:02:00.000Z');
+    const secondClaimAt = new Date('2099-01-02T00:04:00.000Z');
+    const secondLease = new Date('2099-01-02T00:05:00.000Z');
+    await prisma.mailOutboxMessage.create({
+      data: {
+        id,
+        workspaceId,
+        purpose: 'EMAIL_VERIFICATION',
+        idempotencyKey: `EMAIL_VERIFICATION:${id}`,
+        messageId: `<${id}@mail.example.test>`,
+        encryptedPayload: 'encrypted-sensitive-payload',
+        correlationId: id,
+        expiresAt: new Date('2099-01-03T00:00:00.000Z'),
+        nextAttemptAt: firstClaimAt,
+      },
+    });
+
+    const firstClaim = await mailOutboxRepository.claim(
+      id,
+      firstClaimAt,
+      firstLease,
+      3,
+    );
+    if (!firstClaim)
+      throw new Error('Expected the first mail claim to succeed');
+    await expect(
+      mailOutboxRepository.renewLease({
+        id,
+        attemptCount: firstClaim.attemptCount,
+        now: renewalAt,
+        lockedUntil: renewedLease,
+      }),
+    ).resolves.toBe(true);
+    await expect(
+      mailOutboxRepository.claim(
+        id,
+        blockedClaimAt,
+        new Date('2099-01-02T00:02:30.000Z'),
+        3,
+      ),
+    ).resolves.toBeNull();
+    const secondClaim = await mailOutboxRepository.claim(
+      id,
+      secondClaimAt,
+      secondLease,
+      3,
+    );
+    if (!secondClaim) throw new Error('Expected the reclaimed mail to succeed');
+
+    expect(firstClaim.attemptCount).toBe(1);
+    expect(secondClaim.attemptCount).toBe(2);
+    await expect(
+      mailOutboxRepository.markSent({
+        id,
+        attemptCount: firstClaim.attemptCount,
+        sentAt: secondClaimAt,
+      }),
+    ).rejects.toThrow('Mail outbox state transition failed');
+    await expect(
+      mailOutboxRepository.markRetry({
+        id,
+        attemptCount: firstClaim.attemptCount,
+        attemptedAt: secondClaimAt,
+        nextAttemptAt: new Date('2099-01-02T00:04:00.000Z'),
+      }),
+    ).rejects.toThrow('Mail outbox state transition failed');
+    await expect(
+      mailOutboxRepository.markFailed({
+        id,
+        attemptCount: firstClaim.attemptCount,
+        failedAt: secondClaimAt,
+      }),
+    ).rejects.toThrow('Mail outbox state transition failed');
+
+    await expect(
+      prisma.mailOutboxMessage.findUniqueOrThrow({ where: { id } }),
+    ).resolves.toMatchObject({
+      status: 'PROCESSING',
+      attemptCount: secondClaim.attemptCount,
+      lastAttemptAt: secondClaimAt,
+      lockedUntil: secondLease,
+      sentAt: null,
+      failedAt: null,
+      encryptedPayload: 'encrypted-sensitive-payload',
+    });
+
+    await mailOutboxRepository.markSent({
+      id,
+      attemptCount: secondClaim.attemptCount,
+      sentAt: secondClaimAt,
+    });
+    await expect(
+      prisma.mailOutboxMessage.findUniqueOrThrow({ where: { id } }),
+    ).resolves.toMatchObject({
+      status: 'SENT',
+      sentAt: secondClaimAt,
+      lockedUntil: null,
+      encryptedPayload: '',
+    });
+  });
+
+  it('terminally erases an exhausted abandoned mail attempt', async () => {
+    const workspaceId = await createMailOutboxWorkspace(prisma);
+    const id = randomUUID();
+    const now = new Date('2099-01-02T00:00:00.000Z');
+    await prisma.mailOutboxMessage.create({
+      data: processingMailMessage({
+        id,
+        workspaceId,
+        suffix: 'attempts-exhausted',
+        attemptCount: 3,
+        expiresAt: new Date('2099-02-01T00:00:00.000Z'),
+        lockedUntil: new Date('2099-01-01T23:59:00.000Z'),
+      }),
+    });
+
+    await expect(
+      mailOutboxRepository.findDueIds(now, 10, 3),
+    ).resolves.not.toContain(id);
+    await expect(
+      mailOutboxRepository.claim(
+        id,
+        now,
+        new Date('2099-01-02T00:01:00.000Z'),
+        3,
+      ),
+    ).resolves.toBeNull();
+    await expect(mailOutboxRepository.expireDue(now, 3)).resolves.toBe(1);
+    await expect(
+      prisma.mailOutboxMessage.findUniqueOrThrow({ where: { id } }),
+    ).resolves.toMatchObject({
+      status: 'FAILED',
+      attemptCount: 3,
+      failedAt: now,
+      lockedUntil: null,
+      encryptedPayload: '',
+    });
   });
 
   it('resets a password, revokes every session, and accepts only the replacement password', async () => {
@@ -4379,6 +4587,67 @@ async function clearRegistrationData(prisma: PrismaService): Promise<void> {
   await prisma.user.deleteMany();
   await prisma.passwordCredential.deleteMany();
   await prisma.identity.deleteMany();
+}
+
+async function createMailOutboxWorkspace(
+  prisma: PrismaService,
+): Promise<string> {
+  const identityId = randomUUID();
+  const userId = randomUUID();
+  const organizationId = randomUUID();
+  const workspaceId = randomUUID();
+  await prisma.identity.create({
+    data: {
+      id: identityId,
+      normalizedEmail: `mail-outbox-${identityId}@example.test`,
+    },
+  });
+  await prisma.user.create({
+    data: {
+      id: userId,
+      identityId,
+      displayName: 'Mail outbox repository test',
+    },
+  });
+  await prisma.organization.create({
+    data: {
+      id: organizationId,
+      ownerUserId: userId,
+      name: 'Mail outbox repository test',
+    },
+  });
+  await prisma.workspace.create({
+    data: {
+      id: workspaceId,
+      organizationId,
+      name: 'Mail outbox repository test',
+    },
+  });
+  return workspaceId;
+}
+
+function processingMailMessage(input: {
+  id: string;
+  workspaceId: string;
+  suffix: string;
+  attemptCount?: number;
+  expiresAt: Date;
+  lockedUntil: Date;
+}) {
+  return {
+    id: input.id,
+    workspaceId: input.workspaceId,
+    purpose: 'EMAIL_VERIFICATION' as const,
+    idempotencyKey: `EMAIL_VERIFICATION:${input.id}`,
+    messageId: `<${input.id}@mail.example.test>`,
+    encryptedPayload: 'encrypted-sensitive-payload',
+    correlationId: input.suffix,
+    status: 'PROCESSING' as const,
+    attemptCount: input.attemptCount ?? 1,
+    lastAttemptAt: new Date('2099-01-01T23:58:00.000Z'),
+    expiresAt: input.expiresAt,
+    lockedUntil: input.lockedUntil,
+  };
 }
 
 async function createWorkspaceMembership(

@@ -27,9 +27,9 @@ the repository before assuming a module or table exists.
 ### Authentication
 
 - Owns registration, verification/reset, login/logout, and opaque sessions:
-  `sessions`, future `verification_tokens`, and `password_reset_tokens`.
-- Depends on public Identity, Users, Memberships, Redis cache, and future email
-  contracts.
+  `sessions`, `email_verifications`, and `password_reset_tokens`.
+- Depends on public Identity, Users, Memberships, the Mail `MailOutbox`
+  application contract, and Redis cache.
 - Controls secure cookies, rotation, revocation, origin checks, throttling,
   timing-safe failures, and hashed tokens.
 
@@ -56,7 +56,7 @@ only through a separately reviewed contract change.
 
 ### Memberships
 
-- Owns `memberships` and future `membership_invites`.
+- Owns `memberships` and `membership_invitations`.
 - Controls hashed invitation tokens, expiry, duplicate prevention,
   cross-tenant denial, and last-owner protection.
 
@@ -72,6 +72,17 @@ only through a separately reviewed contract change.
 - Owns `audit_logs` and records stable actor/action/resource facts.
 - Controls append-oriented behavior, redaction, retention, correlation, and
   privileged-action coverage.
+
+### Mail
+
+- Owns `mail_outbox_messages` and the provider-neutral `MailOutbox` application
+  contract for durable Core email handoff.
+- Controls encrypted recipient/subject/body persistence, idempotent enqueue,
+  compare-and-set leases and recovery, bounded retry, terminal payload erasure,
+  and the SMTP adapter boundary.
+- Authentication and Memberships consume this contract; Mail does not query
+  their tables or own verification, reset, or invitation validity. This narrow
+  email foundation is not a generic jobs or notifications framework.
 
 ### Configuration and persistence
 
@@ -89,12 +100,13 @@ These are not automatic Core scope.
 - Credits and usage: integer-micro accounts, append-only transactions,
   reservations, normalized usage, idempotent state transitions, concurrency,
   and reconciliation.
-- Jobs and outbox: durable job/attempt state, committed-event delivery, minimal
-  payloads, deduplication, bounded retry, cancellation, and audited replay.
+- Generic jobs and cross-capability outbox infrastructure: future durable
+  job/attempt state, committed-event delivery, minimal payloads, deduplication,
+  bounded retry, cancellation, and audited replay.
 - Files: reusable metadata, versions, private tenant storage, signed URLs,
   checksum/MIME validation, quarantine, and cleanup.
-- Notifications: reusable delivery state, provider adapters, template
-  allow-lists, idempotent send, and unsubscribe handling.
+- Generic notifications: future reusable delivery state, provider adapters,
+  template allow-lists, idempotent send, and unsubscribe handling.
 - Feature flags, API keys, and webhooks: deterministic audited flags; show-once
   hashed scoped keys; HMAC webhooks with replay and SSRF defenses.
 - External capability gateways: provider-neutral contracts may be promoted only

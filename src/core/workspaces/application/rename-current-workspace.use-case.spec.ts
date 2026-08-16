@@ -150,7 +150,6 @@ function createFixture(
     find: () =>
       Promise.resolve({ userId: USER_ID, workspaceId: WORKSPACE_ID, role }),
     listForUser: () => Promise.resolve([]),
-    resolveLoginWorkspace: () => Promise.resolve({ kind: 'none' }),
   });
   const useCase = new RenameCurrentWorkspace(
     workspaces,

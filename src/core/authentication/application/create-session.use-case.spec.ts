@@ -238,12 +238,6 @@ function createFixture(options?: { memberships?: MembershipSummary[] }): {
         ) ?? null,
       ),
     listForUser: () => Promise.resolve(membershipRecords),
-    resolveLoginWorkspace: () =>
-      Promise.resolve(
-        membershipRecords.length === 1
-          ? { kind: 'selected' as const, membership: membershipRecords[0] }
-          : { kind: 'ambiguous' },
-      ),
   });
   const workspaces = new Workspaces({
     create: () => Promise.resolve(),

@@ -26,15 +26,32 @@ Use `$nexora-platform-engineering` for architecture-sensitive planning, implemen
 - Use pnpm and preserve `pnpm-lock.yaml`.
 - Build: `pnpm run build`
 - Deprecated API audit: `pnpm run check:deprecated`
+- Operations documentation check: `pnpm run check:operations`
+- Production-readiness check: `pnpm run check:production`
+- Format and rewrite: `pnpm run format`
+- Formatting check: `pnpm run format:check`
 - Lint and autofix: `pnpm run lint`
+- Lint check: `pnpm run lint:check`
+- Type check: `pnpm run typecheck`
 - Unit tests: `pnpm run test --runInBand`
+- Architecture tests: `pnpm run test:architecture`
 - End-to-end tests: `pnpm run test:e2e`
 - Coverage: `pnpm run test:cov`
+- Generate OpenAPI contract: `pnpm run contract:generate`
+- Check OpenAPI contract drift: `pnpm run contract:check`
+- Documentation check: `pnpm run docs:check`
 - Development server: `pnpm run start:dev`
 
-The lint script mutates files. Run it before the final diff review. Do not claim commands such as `typecheck`, `test:integration`, `openapi:check`, or migration checks exist until they are added to `package.json` and verified.
+The `lint` and `format` scripts mutate files. Run them before the final diff
+review when autofix or formatting is intended; use `lint:check` and
+`format:check` for non-mutating verification. Do not claim commands such as
+`test:integration`, `openapi:check`, or migration checks exist until they are
+added to `package.json` and verified.
 
-The current project uses Jest/ts-jest and does not enable full TypeScript strictness. Any test-runner or strictness migration must be an explicit, verified foundation change.
+The current project uses Jest/ts-jest and enables TypeScript `strict` mode.
+`exactOptionalPropertyTypes` and `noUncheckedIndexedAccess` remain deferred by
+ADR-0010. Any test-runner migration or stricter follow-up must be an explicit,
+verified foundation change.
 
 ## Dependency and API compatibility
 
@@ -47,7 +64,7 @@ The current project uses Jest/ts-jest and does not enable full TypeScript strict
 ## Development database workflow
 
 - Until the user explicitly states that the platform has moved to production, treat schema work as development-only.
-- Change `prisma/schema.prisma` directly and synchronize the development database with `pnpm exec prisma db push`; regenerate the Prisma client when required.
+- Change `prisma/schema.prisma` directly and synchronize the development database with the guarded `pnpm run db:push`; use the guarded `pnpm run db:push:test` only for the isolated test database, and regenerate the Prisma client with `pnpm run db:generate` when required.
 - Do not create migration directories or run migration-generating commands such as `prisma migrate dev` or `pnpm run db:migrate`.
 - Keep development migration history absent. The Prisma schema is the source of truth until the production transition.
 - Before synchronization that requires a reset or may lose data, stop and report the impact instead of accepting data loss.

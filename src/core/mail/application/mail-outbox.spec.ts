@@ -25,6 +25,10 @@ describe('MailOutbox delivery policy', () => {
       ],
     ]);
     expect(fixture.repository.markSent.mock.calls).toHaveLength(1);
+    const [sent] = fixture.repository.markSent.mock.calls[0];
+    expect(sent.id).toBe('delivery-id');
+    expect(sent.attemptCount).toBe(1);
+    expect(sent.sentAt).toBeInstanceOf(Date);
   });
 
   it('schedules a bounded exponential retry for a transient failure', async () => {
@@ -33,9 +37,11 @@ describe('MailOutbox delivery policy', () => {
     await expect(fixture.outbox.deliverNow('delivery-id')).resolves.toBe(false);
 
     expect(fixture.repository.markRetry.mock.calls).toHaveLength(1);
-    const [, attemptedAt, nextAttemptAt] =
-      fixture.repository.markRetry.mock.calls[0];
-    expect(nextAttemptAt.getTime() - attemptedAt.getTime()).toBe(2_000);
+    const [retry] = fixture.repository.markRetry.mock.calls[0];
+    expect(retry).toMatchObject({ id: 'delivery-id', attemptCount: 2 });
+    expect(retry.nextAttemptAt.getTime() - retry.attemptedAt.getTime()).toBe(
+      2_000,
+    );
     expect(fixture.repository.markFailed.mock.calls).toHaveLength(0);
   });
 
@@ -45,6 +51,10 @@ describe('MailOutbox delivery policy', () => {
     await expect(fixture.outbox.deliverNow('delivery-id')).resolves.toBe(false);
 
     expect(fixture.repository.markFailed.mock.calls).toHaveLength(1);
+    const [failed] = fixture.repository.markFailed.mock.calls[0];
+    expect(failed.id).toBe('delivery-id');
+    expect(failed.attemptCount).toBe(3);
+    expect(failed.failedAt).toBeInstanceOf(Date);
     expect(fixture.repository.markRetry.mock.calls).toHaveLength(0);
   });
 
@@ -55,11 +65,100 @@ describe('MailOutbox delivery policy', () => {
     expect(fixture.outboundMail.send.mock.calls).toHaveLength(0);
   });
 
+  it('renews its fenced lease while provider delivery is still pending', async () => {
+    jest.useFakeTimers();
+    try {
+      const fixture = createFixture({ deferredSend: true, claimTtlMs: 300 });
+      const delivery = fixture.outbox.deliverNow('delivery-id');
+
+      await jest.advanceTimersByTimeAsync(701);
+      const renewalCount = fixture.repository.renewLease.mock.calls.length;
+      fixture.releaseSend();
+
+      await expect(delivery).resolves.toBe(true);
+      expect(renewalCount).toBeGreaterThanOrEqual(3);
+      expect(fixture.repository.markSent.mock.calls).toHaveLength(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('never renews a provider lease past message expiry', async () => {
+    jest.useFakeTimers();
+    try {
+      const fixture = createFixture({
+        deferredSend: true,
+        claimTtlMs: 300,
+        expiresInMs: 150,
+      });
+      const delivery = fixture.outbox.deliverNow('delivery-id');
+
+      await jest.advanceTimersByTimeAsync(101);
+      const [lastRenewal] =
+        fixture.repository.renewLease.mock.calls.at(-1) ?? [];
+      fixture.releaseSend();
+
+      if (!lastRenewal) throw new Error('Expected a lease renewal');
+      expect(lastRenewal.lockedUntil).toEqual(fixture.claimedExpiresAt);
+      await expect(delivery).resolves.toBe(true);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('abandons completion when its lease heartbeat loses ownership', async () => {
+    jest.useFakeTimers();
+    try {
+      const fixture = createFixture({
+        deferredSend: true,
+        claimTtlMs: 300,
+        renewLeaseSucceeds: false,
+      });
+      const delivery = fixture.outbox.deliverNow('delivery-id');
+
+      await jest.advanceTimersByTimeAsync(101);
+      fixture.releaseSend();
+
+      await expect(delivery).resolves.toBe(false);
+      expect(fixture.repository.markSent.mock.calls).toHaveLength(0);
+      expect(fixture.repository.markRetry.mock.calls).toHaveLength(0);
+      expect(fixture.repository.markFailed.mock.calls).toHaveLength(0);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('abandons completion after its last known lease deadline', async () => {
+    jest.useFakeTimers();
+    try {
+      const fixture = createFixture({ deferredSend: true, claimTtlMs: 300 });
+      const delivery = fixture.outbox.deliverNow('delivery-id');
+      await jest.advanceTimersByTimeAsync(0);
+
+      jest.setSystemTime(Date.now() + 301);
+      fixture.releaseSend();
+
+      await expect(delivery).resolves.toBe(false);
+      expect(fixture.repository.renewLease.mock.calls).toHaveLength(0);
+      expect(fixture.repository.markSent.mock.calls).toHaveLength(0);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   function createFixture(options: {
     claimed?: boolean;
     attemptCount?: number;
     sendFails?: boolean;
+    deferredSend?: boolean;
+    claimTtlMs?: number;
+    expiresInMs?: number;
+    renewLeaseSucceeds?: boolean;
   }) {
+    const claimTtlMs = options.claimTtlMs ?? 5_000;
+    const claimedExpiresAt = new Date(
+      Date.now() + (options.expiresInMs ?? 60_000),
+    );
     const repository: jest.Mocked<MailOutboxRepository> = {
       create: jest.fn(),
       findDueIds: jest.fn().mockResolvedValue([]),
@@ -72,9 +171,13 @@ describe('MailOutbox delivery policy', () => {
               messageId: '<delivery-id@mail.example.com>',
               correlationId: 'correlation-id',
               attemptCount: options.attemptCount ?? 1,
-              expiresAt: new Date(Date.now() + 60_000),
+              lockedUntil: new Date(Date.now() + claimTtlMs),
+              expiresAt: claimedExpiresAt,
             },
       ),
+      renewLease: jest
+        .fn()
+        .mockResolvedValue(options.renewLeaseSucceeds !== false),
       markSent: jest.fn(),
       markRetry: jest.fn(),
       markFailed: jest.fn(),
@@ -84,10 +187,18 @@ describe('MailOutbox delivery policy', () => {
       protect: (_id, plaintext) => plaintext,
       unprotect: () => payload,
     };
+    let resolveSend: (() => void) | undefined;
     const outboundMail = {
-      send: options.sendFails
-        ? jest.fn().mockRejectedValue(new Error('provider secret'))
-        : jest.fn().mockResolvedValue(undefined),
+      send: options.deferredSend
+        ? jest.fn(
+            () =>
+              new Promise<void>((resolve) => {
+                resolveSend = resolve;
+              }),
+          )
+        : options.sendFails
+          ? jest.fn().mockRejectedValue(new Error('provider secret'))
+          : jest.fn().mockResolvedValue(undefined),
     };
     const telemetry = { recordMailDelivery: jest.fn() };
     return {
@@ -99,13 +210,18 @@ describe('MailOutbox delivery policy', () => {
         outboundMail,
         {
           emailMessageIdDomain: 'mail.example.com',
-          mailClaimTtlMs: 5_000,
+          mailClaimTtlMs: claimTtlMs,
           mailMaxAttempts: 3,
           mailRetryBaseMs: 1_000,
           mailRetryMaxMs: 5_000,
         } as never,
         telemetry as never,
       ),
+      releaseSend: () => {
+        if (!resolveSend) throw new Error('Deferred send has not started');
+        resolveSend();
+      },
+      claimedExpiresAt,
     };
   }
 });

@@ -231,7 +231,6 @@ function createFixture(): {
         ) ?? null,
       ),
     listForUser: () => Promise.resolve(membershipRecords),
-    resolveLoginWorkspace: () => Promise.resolve({ kind: 'ambiguous' }),
   });
   const workspaces = new Workspaces({
     create: () => Promise.resolve(),
