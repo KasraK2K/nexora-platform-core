@@ -122,55 +122,58 @@ export class CreateSession {
   private async authenticateAndResolveContext(
     command: CreateSessionCommand,
   ): Promise<Omit<CreatedSession, 'sessionToken' | 'sessionExpiresAt'>> {
+    let failure: unknown;
     try {
-      const identity = await this.passwordIdentities.authenticate({
-        email: command.email,
-        password: command.password,
-      });
-      if (!identity) {
-        throw new AuthenticationInvalidError();
-      }
-
-      const user = await this.users.findActiveByIdentityId(identity.identityId);
-      if (!user) {
-        throw new AuthenticationInvalidError();
-      }
-
-      const selected = command.workspaceId
-        ? await this.accessibleWorkspaces.findForUser({
-            userId: user.id,
-            workspaceId: command.workspaceId,
-          })
-        : undefined;
-      const availableWorkspaces = command.workspaceId
-        ? []
-        : await this.accessibleWorkspaces.listForUser(user.id);
-      const resolved =
-        selected ??
-        (availableWorkspaces.length === 1 ? availableWorkspaces[0] : undefined);
-      if (!command.workspaceId && availableWorkspaces.length > 1) {
-        throw new WorkspaceSelectionRequiredError(availableWorkspaces);
-      }
-      if (!resolved) {
-        throw new AuthenticationInvalidError();
-      }
-
-      return {
-        user,
-        organization: resolved.organization,
-        workspace: resolved.workspace,
-        membership: resolved.membership,
-      };
+      return await this.resolveAuthenticatedContext(command);
     } catch (error) {
-      if (
-        error instanceof AuthenticationInvalidError ||
-        error instanceof WorkspaceSelectionRequiredError
-      ) {
-        throw error;
-      }
-      this.logFailure('authentication.credential_check_failed', error);
-      throw new AuthenticationUnavailableError();
+      failure = error;
     }
+    if (
+      failure instanceof AuthenticationInvalidError ||
+      failure instanceof WorkspaceSelectionRequiredError
+    ) {
+      throw failure;
+    }
+    this.logFailure('authentication.credential_check_failed', failure);
+    throw new AuthenticationUnavailableError();
+  }
+
+  /** Performs credential and workspace decisions before adapter failures are mapped. */
+  private async resolveAuthenticatedContext(
+    command: CreateSessionCommand,
+  ): Promise<Omit<CreatedSession, 'sessionToken' | 'sessionExpiresAt'>> {
+    const identity = await this.passwordIdentities.authenticate({
+      email: command.email,
+      password: command.password,
+    });
+    if (!identity) throw new AuthenticationInvalidError();
+
+    const user = await this.users.findActiveByIdentityId(identity.identityId);
+    if (!user) throw new AuthenticationInvalidError();
+
+    const selected = command.workspaceId
+      ? await this.accessibleWorkspaces.findForUser({
+          userId: user.id,
+          workspaceId: command.workspaceId,
+        })
+      : undefined;
+    const availableWorkspaces = command.workspaceId
+      ? []
+      : await this.accessibleWorkspaces.listForUser(user.id);
+    const resolved =
+      selected ??
+      (availableWorkspaces.length === 1 ? availableWorkspaces[0] : undefined);
+    if (!command.workspaceId && availableWorkspaces.length > 1) {
+      throw new WorkspaceSelectionRequiredError(availableWorkspaces);
+    }
+    if (!resolved) throw new AuthenticationInvalidError();
+
+    return {
+      user,
+      organization: resolved.organization,
+      workspace: resolved.workspace,
+      membership: resolved.membership,
+    };
   }
 
   /** Emits only safe error classification; credentials and provider details stay out of logs. */

@@ -48,7 +48,7 @@ const approvalSchema = z.strictObject({
   privacyOwner: z.string().min(1),
 });
 
-try {
+function verifyProductionReadiness(): void {
   if (process.env.NODE_ENV !== 'production') {
     throw new Error('NODE_ENV must be production.');
   }
@@ -62,6 +62,10 @@ try {
   process.stdout.write(
     'Production runtime configuration and operator approval are valid.\n',
   );
+}
+
+try {
+  verifyProductionReadiness();
 } catch (error) {
   const issues =
     error instanceof z.ZodError

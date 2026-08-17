@@ -307,7 +307,10 @@ function createFixture(
     sessionRevocations,
     audits,
     auditLog: new AuditLog({
-      append: (audit) => (audits.push(audit), Promise.resolve()),
+      append: (audit) => {
+        audits.push(audit);
+        return Promise.resolve();
+      },
     }),
   };
 }

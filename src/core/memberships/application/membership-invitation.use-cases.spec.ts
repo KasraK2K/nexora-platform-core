@@ -192,7 +192,10 @@ function createIssueFixture(
       users,
       new AuthorizationPolicy(),
       new AuditLog({
-        append: (audit) => (audits.push(audit), Promise.resolve()),
+        append: (audit) => {
+          audits.push(audit);
+          return Promise.resolve();
+        },
       }),
       {
         enqueue: delivery,
@@ -255,7 +258,10 @@ function createAcceptanceFixture(
       workspaceId: string;
       userId: string;
       role: Exclude<MembershipRole, 'OWNER'>;
-    }) => (createdMemberships.push(input), Promise.resolve()),
+    }) => {
+      createdMemberships.push(input);
+      return Promise.resolve();
+    },
     find: ({ userId }: { workspaceId: string; userId: string }) =>
       Promise.resolve(
         userId === INVITER_ID
@@ -300,7 +306,10 @@ function createAcceptanceFixture(
       identities,
       new AuthorizationPolicy(),
       new AuditLog({
-        append: (audit) => (audits.push(audit), Promise.resolve()),
+        append: (audit) => {
+          audits.push(audit);
+          return Promise.resolve();
+        },
       }),
       tokenService,
       new IdentifierFactory(),

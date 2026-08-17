@@ -30,31 +30,26 @@ export class WorkspaceSwitchRequestGuard implements CanActivate {
     const request = http.getRequest<Request>();
     const response = http.getResponse<Response>();
 
+    let decision;
     try {
-      const decision = await this.rateLimiter.checkWorkspaceSwitch(
+      decision = await this.rateLimiter.checkWorkspaceSwitch(
         request.ip || request.socket.remoteAddress || 'unknown',
         readCookie(request.header('cookie'), this.config.sessionCookieName),
       );
-      if (!decision.allowed) {
-        response.setHeader(
-          'retry-after',
-          decision.retryAfterSeconds.toString(),
-        );
-        throw new HttpException(
-          {
-            code: 'WORKSPACE_SWITCH_RATE_LIMITED',
-            message: 'Too many workspace switch attempts.',
-            retryable: true,
-          },
-          HttpStatus.TOO_MANY_REQUESTS,
-        );
-      }
-      return true;
-    } catch (error) {
-      if (error instanceof HttpException) {
-        throw error;
-      }
+    } catch {
       throw new WorkspaceSwitchUnavailableError();
     }
+    if (!decision.allowed) {
+      response.setHeader('retry-after', decision.retryAfterSeconds.toString());
+      throw new HttpException(
+        {
+          code: 'WORKSPACE_SWITCH_RATE_LIMITED',
+          message: 'Too many workspace switch attempts.',
+          retryable: true,
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+    return true;
   }
 }

@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Module } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { verify } from 'argon2';
 import { randomUUID } from 'node:crypto';
@@ -148,6 +148,9 @@ class RouteAdmissionProbeController {
   }
 }
 
+@Module({ controllers: [RouteAdmissionProbeController] })
+class RouteAdmissionProbeModule {}
+
 class UnsafeDetailsError extends ApplicationError {
   readonly code = 'UNSAFE_DETAILS_TEST';
   readonly retryable = false;
@@ -194,8 +197,7 @@ describe('Nexora API (e2e)', () => {
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-      controllers: [RouteAdmissionProbeController],
+      imports: [AppModule, RouteAdmissionProbeModule],
     })
       .overrideProvider(OUTBOUND_MAIL)
       .useValue(recordingOutboundMail)

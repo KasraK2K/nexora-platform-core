@@ -135,7 +135,9 @@ export class MailOutbox {
         );
         return false;
       }
-      if (!delivered) throw deliveryError;
+      if (!delivered) {
+        return this.recordDeliveryFailure(claimed, deliveryError);
+      }
       await this.repository.markSent({
         id: claimed.id,
         attemptCount: claimed.attemptCount,
@@ -144,53 +146,61 @@ export class MailOutbox {
       this.telemetry.recordMailDelivery('sent');
       return true;
     } catch (error) {
-      const attemptedAt = new Date();
-      try {
-        if (
-          claimed.attemptCount >= this.config.mailMaxAttempts ||
-          claimed.expiresAt <= attemptedAt
-        ) {
-          await this.repository.markFailed({
-            id: claimed.id,
-            attemptCount: claimed.attemptCount,
-            failedAt: attemptedAt,
-          });
-          this.telemetry.recordMailDelivery('failed');
-        } else {
-          const delay = Math.min(
-            this.config.mailRetryMaxMs,
-            this.config.mailRetryBaseMs * 2 ** (claimed.attemptCount - 1),
-          );
-          await this.repository.markRetry({
-            id: claimed.id,
-            attemptCount: claimed.attemptCount,
-            attemptedAt,
-            nextAttemptAt: new Date(attemptedAt.getTime() + delay),
-          });
-          this.telemetry.recordMailDelivery('retry');
-        }
-      } catch (stateError) {
-        this.logger.error(
-          JSON.stringify({
-            event: 'mail.delivery_state_update_failed',
-            deliveryId: claimed.id,
-            correlationId: claimed.correlationId,
-            errorType:
-              stateError instanceof Error ? stateError.name : 'UnknownError',
-          }),
+      return this.recordDeliveryFailure(claimed, error);
+    }
+  }
+
+  /** Records retry or terminal state for a failed claimed delivery attempt. */
+  private async recordDeliveryFailure(
+    claimed: ClaimedMail,
+    error: unknown,
+  ): Promise<false> {
+    const attemptedAt = new Date();
+    try {
+      if (
+        claimed.attemptCount >= this.config.mailMaxAttempts ||
+        claimed.expiresAt <= attemptedAt
+      ) {
+        await this.repository.markFailed({
+          id: claimed.id,
+          attemptCount: claimed.attemptCount,
+          failedAt: attemptedAt,
+        });
+        this.telemetry.recordMailDelivery('failed');
+      } else {
+        const delay = Math.min(
+          this.config.mailRetryMaxMs,
+          this.config.mailRetryBaseMs * 2 ** (claimed.attemptCount - 1),
         );
+        await this.repository.markRetry({
+          id: claimed.id,
+          attemptCount: claimed.attemptCount,
+          attemptedAt,
+          nextAttemptAt: new Date(attemptedAt.getTime() + delay),
+        });
+        this.telemetry.recordMailDelivery('retry');
       }
-      this.logger.warn(
+    } catch (stateError) {
+      this.logger.error(
         JSON.stringify({
-          event: 'mail.delivery_attempt_failed',
+          event: 'mail.delivery_state_update_failed',
           deliveryId: claimed.id,
           correlationId: claimed.correlationId,
-          attempt: claimed.attemptCount,
-          errorType: error instanceof Error ? error.name : 'UnknownError',
+          errorType:
+            stateError instanceof Error ? stateError.name : 'UnknownError',
         }),
       );
-      return false;
     }
+    this.logger.warn(
+      JSON.stringify({
+        event: 'mail.delivery_attempt_failed',
+        deliveryId: claimed.id,
+        correlationId: claimed.correlationId,
+        attempt: claimed.attemptCount,
+        errorType: error instanceof Error ? error.name : 'UnknownError',
+      }),
+    );
+    return false;
   }
 
   /** Expires old messages and attempts a bounded, sequential batch of due IDs. */

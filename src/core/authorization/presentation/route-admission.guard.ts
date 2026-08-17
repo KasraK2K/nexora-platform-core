@@ -61,7 +61,7 @@ export class RouteAdmissionGuard implements CanActivate {
     }
 
     if (policy.requireTrustedOrigin) {
-      const originAllowed = await Promise.resolve(
+      const originAllowed = await readGuardDecision(
         this.trustedOrigin.canActivate(context),
       );
       if (!originAllowed) {
@@ -108,6 +108,13 @@ export class RouteAdmissionGuard implements CanActivate {
 
     return true;
   }
+}
+
+/** Preserves Nest's synchronous-or-asynchronous guard contract for composed guards. */
+async function readGuardDecision(
+  decision: boolean | Promise<boolean>,
+): Promise<boolean> {
+  return decision;
 }
 
 /** Strictly validates untrusted reflection metadata before admission uses it. */

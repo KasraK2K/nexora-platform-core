@@ -25,7 +25,7 @@ sequenceDiagram
     Guard->>Controller: Normalized request
     Controller->>UseCase: RegisterAccountCommand
     UseCase->>Security: Validate and screen password
-    UseCase->>Security: Hash password; create raw/hash token pairs
+    UseCase->>Security: Hash password and create raw and hashed token pairs
     UseCase->>Tx: Execute serializable transaction
     Tx->>Core: Create Identity and PasswordCredential
     Tx->>Core: Create User, Organization, Workspace, OWNER Membership

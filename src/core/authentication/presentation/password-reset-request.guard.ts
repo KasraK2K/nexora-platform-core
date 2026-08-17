@@ -27,31 +27,26 @@ export class PasswordResetRequestGuard implements CanActivate {
     const http = context.switchToHttp();
     const request = http.getRequest<Request>();
     const response = http.getResponse<Response>();
+    let decision;
     try {
-      const decision = await this.rateLimiter.checkPasswordResetRequest(
+      decision = await this.rateLimiter.checkPasswordResetRequest(
         request.ip || request.socket.remoteAddress || 'unknown',
         readNormalizedEmail(request.body),
       );
-      if (!decision.allowed) {
-        response.setHeader(
-          'retry-after',
-          decision.retryAfterSeconds.toString(),
-        );
-        throw new HttpException(
-          {
-            code: 'PASSWORD_RESET_RATE_LIMITED',
-            message: 'Too many password reset attempts.',
-            retryable: true,
-          },
-          HttpStatus.TOO_MANY_REQUESTS,
-        );
-      }
-      return true;
-    } catch (error) {
-      if (error instanceof HttpException) {
-        throw error;
-      }
+    } catch {
       throw new PasswordResetUnavailableError();
     }
+    if (!decision.allowed) {
+      response.setHeader('retry-after', decision.retryAfterSeconds.toString());
+      throw new HttpException(
+        {
+          code: 'PASSWORD_RESET_RATE_LIMITED',
+          message: 'Too many password reset attempts.',
+          retryable: true,
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+    return true;
   }
 }

@@ -30,31 +30,26 @@ export class PasswordChangeRequestGuard implements CanActivate {
     const request = http.getRequest<Request>();
     const response = http.getResponse<Response>();
 
+    let decision;
     try {
-      const decision = await this.rateLimiter.checkPasswordChange(
+      decision = await this.rateLimiter.checkPasswordChange(
         request.ip || request.socket.remoteAddress || 'unknown',
         readCookie(request.header('cookie'), this.config.sessionCookieName),
       );
-      if (!decision.allowed) {
-        response.setHeader(
-          'retry-after',
-          decision.retryAfterSeconds.toString(),
-        );
-        throw new HttpException(
-          {
-            code: 'PASSWORD_CHANGE_RATE_LIMITED',
-            message: 'Too many password change attempts.',
-            retryable: true,
-          },
-          HttpStatus.TOO_MANY_REQUESTS,
-        );
-      }
-      return true;
-    } catch (error) {
-      if (error instanceof HttpException) {
-        throw error;
-      }
+    } catch {
       throw new PasswordChangeUnavailableError();
     }
+    if (!decision.allowed) {
+      response.setHeader('retry-after', decision.retryAfterSeconds.toString());
+      throw new HttpException(
+        {
+          code: 'PASSWORD_CHANGE_RATE_LIMITED',
+          message: 'Too many password change attempts.',
+          retryable: true,
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+    return true;
   }
 }

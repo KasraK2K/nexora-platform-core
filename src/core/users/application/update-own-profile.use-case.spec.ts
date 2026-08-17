@@ -24,7 +24,10 @@ describe('UpdateOwnProfile', () => {
       users(updateDisplayName),
       sessionAuthority(true),
       new AuditLog({
-        append: (audit) => (audits.push(audit), Promise.resolve()),
+        append: (audit) => {
+          audits.push(audit);
+          return Promise.resolve();
+        },
       }),
       new IdentifierFactory(),
       fixedClock(),
@@ -83,7 +86,10 @@ describe('UpdateOwnProfile', () => {
       users(updateDisplayName),
       sessionAuthority(true),
       new AuditLog({
-        append: (audit) => (audits.push(audit), Promise.resolve()),
+        append: (audit) => {
+          audits.push(audit);
+          return Promise.resolve();
+        },
       }),
       new IdentifierFactory(),
       fixedClock(),

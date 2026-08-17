@@ -203,36 +203,43 @@ export class ChangePassword {
   private async resolveContext(
     tokenHash: string,
   ): Promise<PasswordChangeContext> {
+    let failure: unknown;
     try {
-      const now = this.clock.now();
-      const session = await this.sessions.findByTokenHash(tokenHash);
-      if (
-        !session ||
-        session.revokedAt ||
-        session.expiresAt.getTime() <= now.getTime()
-      ) {
-        throw new AuthenticationRequiredError();
-      }
-
-      const [user, membership] = await Promise.all([
-        this.users.findAuthenticationReferenceById(session.userId),
-        this.memberships.find({
-          userId: session.userId,
-          workspaceId: session.activeWorkspaceId,
-        }),
-      ]);
-      if (!user || user.status !== 'ACTIVE' || !membership) {
-        throw new AuthenticationRequiredError();
-      }
-
-      return { session, identityId: user.identityId };
+      return await this.loadPasswordChangeContext(tokenHash);
     } catch (error) {
-      if (error instanceof AuthenticationRequiredError) {
-        throw error;
-      }
-      this.logFailure('password_change.context_resolution_failed', error);
-      throw new PasswordChangeUnavailableError();
+      failure = error;
     }
+    if (failure instanceof AuthenticationRequiredError) throw failure;
+    this.logFailure('password_change.context_resolution_failed', failure);
+    throw new PasswordChangeUnavailableError();
+  }
+
+  /** Loads the authoritative session and identity context before error mapping. */
+  private async loadPasswordChangeContext(
+    tokenHash: string,
+  ): Promise<PasswordChangeContext> {
+    const now = this.clock.now();
+    const session = await this.sessions.findByTokenHash(tokenHash);
+    if (
+      !session ||
+      session.revokedAt ||
+      session.expiresAt.getTime() <= now.getTime()
+    ) {
+      throw new AuthenticationRequiredError();
+    }
+
+    const [user, membership] = await Promise.all([
+      this.users.findAuthenticationReferenceById(session.userId),
+      this.memberships.find({
+        userId: session.userId,
+        workspaceId: session.activeWorkspaceId,
+      }),
+    ]);
+    if (!user || user.status !== 'ACTIVE' || !membership) {
+      throw new AuthenticationRequiredError();
+    }
+
+    return { session, identityId: user.identityId };
   }
 
   /** Verifies the supplied current password and preserves an optimistic credential proof. */
@@ -240,49 +247,65 @@ export class ChangePassword {
     identityId: string,
     currentPassword: string,
   ): Promise<VerifiedPasswordCredential> {
+    let failure: unknown;
     try {
-      const verified = await this.credentialVerification.verify({
-        identityId,
-        password: currentPassword,
-      });
-      if (!verified) {
-        throw new PasswordChangeInvalidCurrentPasswordError();
-      }
-      return verified;
+      return await this.loadVerifiedCredential(identityId, currentPassword);
     } catch (error) {
-      if (error instanceof PasswordChangeInvalidCurrentPasswordError) {
-        throw error;
-      }
-      this.logFailure('password_change.credential_check_failed', error);
-      throw new PasswordChangeUnavailableError();
+      failure = error;
     }
+    if (failure instanceof PasswordChangeInvalidCurrentPasswordError) {
+      throw failure;
+    }
+    this.logFailure('password_change.credential_check_failed', failure);
+    throw new PasswordChangeUnavailableError();
+  }
+
+  /** Obtains the optimistic credential proof or raises the stable invalid-password error. */
+  private async loadVerifiedCredential(
+    identityId: string,
+    currentPassword: string,
+  ): Promise<VerifiedPasswordCredential> {
+    const verified = await this.credentialVerification.verify({
+      identityId,
+      password: currentPassword,
+    });
+    if (!verified) throw new PasswordChangeInvalidCurrentPasswordError();
+    return verified;
   }
 
   /** Screens the new plaintext password, mapping checker failures to safe availability errors. */
   private async assertReplacementIsAllowed(password: string): Promise<void> {
+    let failure: unknown;
     try {
-      if (await this.compromiseChecker.isCompromised(password)) {
-        throw new InvalidPasswordChangePasswordError(
-          'Choose a password that has not appeared in common-password or breach data.',
-        );
-      }
+      await this.checkReplacementPassword(password);
+      return;
     } catch (error) {
-      if (error instanceof InvalidPasswordChangePasswordError) {
-        throw error;
-      }
-      this.logFailure('password_change.compromise_check_failed', error);
-      throw new PasswordChangeUnavailableError();
+      failure = error;
+    }
+    if (failure instanceof InvalidPasswordChangePasswordError) throw failure;
+    this.logFailure('password_change.compromise_check_failed', failure);
+    throw new PasswordChangeUnavailableError();
+  }
+
+  /** Applies the compromised-password policy before adapter errors are mapped. */
+  private async checkReplacementPassword(password: string): Promise<void> {
+    if (await this.compromiseChecker.isCompromised(password)) {
+      throw new InvalidPasswordChangePasswordError(
+        'Choose a password that has not appeared in common-password or breach data.',
+      );
     }
   }
 
   /** Hashes the validated replacement without leaking adapter errors. */
   private async hashReplacement(password: string): Promise<string> {
+    let failure: unknown;
     try {
       return await this.passwordHasher.hash(password);
     } catch (error) {
-      this.logFailure('password_change.hash_failed', error);
-      throw new PasswordChangeUnavailableError();
+      failure = error;
     }
+    this.logFailure('password_change.hash_failed', failure);
+    throw new PasswordChangeUnavailableError();
   }
 
   /**
