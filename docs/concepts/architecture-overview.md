@@ -25,7 +25,7 @@ for the accepted boundary.
 flowchart LR
     Presentation["Presentation<br/>HTTP mapping and guards"] --> Application["Application<br/>use cases and ports"]
     Application --> Domain["Domain<br/>framework-independent rules"]
-    Infrastructure["Infrastructure<br/>Prisma, Redis, SMTP adapters"] --> Application
+    Infrastructure["Infrastructure<br/>Prisma, Redis, Resend adapter"] --> Application
     Composition["Nest module<br/>composition root"] --> Presentation
     Composition --> Application
     Composition --> Infrastructure

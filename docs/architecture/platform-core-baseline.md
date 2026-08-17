@@ -49,7 +49,7 @@ The repository is currently one NestJS modular monolith. It implements:
 - repository foundation gates for strict full-project type checking,
   deterministic local seeding, OpenAPI drift, architecture/table ownership,
   non-mutating CI, and Docker E2E;
-- provider-neutral SMTP delivery with a local Mailpit development adapter;
+- provider-neutral durable mail delivery with a Resend API adapter;
 - origin checks, authentication rate limiting, compromised-password screening;
 - audit records, request IDs, Zod transport validation, and OpenAPI generation.
 
@@ -395,7 +395,7 @@ Resolve these only when their phase begins:
 
 - exact production ingress/trusted-proxy addresses, origins/CORS topology, and
   approved SameSite policy within the enforced secure configuration boundary;
-- production SMTP provider, sender-domain authentication, quotas, and
+- production Resend sender-domain authentication, quotas, and
   acceptance-ambiguity policy (reliable encrypted retry is implemented);
 - organization commercial ownership transfer across multiple workspaces;
 - whether and when to enable PostgreSQL RLS;

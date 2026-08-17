@@ -92,8 +92,8 @@ repository or changing runtime identifiers inherited from this base.
   switching uses a separate IP and keyed-session rate limit. Verification
   request, confirmation, and authenticated password-change routes have
   separate limits.
-- Email delivery uses a provider-neutral SMTP port. Local development includes
-  Mailpit; raw verification tokens are delivered by email and are never logged,
+- Email delivery uses a provider-neutral port backed by the Resend API; raw
+  verification tokens are delivered by email and are never logged,
   returned by the API, or stored in PostgreSQL.
 - OpenAPI UI is served at `/docs` while the application is running.
 - Repository foundation gates now cover full-project strict TypeScript,
@@ -167,14 +167,14 @@ product policy. Seed, schema-push, and E2E commands fail closed unless their
 database and Redis targets match the committed loopback development/test
 services.
 
-The local PostgreSQL port is `55432`; Redis uses `56379`. Mailpit accepts SMTP
-on `1025` and exposes its local mailbox UI at `http://localhost:8025`.
+The local PostgreSQL port is `55432`; Redis uses `56379`. Set a rotated Resend
+credential in the ignored `.env` file before exercising email delivery.
 `TRUST_PROXY` is empty locally. Set it to the exact trusted proxy address or
 subnet in a proxied deployment; never use an unrestricted proxy setting.
 `PWNED_PASSWORDS_TIMEOUT_MS` bounds the optional remote breach lookup and must
 remain between 100 and 5000 milliseconds. The local fallback remains active
 when remote lookup is disabled or unavailable.
-`SMTP_TIMEOUT_MS` bounds each synchronous verification delivery attempt; a
+`RESEND_TIMEOUT_MS` bounds each Resend API delivery attempt; a
 failure leaves the durable intent marked `FAILED` so the user can request a
 replacement link.
 `PASSWORD_RESET_TTL_SECONDS` bounds reset-link lifetime. Reset tokens are
@@ -191,7 +191,7 @@ curl -i http://localhost:3000/v1/auth/registrations \
   -d '{"email":"owner@example.com","password":"A secure passphrase 123","displayName":"Owner","organizationName":"Example","workspaceName":"Main"}'
 ```
 
-Open the delivered message in Mailpit, then submit its `token` query parameter:
+Open the delivered message in the recipient mailbox, then submit its token:
 
 ```bash
 curl -i http://localhost:3000/v1/auth/email-verifications \
@@ -236,8 +236,8 @@ The repository enforces a product-neutral runtime baseline, but it does not
 claim an actual production launch is approved. Stable operational endpoints are
 `GET /health/live`, `GET /health/ready`, and optionally bearer-protected
 `GET /metrics`. Production disables Swagger, requires exact HTTPS origins,
-validated proxies, secure cookies, TLS PostgreSQL/Redis/SMTP, and an encrypted
-durable mail outbox.
+validated proxies, secure cookies, TLS PostgreSQL/Redis, Resend configuration,
+and an encrypted durable mail outbox.
 
 Build the immutable non-root image with `docker build -t nexora-platform-core .`.
 Review `.env.production.example`,

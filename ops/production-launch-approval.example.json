@@ -7,7 +7,7 @@
   "infrastructure": {
     "postgresql": null,
     "redis": null,
-    "smtp": null,
+    "resend": null,
     "secretManager": null,
     "observability": null
   },
@@ -21,7 +21,7 @@
     "requestsPerSecond": null,
     "concurrentRequests": null,
     "maximumMailQueueDepth": null,
-    "smtpMessagesPerHour": null
+    "resendEmailsPerHour": null
   },
   "alerts": {
     "readinessFailures": null,

@@ -18,7 +18,7 @@ sequenceDiagram
     participant Mail as MailOutbox
     participant DB as PostgreSQL
     participant Redis as Session cache
-    participant SMTP as SMTP adapter
+    participant Resend as Resend adapter
 
     Client->>Guard: POST registration body and Origin
     Guard->>Guard: Validate origin, rate limits, and Zod contract
@@ -37,7 +37,7 @@ sequenceDiagram
     DB-->>Tx: Commit all durable facts
     UseCase->>Redis: Best-effort session cache write
     UseCase->>Mail: Attempt delivery after commit
-    Mail->>SMTP: Send message with raw token link
+    Mail->>Resend: Send message with raw token link and idempotency key
     UseCase-->>Controller: RegisteredAccount and raw session token
     Controller-->>Client: 201 and Secure HttpOnly session cookie
 ```
@@ -76,7 +76,7 @@ whether the immediate verification message was sent.
 - No raw password, session token, or verification token is persisted or logged.
 - The initial membership is OWNER for the newly created workspace.
 - The user remains `PENDING_VERIFICATION` until token confirmation.
-- A cache or SMTP outage cannot make a committed registration ambiguous.
+- A cache or Resend outage cannot make a committed registration ambiguous.
 - The flow remains product-neutral; downstream onboarding policy requires a
   separately reviewed contract change.
 

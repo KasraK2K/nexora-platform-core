@@ -63,13 +63,11 @@ const environmentSchema = z
       .min(3)
       .default('Nexora Platform <no-reply@nexora.local>'),
     EMAIL_MESSAGE_ID_DOMAIN: z.string().min(1).default('nexora.local'),
-    SMTP_HOST: z.string().min(1).default('localhost'),
-    SMTP_PORT: z.coerce.number().int().min(1).max(65_535).default(1025),
-    SMTP_SECURE: z.enum(['true', 'false']).default('false'),
-    SMTP_REQUIRE_TLS: z.enum(['true', 'false']).default('false'),
-    SMTP_USER: z.string().default(''),
-    SMTP_PASSWORD: z.string().default(''),
-    SMTP_TIMEOUT_MS: z.coerce
+    RESEND_API_KEY: z
+      .string()
+      .startsWith('re_')
+      .default('re_local_development_placeholder'),
+    RESEND_TIMEOUT_MS: z.coerce
       .number()
       .int()
       .min(100)
@@ -193,14 +191,6 @@ const environmentSchema = z
       });
     }
 
-    if (Boolean(environment.SMTP_USER) !== Boolean(environment.SMTP_PASSWORD)) {
-      context.addIssue({
-        code: 'custom',
-        path: ['SMTP_USER'],
-        message: 'SMTP_USER and SMTP_PASSWORD must be configured together.',
-      });
-    }
-
     if (environment.NODE_ENV === 'production') {
       const databaseUrl = new URL(environment.DATABASE_URL);
       const productionRequirements: Array<{
@@ -230,28 +220,17 @@ const environmentSchema = z
           message: 'MAIL_WORKER_ENABLED must be true in production.',
         },
         {
-          condition: environment.SMTP_REQUIRE_TLS === 'true',
-          path: 'SMTP_REQUIRE_TLS',
-          message: 'SMTP_REQUIRE_TLS must be true in production.',
-        },
-        {
           condition:
-            process.env.SMTP_HOST !== undefined &&
-            !['localhost', '127.0.0.1', '::1'].includes(
-              environment.SMTP_HOST.toLowerCase(),
-            ),
-          path: 'SMTP_HOST',
-          message: 'SMTP_HOST must be explicitly set for production.',
-        },
-        {
-          condition: process.env.SMTP_PORT !== undefined,
-          path: 'SMTP_PORT',
-          message: 'SMTP_PORT must be explicitly set for production.',
+            process.env.RESEND_API_KEY !== undefined &&
+            environment.RESEND_API_KEY !== 're_local_development_placeholder',
+          path: 'RESEND_API_KEY',
+          message: 'RESEND_API_KEY must be explicitly set for production.',
         },
         {
           condition:
             process.env.EMAIL_FROM !== undefined &&
-            !environment.EMAIL_FROM.toLowerCase().includes('.local'),
+            !environment.EMAIL_FROM.toLowerCase().includes('.local') &&
+            !environment.EMAIL_FROM.toLowerCase().includes('@resend.dev'),
           path: 'EMAIL_FROM',
           message: 'EMAIL_FROM must be explicitly set for production.',
         },
@@ -363,7 +342,7 @@ const environmentSchema = z
  * already-normalized values to the rest of the application.
  *
  * Invalid combinations fail startup. Production adds stricter requirements for
- * TLS, cookies, mail, proxy trust, metrics, and secret material.
+ * cookies, mail-provider credentials, proxy trust, metrics, and secret material.
  */
 @Injectable()
 export class AppConfig {
@@ -394,13 +373,8 @@ export class AppConfig {
   readonly membershipInvitationUrl = this.environment.MEMBERSHIP_INVITATION_URL;
   readonly emailFrom = this.environment.EMAIL_FROM;
   readonly emailMessageIdDomain = this.environment.EMAIL_MESSAGE_ID_DOMAIN;
-  readonly smtpHost = this.environment.SMTP_HOST;
-  readonly smtpPort = this.environment.SMTP_PORT;
-  readonly smtpSecure = this.environment.SMTP_SECURE === 'true';
-  readonly smtpRequireTls = this.environment.SMTP_REQUIRE_TLS === 'true';
-  readonly smtpUser = this.environment.SMTP_USER;
-  readonly smtpPassword = this.environment.SMTP_PASSWORD;
-  readonly smtpTimeoutMs = this.environment.SMTP_TIMEOUT_MS;
+  readonly resendApiKey = this.environment.RESEND_API_KEY;
+  readonly resendTimeoutMs = this.environment.RESEND_TIMEOUT_MS;
   readonly mailOutboxEncryptionKey = Buffer.from(
     this.environment.MAIL_OUTBOX_ENCRYPTION_KEY,
     'base64',

@@ -17,7 +17,7 @@ committed.
    transition. At that point, add reviewed forward-only migrations using
    expand -> deploy -> backfill -> contract. Never run `prisma db push` against
    production.
-2. Review and approve the exact PostgreSQL, Redis, SMTP, secret-manager,
+2. Review and approve the exact PostgreSQL, Redis, Resend, secret-manager,
    ingress/trusted-proxy, DNS/TLS, logging, metrics, and tracing services and
    regions. Restrict the application port so only the approved ingress can
    reach it.
@@ -28,7 +28,7 @@ committed.
    production gate without printing secret values. The image must start as its
    non-root `node` user.
 5. Verify `GET /health/live` and `GET /health/ready`. Route traffic only after
-   readiness returns `200`. SMTP is asynchronous and intentionally does not
+   readiness returns `200`. Resend is asynchronous and intentionally does not
    gate all HTTP traffic; alert on mail metrics and queue state instead.
 6. Exercise registration, verification, reset, invitation, login, logout,
    tenant denial, CORS rejection, cookie attributes, security headers, metrics
@@ -44,8 +44,8 @@ committed.
    digest. Do not drop the expanded `mail_outbox_messages` table or other
    additive columns during application rollback.
 3. Treat `PROCESSING` mail with an expired lease as ambiguous: deterministic
-   Message-ID reduces duplicates but SMTP cannot guarantee exactly-once
-   acceptance. Reconcile before manual replay.
+   the Resend idempotency key reduces duplicates within its provider window but
+   cannot guarantee exactly-once acceptance indefinitely. Reconcile before replay.
 4. If data is not backward-compatible, do not improvise a reverse migration.
    Invoke the reviewed restore/forward-fix procedure and incident owner.
 5. Verify readiness, session compatibility, tenant denial, and queued mail
@@ -61,7 +61,8 @@ committed.
 - Back up the mail-outbox encryption key through the approved secret manager.
   Without the matching key, pending encrypted messages cannot be recovered.
 - At the approved cadence, restore into a new isolated environment, validate
-  integrity and row counts, start the same image with isolated SMTP, exercise
+  integrity and row counts, start the same image with an isolated Resend key,
+  exercise
   auth/tenant/readiness paths, and measure recoverable point and elapsed time.
 - Never validate a restore by overwriting the live database. Store evidence in
   the location named by `restoreDrillEvidence`; a link is mandatory in the
@@ -69,7 +70,7 @@ committed.
 
 ## Secret rotation
 
-- Rotate PostgreSQL, Redis, SMTP, metrics, and rate-limit secrets through the
+- Rotate PostgreSQL, Redis, Resend, metrics, and rate-limit secrets through the
   selected secret manager with overlapping credentials where the provider
   supports it. Restart instances gradually and confirm readiness after each.
 - `MAIL_OUTBOX_ENCRYPTION_KEY` currently supports one active key. Drain or
@@ -115,12 +116,12 @@ database/key access controls.
 ## Objectives, capacity, quotas, and alerts
 
 The operator approval supplies RPO, RTO, availability and latency SLOs,
-requests/second, concurrency, maximum queue depth, SMTP quota, and alert
+requests/second, concurrency, maximum queue depth, Resend quota, and alert
 thresholds. Establish load-test evidence and dashboards before approval.
 
 At minimum measure HTTP count/status/latency at ingress, readiness failures,
 PostgreSQL/Redis saturation and latency, mail queue depth/oldest age/retries/
-terminal failures, process restarts, event-loop/memory/CPU pressure, and SMTP
+terminal failures, process restarts, event-loop/memory/CPU pressure, and Resend
 quota/rejection. Repository metrics are vendor-neutral counters at `/metrics`
 and require the configured bearer token; hosted retention, alert routing, and
 trace export remain operator choices.
@@ -138,9 +139,8 @@ trace export remain operator choices.
 - Reset: `PASSWORD_RESET_TTL_SECONDS`, `PASSWORD_RESET_URL`.
 - Invitation: `MEMBERSHIP_INVITATION_TTL_SECONDS`,
   `MEMBERSHIP_INVITATION_URL`.
-- SMTP: `EMAIL_FROM`, `EMAIL_MESSAGE_ID_DOMAIN`, `SMTP_HOST`, `SMTP_PORT`,
-  `SMTP_SECURE`, `SMTP_REQUIRE_TLS`, `SMTP_USER`, `SMTP_PASSWORD`,
-  `SMTP_TIMEOUT_MS`.
+- Resend: `EMAIL_FROM`, `EMAIL_MESSAGE_ID_DOMAIN`, `RESEND_API_KEY`,
+  `RESEND_TIMEOUT_MS`.
 - Durable mail: `MAIL_OUTBOX_ENCRYPTION_KEY`, `MAIL_WORKER_ENABLED`,
   `MAIL_MAX_ATTEMPTS`, `MAIL_RETRY_BASE_MS`, `MAIL_RETRY_MAX_MS`,
   `MAIL_POLL_INTERVAL_MS`, `MAIL_CLAIM_TTL_MS`.

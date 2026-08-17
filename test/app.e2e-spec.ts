@@ -638,7 +638,7 @@ describe('Nexora API (e2e)', () => {
   it('commits registration and records a failed delivery attempt', async () => {
     jest
       .spyOn(recordingEmailSender, 'send')
-      .mockRejectedValueOnce(new Error('smtp unavailable'));
+      .mockRejectedValueOnce(new Error('mail provider unavailable'));
 
     const response = await registerUnverified('delivery-failed@example.com');
 
@@ -986,7 +986,7 @@ describe('Nexora API (e2e)', () => {
     await register('reset-delivery@example.com');
     jest
       .spyOn(recordingPasswordResetSender, 'send')
-      .mockRejectedValueOnce(new Error('smtp unavailable'));
+      .mockRejectedValueOnce(new Error('mail provider unavailable'));
 
     const response = await requestPasswordReset('reset-delivery@example.com');
 

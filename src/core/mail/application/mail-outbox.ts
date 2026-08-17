@@ -46,7 +46,7 @@ export class MailOutbox {
   /**
    * Encrypts and idempotently records one message. Call this while the owning
    * business transaction is active so the business fact and mail handoff commit
-   * together; this method does not contact SMTP.
+   * together; this method does not contact the delivery provider.
    */
   async enqueue(input: {
     id: string;
@@ -82,7 +82,8 @@ export class MailOutbox {
   /**
    * Attempts one leased delivery and records sent, retry, or terminal failure.
    * Returning `false` never removes a committed business change. Delivery is
-   * at-least-once: a crash after SMTP accepts mail but before `markSent` can
+   * at-least-once beyond Resend's idempotency window: a crash after provider
+   * acceptance but before `markSent` can
    * cause a later resend with the same Message-ID.
    */
   async deliverNow(id: string): Promise<boolean> {

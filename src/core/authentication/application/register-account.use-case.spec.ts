@@ -214,7 +214,7 @@ describe('RegisterAccount', () => {
 
   it('keeps the committed account pending when delivery fails', async () => {
     const fixture = createFixture();
-    fixture.emailSender.failure = new Error('smtp unavailable');
+    fixture.emailSender.failure = new Error('mail provider unavailable');
 
     const result = await fixture.useCase.execute({
       email: 'person@example.com',

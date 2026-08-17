@@ -11,7 +11,7 @@ const approvalSchema = z.strictObject({
   infrastructure: z.strictObject({
     postgresql: z.string().min(1),
     redis: z.string().min(1),
-    smtp: z.string().min(1),
+    resend: z.string().min(1),
     secretManager: z.string().min(1),
     observability: z.string().min(1),
   }),
@@ -25,7 +25,7 @@ const approvalSchema = z.strictObject({
     requestsPerSecond: z.number().int().positive(),
     concurrentRequests: z.number().int().positive(),
     maximumMailQueueDepth: z.number().int().positive(),
-    smtpMessagesPerHour: z.number().int().positive(),
+    resendEmailsPerHour: z.number().int().positive(),
   }),
   alerts: z.strictObject({
     readinessFailures: z.number().int().positive(),

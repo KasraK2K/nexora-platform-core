@@ -177,7 +177,7 @@ function dependencyViolation(dependency: Dependency): string | undefined {
     sourceBoundary.layer === 'domain' &&
     (specifier.startsWith('@nestjs/') ||
       specifier.startsWith('@prisma/') ||
-      ['redis', 'express', 'nodemailer', 'zod'].includes(specifier))
+      ['redis', 'express', 'resend', 'zod'].includes(specifier))
   ) {
     return `domain cannot import framework package ${specifier}`;
   }

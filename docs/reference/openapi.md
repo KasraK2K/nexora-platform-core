@@ -17,7 +17,7 @@ operations, request schemas, response schemas, cookies, and error descriptions.
 
 [`openapi.json`](openapi.json) is a stable, key-sorted artifact committed for
 review and downstream consumption. It is generated without connecting to
-PostgreSQL, Redis, SMTP, or a running HTTP server.
+PostgreSQL, Redis, Resend, or a running HTTP server.
 
 Generate an intentional change:
 

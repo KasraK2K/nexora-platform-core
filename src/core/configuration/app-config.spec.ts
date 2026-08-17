@@ -13,13 +13,11 @@ const MANAGED_KEYS = [
   'EMAIL_VERIFICATION_URL',
   'PASSWORD_RESET_URL',
   'MEMBERSHIP_INVITATION_URL',
-  'SMTP_REQUIRE_TLS',
+  'RESEND_API_KEY',
   'MAIL_WORKER_ENABLED',
   'MAIL_OUTBOX_ENCRYPTION_KEY',
   'EMAIL_MESSAGE_ID_DOMAIN',
   'EMAIL_FROM',
-  'SMTP_HOST',
-  'SMTP_PORT',
 ] as const;
 
 describe('AppConfig production boundary', () => {
@@ -58,7 +56,7 @@ describe('AppConfig production boundary', () => {
       'DATABASE_URL',
       'postgresql://user:pass@db.example.com/core?sslmode=require',
     ],
-    ['SMTP_REQUIRE_TLS', 'false'],
+    ['RESEND_API_KEY', 're_local_development_placeholder'],
     ['MAIL_WORKER_ENABLED', 'false'],
     [
       'MAIL_OUTBOX_ENCRYPTION_KEY',
@@ -86,12 +84,10 @@ function validProductionEnvironment(): NodeJS.ProcessEnv {
     EMAIL_VERIFICATION_URL: 'https://app.example.com/verify-email',
     PASSWORD_RESET_URL: 'https://app.example.com/reset-password',
     MEMBERSHIP_INVITATION_URL: 'https://app.example.com/accept-invitation',
-    SMTP_REQUIRE_TLS: 'true',
+    RESEND_API_KEY: 're_production_test_key',
     MAIL_WORKER_ENABLED: 'true',
     MAIL_OUTBOX_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString('base64'),
     EMAIL_MESSAGE_ID_DOMAIN: 'mail.example.com',
     EMAIL_FROM: 'Nexora Platform <no-reply@example.com>',
-    SMTP_HOST: 'smtp.example.com',
-    SMTP_PORT: '587',
   };
 }

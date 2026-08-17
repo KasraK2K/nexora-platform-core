@@ -45,7 +45,7 @@ src/
     <capability>/
       domain/          framework-independent rules and errors
       application/     use cases, public contracts, and inward-facing ports
-      infrastructure/  Prisma, Redis, SMTP, encryption, and other adapters
+      infrastructure/  Prisma, Redis, Resend, encryption, and other adapters
       presentation/    controllers, guards, and transport contracts
   shared/              stable cross-module primitives only
 prisma/

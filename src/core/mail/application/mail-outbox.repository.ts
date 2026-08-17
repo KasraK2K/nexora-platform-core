@@ -19,7 +19,7 @@ export type ClaimedMail = Readonly<{
 /**
  * Persists the durable mail state machine. Claiming and completion are
  * compare-and-set operations; the incremented attempt count fences a stale
- * worker after another worker reclaims an expired lease. SMTP delivery remains
+ * worker after another worker reclaims an expired lease. Provider delivery remains
  * at-least-once because a process can still fail after the provider accepts a
  * message but before the sent transition commits.
  */

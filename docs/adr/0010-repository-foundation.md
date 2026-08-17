@@ -145,7 +145,7 @@ and Core infrastructure. Existing tenant-isolation matrices remain unchanged.
 ## Reliability and observability
 
 Seed collisions abort the serializable transaction without adopting unrelated
-rows. Contract generation does not connect to PostgreSQL, Redis, SMTP, or a
+rows. Contract generation does not connect to PostgreSQL, Redis, a mail provider, or a
 running HTTP server. CI E2E cleanup runs even after failure. Tool output reports
 only approved purpose or artifact paths and never prints connection URLs.
 

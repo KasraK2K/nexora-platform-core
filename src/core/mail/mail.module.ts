@@ -8,21 +8,21 @@ import { ObservabilityModule } from '../observability/observability.module';
 import { AesGcmMailPayloadProtector } from './infrastructure/aes-gcm-mail-payload-protector';
 import { MailOutboxWorker } from './infrastructure/mail-outbox.worker';
 import { PrismaMailOutboxRepository } from './infrastructure/prisma-mail-outbox.repository';
-import { SmtpOutboundMail } from './infrastructure/smtp-outbound-mail';
+import { ResendOutboundMail } from './infrastructure/resend-outbound-mail';
 
 /**
- * Wires the provider-neutral mail contract to SMTP and exports the durable
- * outbox used by Core workflows. SMTP details stay inside this module.
+ * Wires the provider-neutral mail contract to Resend and exports the durable
+ * outbox used by Core workflows. Provider details stay inside this module.
  */
 @Module({
   imports: [CoreInfrastructureModule, ObservabilityModule],
   providers: [
-    SmtpOutboundMail,
+    ResendOutboundMail,
     MailOutbox,
     MailOutboxWorker,
     AesGcmMailPayloadProtector,
     PrismaMailOutboxRepository,
-    { provide: OUTBOUND_MAIL, useExisting: SmtpOutboundMail },
+    { provide: OUTBOUND_MAIL, useExisting: ResendOutboundMail },
     {
       provide: MAIL_PAYLOAD_PROTECTOR,
       useExisting: AesGcmMailPayloadProtector,
