@@ -341,6 +341,7 @@ header
 headers
 headings
 health
+heartbeat
 hello
 here
 honesty
@@ -366,6 +367,7 @@ import
 imports
 incident
 include
+included
 increment
 incremental
 individual
@@ -406,11 +408,13 @@ kernel
 key
 keys
 label
+language
 last
 latest
 layer
 layering
 layers
+lease
 leave
 let
 levels
@@ -470,6 +474,7 @@ mission
 mjs
 model
 models
+modifier
 modular
 module
 modules
@@ -558,6 +563,7 @@ permits
 persistence
 ping
 pipe
+plain
 planned
 platform
 plugin
@@ -577,6 +583,7 @@ prisma
 privacy
 private
 probe
+processing
 prod
 product
 production
@@ -634,6 +641,7 @@ remove
 rename
 renames
 render
+renew
 replace
 replacement
 repo
@@ -693,6 +701,7 @@ safe
 safely
 safety
 save
+scanner
 schema
 schematics
 scope
