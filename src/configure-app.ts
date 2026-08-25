@@ -5,8 +5,8 @@ import {
   type OpenAPIObject,
   SwaggerModule,
 } from '@nestjs/swagger';
-import { ApiExceptionFilter } from './shared/presentation/api-exception.filter';
-import { AppConfig } from './core/configuration/app-config';
+import { ApiExceptionFilter } from './common/presentation/api-exception.filter';
+import { AppConfig } from './config/app-config';
 
 /**
  * Applies process-wide HTTP behavior to a newly created Nest application.

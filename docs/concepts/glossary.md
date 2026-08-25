@@ -16,7 +16,7 @@ and ownership mistakes.
 | Permission                    | A named action checked against the authenticated membership role before the controller runs. Resource-specific policy can add stricter checks in the use case. |
 | Application contract          | A narrow capability exposed by an owning module to other modules or downstream products. It is not a Prisma model.                                             |
 | Repository port               | An interface defined inward, normally in application code, and implemented by infrastructure for an owned data surface.                                        |
-| Transaction boundary          | The set of writes that an application use case commits or rolls back together.                                                                                 |
+| Transaction boundary          | The set of writes that an application service method commits or rolls back together.                                                                           |
 | Durable outbox                | A database-backed handoff that records a side effect in durable state before delivery is attempted.                                                            |
 | Platform Core                 | Reusable, product-neutral SaaS foundations owned by this repository.                                                                                           |
 | Downstream product            | A separate repository that consumes Core and owns customer-facing workflows, providers, UI, prompts, evaluations, and product policy.                          |
@@ -43,5 +43,5 @@ membership, and organization are revalidated server-side.
 ### Role versus permission
 
 A role is stored on a workspace membership. A permission names an action. The
-authorization policy maps roles to permissions; use cases may still enforce
+authorization policy maps roles to permissions; service methods may still enforce
 resource ownership, hierarchy, or last-owner rules.

@@ -14,6 +14,7 @@
     "check:deprecated": "node scripts/check-deprecated-apis.mjs",
     "check:operations": "node scripts/check-operations-docs.mjs",
     "check:production": "ts-node --project tsconfig.json scripts/check-production-readiness.ts",
+    "check:nest-cli": "node scripts/check-nest-cli-conventions.mjs",
     "format": "prettier --write \"{src,test,prisma,scripts}/**/*.{ts,mjs,json}\" \".github/**/*.yml\" \"package.json\" \"tsconfig*.json\" \"nest-cli.json\" \"prisma.config.ts\" \"eslint.config.mjs\" \"compose*.yaml\" \"pnpm-workspace.yaml\"",
     "format:check": "prettier --check \"{src,test,prisma,scripts}/**/*.{ts,mjs,json}\" \".github/**/*.yml\" \"package.json\" \"tsconfig*.json\" \"nest-cli.json\" \"prisma.config.ts\" \"eslint.config.mjs\" \"compose*.yaml\" \"pnpm-workspace.yaml\"",
     "start": "nest start",

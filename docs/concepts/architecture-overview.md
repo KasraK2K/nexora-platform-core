@@ -23,7 +23,7 @@ for the accepted boundary.
 
 ```mermaid
 flowchart LR
-    Presentation["Presentation<br/>HTTP mapping and guards"] --> Application["Application<br/>use cases and ports"]
+    Presentation["Presentation<br/>HTTP mapping and guards"] --> Application["Application<br/>services and ports"]
     Application --> Domain["Domain<br/>framework-independent rules"]
     Infrastructure["Infrastructure<br/>Prisma, Redis, Resend adapter"] --> Application
     Composition["Nest module<br/>composition root"] --> Presentation
@@ -32,7 +32,7 @@ flowchart LR
 ```
 
 - **Presentation** validates transport input, resolves trusted context,
-  authorizes, invokes one use case, and maps the result.
+  authorizes, invokes one service method, and maps the result.
 - **Application** coordinates module contracts and owns transaction boundaries.
 - **Domain** contains business rules and stable domain errors without framework
   dependencies.
@@ -61,7 +61,7 @@ The executable ownership map lives in
 
 ## Transactions and side effects
 
-The application use case decides what must commit atomically. The shared
+The application service method decides what must commit atomically. The shared
 `TransactionManager` runs the callback at serializable isolation and maps known
 write conflicts to a stable application error. Module repositories obtain the
 active transaction through `DatabaseContext`.
@@ -85,7 +85,7 @@ These are separate decisions:
 2. **Authentication context** validates the opaque cookie against PostgreSQL and
    resolves the active user, workspace, membership, and organization.
 3. **Authorization** evaluates a named permission against the resolved
-   membership role and, inside use cases, checks resource-specific rules.
+   membership role and, inside services, checks resource-specific rules.
 
 Client-supplied identity, workspace, organization, and role headers are never
 trusted as authority.

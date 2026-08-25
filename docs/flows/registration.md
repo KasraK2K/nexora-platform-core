@@ -15,7 +15,7 @@ sequenceDiagram
     participant Security as Password policy and compromise checker
     participant Tx as TransactionManager
     participant Core as Owning module contracts
-    participant Mail as MailOutbox
+    participant Mail as MailService
     participant DB as PostgreSQL
     participant Redis as Session cache
     participant Resend as Resend adapter
@@ -44,7 +44,7 @@ sequenceDiagram
 
 ## Before the transaction
 
-The use case normalizes email, validates password policy, checks compromise
+The registration service normalizes email, validates password policy, checks compromise
 data, hashes the password, and generates identifiers and token pairs. Failures
 here create no account state.
 
@@ -54,7 +54,7 @@ token is returned only to the controller so it can set the cookie.
 
 ## Inside the transaction
 
-The registration use case owns one serializable transaction. Each called module
+The registration service owns one serializable transaction. Each called module
 still writes through its own application contract and repository. The encrypted
 mail outbox row is part of the transaction, so a committed verification intent
 has a durable delivery handoff.
@@ -82,9 +82,10 @@ whether the immediate verification message was sent.
 
 ## Code and tests
 
-- Controller: `src/core/authentication/presentation/authentication.controller.ts`
-- Use case: `src/core/authentication/application/register-account.use-case.ts`
-- Unit tests: `src/core/authentication/application/register-account.use-case.spec.ts`
-- E2E tests: `test/app.e2e-spec.ts`
-- Transaction adapter: `src/core/persistence/prisma-transaction-manager.ts`
-- Durable delivery: `src/core/mail/application/mail-outbox.ts`
+- Controller: `src/modules/authentication/controllers/registration.controller.ts`
+- Public service: `src/modules/authentication/services/registration.service.ts`
+- Registration workflow: `src/modules/authentication/services/registration.service.ts`
+- Unit tests: `src/modules/authentication/services/registration.service.spec.ts`
+- E2E tests: `test/e2e/authentication.e2e-spec.ts`
+- Transaction adapter: `src/infrastructure/database/prisma-transaction-manager.ts`
+- Durable delivery: `src/modules/mail/mail.service.ts`

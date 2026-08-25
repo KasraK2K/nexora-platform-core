@@ -16,7 +16,7 @@ sequenceDiagram
     participant Session as GetCurrentSession
     participant DB as PostgreSQL repositories
     participant Redis as Session cache
-    participant Policy as AuthorizationPolicy
+    participant Policy as AuthorizationPolicyService
     participant Controller
     participant UseCase
 
@@ -87,10 +87,10 @@ active-workspace scope, foreign-resource concealment, and last-owner safety.
 
 ## Code and tests
 
-- Policy decorators: `src/core/authorization/presentation/route-admission.ts`
-- Global guard: `src/core/authorization/presentation/route-admission.guard.ts`
-- Context guard: `src/core/authentication/presentation/authenticated-request-context.guard.ts`
-- Session resolver: `src/core/authentication/application/get-current-session.use-case.ts`
-- Permission policy: `src/core/authorization/application/authorization-policy.ts`
+- Policy decorators: `src/modules/authorization/decorators/route-admission.decorator.ts`
+- Global guard: `src/modules/authorization/guards/route-admission.guard.ts`
+- Context guard: `src/modules/authentication/guards/authenticated-request-context.guard.ts`
+- Session resolver: `src/modules/authentication/services/sessions.service.ts`
+- Permission policy: `src/modules/authorization/policy/authorization-policy.service.ts`
 - Unit tests: route-admission and authenticated-context specifications
-- E2E evidence: `test/app.e2e-spec.ts` and the tenant-isolation matrices
+- E2E evidence: `test/e2e/` capability specifications and the tenant-isolation matrices

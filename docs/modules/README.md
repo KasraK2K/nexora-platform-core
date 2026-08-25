@@ -1,36 +1,37 @@
-# Core module catalog
+# Feature module catalog
 
 This catalog describes current ownership. Verify it against source, schema, and
 tests when changing behavior.
 
-| Module         | Owns                                                                                                                                                       | Public application surface                                                                      |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| Identity       | `Identity`, `PasswordCredential`; normalized sign-in identity and credential operations                                                                    | Identity lookup, registration, password authentication, credential verification and replacement |
-| Authentication | `Session`, `EmailVerification`, `PasswordResetToken`; registration, verification, login, workspace selection, password change/reset, and session lifecycle | Authenticated request guard/context plus internal session-state contracts                       |
-| Users          | `User`; profile and user lifecycle                                                                                                                         | `Users` and update-own-profile use case                                                         |
-| Organizations  | `Organization`; commercial ownership record                                                                                                                | `Organizations`                                                                                 |
-| Workspaces     | `Workspace`; operational tenant record and workspace lifecycle                                                                                             | `Workspaces` and rename-current-workspace use case                                              |
-| Memberships    | `Membership`, `MembershipInvitation`; role, invitation, administration, ownership transfer, and leave policy                                               | `Memberships`; HTTP-facing membership use cases                                                 |
-| Authorization  | Permission catalog, role mapping, and deny-by-default route admission                                                                                      | `AuthorizationPolicy`; global admission guard                                                   |
-| Audit          | `AuditLog`; append-oriented security and lifecycle facts                                                                                                   | `AuditLog`                                                                                      |
-| Mail           | `MailOutboxMessage`; encrypted durable email handoff, claiming, retry, and Resend delivery                                                                 | `MailOutbox` and provider-neutral outbound-mail token                                           |
-| Configuration  | Validated runtime configuration and security policy                                                                                                        | `AppConfig`, `SECURITY_POLICY`                                                                  |
-| Persistence    | Prisma lifecycle, transaction context, and serializable transaction manager                                                                                | Infrastructure only; never expose it to products                                                |
-| Redis          | Redis connection lifecycle for cache and rate-limit adapters                                                                                               | Infrastructure only                                                                             |
-| Health         | Liveness/readiness contracts and dependency health                                                                                                         | Health controller and dependency health service                                                 |
-| Observability  | Request telemetry, metrics, and safe operational counters                                                                                                  | Telemetry and HTTP middleware                                                                   |
+| Module         | Owns                                                                                                                                          | Exported service surface                                                              |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Identity       | `Identity`, `PasswordCredential`; normalized sign-in identity and credential operations                                                       | `IdentityService`, `PasswordCredentialsService`                                       |
+| Authentication | `Session`, `EmailVerification`, `PasswordResetToken`; registration, verification, password, login, workspace selection, and session lifecycle | Context/origin guards; nested `SessionStateService` is the cross-module cycle breaker |
+| Users          | `User`; profile and user lifecycle                                                                                                            | `UsersService`                                                                        |
+| Organizations  | `Organization`; commercial ownership record                                                                                                   | `OrganizationsService`                                                                |
+| Workspaces     | `Workspace`; operational tenant record and workspace lifecycle                                                                                | `WorkspacesService`                                                                   |
+| Memberships    | `Membership`, `MembershipInvitation`; role, invitation, administration, ownership transfer, and leave policy                                  | `MembershipsService`, `MembershipInvitationsService`                                  |
+| Authorization  | Permission catalog, role mapping, and deny-by-default route admission                                                                         | Nested `AuthorizationPolicyService`; one global admission guard                       |
+| Audit          | `AuditLog`; append-oriented security and lifecycle facts                                                                                      | `AuditService`                                                                        |
+| Mail           | `MailOutboxMessage`; encrypted durable email handoff, claiming, retry, and Resend delivery                                                    | `MailService`; provider-neutral ports remain private                                  |
+| Health         | Liveness/readiness endpoints and dependency shutdown                                                                                          | `HealthService`                                                                       |
+| Observability  | Request telemetry, metrics, and safe operational counters                                                                                     | `ObservabilityService` and HTTP middleware                                            |
+
+`src/config` owns validated runtime configuration. `src/infrastructure` owns
+Prisma, transaction context, and Redis lifecycle. Neither is a business feature
+or a surface for downstream product modules.
 
 ## Ownership rules
 
 - The owner controls the model, business rules, application ports, repository
   adapter, schema changes, and public contract.
-- Another module calls only an exported application contract. It does not import
-  the owner's infrastructure or use its Prisma delegate.
+- Another module calls only an exported `*Service`. It does not import the
+  owner's repository, infrastructure, or Prisma delegate.
 - Core exposes only product-neutral contracts. Provider SDK and product policy
   types must not leak through them.
 - Tenant-owned methods accept trusted `workspaceId` scope or an immutable
   authenticated context.
-- Cross-module writes remain coordinated by the calling application use case;
+- Cross-module writes remain coordinated by the calling application service;
   ownership does not imply a separate service or internal HTTP request.
 
 ## Module guide checklist

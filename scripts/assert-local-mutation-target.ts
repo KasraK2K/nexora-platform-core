@@ -1,7 +1,7 @@
 import {
   assertSafeLocalMutationTargets,
   type LocalMutationPurpose,
-} from '../src/core/configuration/local-mutation-target.policy';
+} from '../src/config/local-mutation-target.policy';
 
 const purpose = process.argv[2];
 if (!isPurpose(purpose)) {

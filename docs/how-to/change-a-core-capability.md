@@ -29,7 +29,7 @@ Work inward from the boundary:
 
 1. transport schema and stable errors;
 2. route admission, authentication context, permission, and resource policy;
-3. one application use case that owns orchestration and transaction scope;
+3. one focused application service method that owns orchestration and transaction scope;
 4. framework-independent domain rule where a real invariant exists;
 5. narrow application port for an external or persistence boundary;
 6. owning infrastructure adapter and Nest composition;

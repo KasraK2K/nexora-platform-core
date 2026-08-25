@@ -1,6 +1,6 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Prisma, PrismaClient } from '@prisma/client';
-import { assertSafeLocalMutationTargets } from '../src/core/configuration/local-mutation-target.policy';
+import { assertSafeLocalMutationTargets } from '../src/config/local-mutation-target.policy';
 
 const SEED = Object.freeze({
   identityId: '01900000-0000-7000-8000-000000000001',

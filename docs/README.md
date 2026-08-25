@@ -8,13 +8,15 @@ do not get confused with architectural explanations.
 
 1. Read the [project tour](getting-started/project-tour.md) to learn the source
    layout and follow one HTTP request through the application.
-2. Read the [architecture overview](concepts/architecture-overview.md) for the
+2. Use [Create a module and add an endpoint](how-to/create-a-module.md) for the
+   standard Nest CLI workflow and protected-operation checklist.
+3. Read the [architecture overview](concepts/architecture-overview.md) for the
    module, layer, transaction, and product-boundary rules.
-3. Use the [glossary](concepts/glossary.md) when identity, user, organization,
+4. Use the [glossary](concepts/glossary.md) when identity, user, organization,
    workspace, membership, or session terms are unclear.
-4. Open the [module catalog](modules/README.md), then read the
+5. Open the [module catalog](modules/README.md), then read the
    [Authentication module guide](modules/authentication.md).
-5. Trace the [registration](flows/registration.md) and
+6. Trace the [registration](flows/registration.md) and
    [protected-request admission](flows/protected-request-admission.md) flows.
 
 ## Documentation map
@@ -85,7 +87,7 @@ business meaning or security policy.
   Generated source is excluded from the Compodoc input.
 - Every module guide should name its data owner, public contracts, consumers,
   transaction boundaries, tenant/security invariants, and behavioral tests.
-- Every flow guide should link the controller, guards, use case, repositories,
+- Every flow guide should link the controller, guards, service, repositories,
   side effects, and tests, and should distinguish work inside and after commit.
 - Update the nearest guide whenever a change invalidates it. Do not create empty
   documentation sections for planned capabilities.

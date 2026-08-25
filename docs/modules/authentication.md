@@ -30,26 +30,29 @@ Workspaces, and Memberships own their corresponding records.
 
 ## Source map
 
-- `presentation/authentication.controller.ts` defines versioned HTTP routes and
-  OpenAPI operations.
-- Presentation guards validate Zod transport contracts, rate limits, origin,
-  and route-admission prerequisites.
-- `application/*.use-case.ts` files coordinate behavior and transactions.
-- Application repository types and ports define session, token, cache, hash,
-  compromise-check, and delivery capabilities.
+- `controllers/` separates registration, email verification, password, and
+  session routes while preserving the single `/v1/auth` contract.
+- `services/` provides the four workflow-focused application entry points and
+  owns their transaction and authorization decisions.
+- `dto/` holds strict Zod schemas and inferred transport types; `guards/`
+  handles rate limits, origin, and route-admission prerequisites.
+- `repositories/` defines the session and single-use-token persistence
+  interfaces with their injection tokens.
+- `application/` retains only focused supporting ports and helpers for cache,
+  hashing, token creation, workspace lookup, and durable mail delivery.
 - `domain/password-policy.ts` and stable authentication errors hold reusable
   decisions without transport concerns.
 - Infrastructure implements Prisma repositories, Redis cache/rate limits,
   Argon2, and Pwned Passwords lookup.
 - `authentication.module.ts` is the composition root.
-- `authentication-session-state.module.ts` exposes the narrower session state
+- `session-state/session-state.module.ts` exposes the narrower session state
   needed by Memberships without importing Authentication presentation code.
 
 ## Dependencies
 
-Authentication consumes application contracts from Identity, Users,
-Organizations, Workspaces, Memberships, Audit, and Mail. Infrastructure consumes
-the shared persistence and Redis facilities. The module exports only the guards
+Authentication consumes exported services from Identity, Users, Organizations,
+Workspaces, Memberships, Audit, and Mail. Infrastructure consumes the shared
+database and Redis facilities. The module exports only the guards
 needed to establish trusted request context and origin policy; other Core
 modules receive session-state contracts through the dedicated session-state
 module.
@@ -81,10 +84,11 @@ environments.
 
 ## Behavioral evidence
 
-- Application unit tests cover registration, verification, reset, login,
+- Service unit tests cover registration, verification, reset, login,
   password change, revocation, request-context resolution, and workspace switch.
 - Presentation tests cover route admission and authenticated-context attachment.
-- `test/app.e2e-spec.ts` covers the public API with PostgreSQL and Redis,
+- Capability E2E specifications under `test/e2e/` cover the public API with
+  PostgreSQL and Redis,
   including cross-tenant and forged-header denials.
 - `docs/architecture/tenant-isolation-matrices.md` maps tenant-owned surfaces to
   positive and tenant A/B negative coverage.

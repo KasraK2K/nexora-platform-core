@@ -170,7 +170,7 @@ existing cookies and persisted sessions remain compatible.
 ## Follow-up work
 
 - [x] Define multi-workspace login selection and active-workspace switching
-  through ADR-0006.
+      through ADR-0006.
 - [x] Introduce base RBAC and invitations through ADR-0007.
 - [ ] Add ownership transfer, last-owner protection, and broader
-  tenant-isolation matrices.
+      tenant-isolation matrices.

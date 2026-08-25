@@ -155,8 +155,8 @@ replacement sessions remain valid until their original absolute expiry.
 ## Follow-up work
 
 - [ ] Add cursor pagination if a real consumer needs more than 100 accessible
-  workspaces.
+      workspaces.
 - [ ] Define membership removal and workspace archival behavior for sessions
-  referencing those memberships.
+      referencing those memberships.
 - [x] Add base roles and invitations through ADR-0007.
 - [ ] Add ownership transfer and last-owner safety.

@@ -59,11 +59,11 @@ membership authority inside each write transaction. This option was selected.
 explicit `membership:read` capability used to detect an existing target
 membership, plus this closed grant matrix:
 
-| Actor | May invite or revoke |
-| --- | --- |
-| OWNER | ADMIN, MEMBER |
-| ADMIN | MEMBER |
-| MEMBER | none |
+| Actor  | May invite or revoke |
+| ------ | -------------------- |
+| OWNER  | ADMIN, MEMBER        |
+| ADMIN  | MEMBER               |
+| MEMBER | none                 |
 
 Invitations never grant OWNER. Ownership transfer and last-owner protection
 remain deferred. Persistence reinforces that boundary with a separate

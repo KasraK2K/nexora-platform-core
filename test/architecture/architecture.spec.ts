@@ -1,11 +1,18 @@
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import ts from 'typescript';
+import { SessionStateService } from '../../src/modules/authentication/session-state/session-state.service';
 
 const repositoryRoot = path.resolve(__dirname, '../..');
 const sourceRoot = path.join(repositoryRoot, 'src');
 
 type Layer = 'domain' | 'application' | 'infrastructure' | 'presentation';
+
+type Boundary = Readonly<{
+  namespace: 'core' | 'modules' | 'products';
+  module: string;
+  layer?: Layer;
+}>;
 
 type Dependency = Readonly<{
   source: string;
@@ -14,25 +21,15 @@ type Dependency = Readonly<{
 }>;
 
 const APPROVED_CROSS_MODULE_EXCEPTIONS = new Set([
-  'src/core/authentication/application/register-account.use-case.ts|src/core/identity/domain/identity-already-exists.error',
-  'src/core/authentication/domain/registration.errors.ts|src/core/memberships/application/membership-role',
-  'src/core/authorization/presentation/route-admission.guard.ts|src/core/authentication/presentation/authenticated-request-context',
-  'src/core/authorization/presentation/route-admission.guard.ts|src/core/authentication/presentation/authenticated-request-context.guard',
-  'src/core/authorization/presentation/route-admission.guard.ts|src/core/authentication/presentation/private-response-headers',
-  'src/core/authorization/presentation/route-admission.guard.ts|src/core/authentication/presentation/trusted-origin.guard',
-  'src/core/health/health.controller.ts|src/core/authorization/presentation/route-admission',
-  'src/core/observability/metrics.controller.ts|src/core/authorization/presentation/route-admission',
-  'src/core/authentication/presentation/authentication.controller.ts|src/core/authorization/presentation/route-admission',
-  'src/core/memberships/presentation/membership-invitations.controller.ts|src/core/authentication/presentation/authenticated-request-context',
-  'src/core/memberships/presentation/membership-invitations.controller.ts|src/core/authorization/presentation/route-admission',
-  'src/core/memberships/presentation/membership-invitation-request.guard.ts|src/core/authentication/presentation/authenticated-request-context',
-  'src/core/memberships/presentation/membership-ownership-transfer-request.guard.ts|src/core/authentication/presentation/authenticated-request-context',
-  'src/core/memberships/presentation/memberships.controller.ts|src/core/authentication/presentation/authenticated-request-context',
-  'src/core/memberships/presentation/memberships.controller.ts|src/core/authorization/presentation/route-admission',
-  'src/core/users/presentation/users.controller.ts|src/core/authentication/presentation/authenticated-request-context',
-  'src/core/users/presentation/users.controller.ts|src/core/authorization/presentation/route-admission',
-  'src/core/workspaces/presentation/workspaces.controller.ts|src/core/authentication/presentation/authenticated-request-context',
-  'src/core/workspaces/presentation/workspaces.controller.ts|src/core/authorization/presentation/route-admission',
+  'src/modules/authorization/guards/route-admission.guard.ts|src/modules/authentication/decorators/authenticated-request-context.decorator',
+  'src/modules/authorization/guards/route-admission.guard.ts|src/modules/authentication/guards/authenticated-request-context.guard',
+  'src/modules/authorization/guards/route-admission.guard.ts|src/modules/authentication/http/private-response-headers',
+  'src/modules/authorization/guards/route-admission.guard.ts|src/modules/authentication/guards/trusted-origin.guard',
+]);
+
+const PUBLIC_PRESENTATION_CONTRACTS = new Set([
+  'src/modules/authentication/decorators/authenticated-request-context.decorator',
+  'src/modules/authorization/decorators/route-admission.decorator',
 ]);
 
 const MODEL_OWNERS = new Map([
@@ -90,9 +87,9 @@ describe('architecture dependency gates', () => {
           violations.push(`${file}: unknown Prisma delegate ${delegate}`);
           continue;
         }
-        if (!file.startsWith(`src/core/${owner}/infrastructure/`)) {
+        if (!file.startsWith(`src/modules/${owner}/infrastructure/`)) {
           violations.push(
-            `${file}: ${delegate} is owned by core/${owner}/infrastructure`,
+            `${file}: ${delegate} is owned by modules/${owner}/infrastructure`,
           );
         }
       }
@@ -100,7 +97,7 @@ describe('architecture dependency gates', () => {
         /\.(?:\$queryRaw|\$executeRaw|\$queryRawUnsafe|\$executeRawUnsafe)\b/.test(
           source,
         ) &&
-        !file.startsWith('src/core/persistence/')
+        !file.startsWith('src/infrastructure/database/')
       ) {
         violations.push(`${file}: raw SQL bypasses module-owned repositories`);
       }
@@ -108,12 +105,176 @@ describe('architecture dependency gates', () => {
     expect(violations).toEqual([]);
   });
 
+  it('keeps a single conventional Nest module entry point per directory', () => {
+    const modulesRoot = path.join(sourceRoot, 'modules');
+    if (!existsSync(modulesRoot)) return;
+
+    const rootModuleFiles = readdirSync(modulesRoot).filter((entry) =>
+      entry.endsWith('.module.ts'),
+    );
+    expect(rootModuleFiles).toEqual([]);
+
+    const featureDirectories = readdirSync(modulesRoot).filter((entry) =>
+      statSync(path.join(modulesRoot, entry)).isDirectory(),
+    );
+    const missingFeatureModules = featureDirectories.filter(
+      (feature) =>
+        !existsSync(path.join(modulesRoot, feature, `${feature}.module.ts`)),
+    );
+    expect(missingFeatureModules).toEqual([]);
+
+    const ambiguousDirectories = collectDirectories(modulesRoot).flatMap(
+      (directory) => {
+        const moduleFiles = readdirSync(directory).filter((entry) =>
+          entry.endsWith('.module.ts'),
+        );
+        return moduleFiles.length > 1
+          ? [
+              `${normalize(path.relative(repositoryRoot, directory))}: ${moduleFiles.join(', ')}`,
+            ]
+          : [];
+      },
+    );
+    expect(ambiguousDirectories).toEqual([]);
+  });
+
+  it('keeps the Nest module graph acyclic and installs one global guard', () => {
+    const moduleFiles = productionFiles.filter((file) =>
+      file.endsWith('.module.ts'),
+    );
+    const moduleByTarget = new Map(
+      moduleFiles.map((file) => [file.slice(0, -3), file]),
+    );
+    const moduleEdges = new Map(
+      moduleFiles.map((file) => [
+        file,
+        readDependencies(file).flatMap((dependency) => {
+          const targetModule = dependency.target
+            ? moduleByTarget.get(dependency.target)
+            : undefined;
+          return targetModule ? [targetModule] : [];
+        }),
+      ]),
+    );
+
+    expect(findGraphCycles(moduleEdges)).toEqual([]);
+
+    const globalGuardProviders = productionFiles.flatMap((file) => {
+      const source = readFileSync(path.join(repositoryRoot, file), 'utf8');
+      return source.includes('provide: APP_GUARD') ? [file] : [];
+    });
+    expect(globalGuardProviders).toEqual([
+      'src/modules/authorization/authorization.module.ts',
+    ]);
+  });
+
+  it('keeps repository tokens and infrastructure adapters private to modules', () => {
+    const moduleFiles = productionFiles.filter(
+      (file) => file.startsWith('src/modules/') && file.endsWith('.module.ts'),
+    );
+    const violations = moduleFiles.flatMap((file) => {
+      const source = readFileSync(path.join(repositoryRoot, file), 'utf8');
+      const exportsMatch = /\bexports\s*:\s*\[([\s\S]*?)\]/.exec(source);
+      if (!exportsMatch?.[1]) return [];
+      const exportedIdentifiers =
+        exportsMatch[1].match(/\b[A-Z][A-Z_a-z0-9]*\b/g) ?? [];
+      return exportedIdentifiers.flatMap((identifier) =>
+        /(?:REPOSITORY|_CACHE|OUTBOUND_MAIL|^Prisma|Repository$)/.test(
+          identifier,
+        )
+          ? [`${file}: exports private provider ${identifier}`]
+          : [],
+      );
+    });
+    expect(violations).toEqual([]);
+  });
+
+  it('keeps the exported session-state cycle breaker capability-narrow', () => {
+    const publicMethods = Object.getOwnPropertyNames(
+      SessionStateService.prototype,
+    )
+      .filter((method) => method !== 'constructor')
+      .sort();
+    expect(publicMethods).toEqual(
+      [
+        'clearCachesBestEffort',
+        'hasActiveContext',
+        'revokeActiveForMembership',
+      ].sort(),
+    );
+
+    const broadStoreConsumers = dependencies
+      .filter((dependency) =>
+        dependency.target?.endsWith(
+          'modules/authentication/application/session-store.service',
+        ),
+      )
+      .map((dependency) => dependency.source)
+      .filter((source) => !source.startsWith('src/modules/authentication/'));
+    expect(broadStoreConsumers).toEqual([]);
+
+    const authenticationModule = readFileSync(
+      path.join(
+        repositoryRoot,
+        'src/modules/authentication/authentication.module.ts',
+      ),
+      'utf8',
+    );
+    const exportsMatch = /\bexports\s*:\s*\[([\s\S]*?)\]/.exec(
+      authenticationModule,
+    );
+    expect(exportsMatch?.[1]).not.toContain('SessionStoreService');
+  });
+
+  it('preserves workflow-specific logger contexts after service consolidation', () => {
+    const expectedContexts = new Map<string, readonly string[]>([
+      [
+        'src/modules/authentication/services/sessions.service.ts',
+        ['CreateSession', 'ListSessionWorkspaces', 'SwitchWorkspace'],
+      ],
+      [
+        'src/modules/authentication/services/password.service.ts',
+        ['RequestPasswordReset', 'ResetPassword', 'ChangePassword'],
+      ],
+      [
+        'src/modules/authentication/services/email-verification.service.ts',
+        ['RequestEmailVerification', 'VerifyEmail'],
+      ],
+      [
+        'src/modules/memberships/memberships.service.ts',
+        [
+          'ListWorkspaceMemberships',
+          'LeaveCurrentWorkspace',
+          'ChangeMembershipRole',
+          'RemoveMembership',
+          'TransferWorkspaceOwnership',
+        ],
+      ],
+      [
+        'src/modules/memberships/membership-invitations.service.ts',
+        [
+          'CreateMembershipInvitation',
+          'AcceptMembershipInvitation',
+          'RevokeMembershipInvitation',
+        ],
+      ],
+    ]);
+
+    for (const [file, expected] of expectedContexts) {
+      const source = readFileSync(path.join(repositoryRoot, file), 'utf8');
+      const actual = [...source.matchAll(/new Logger\(\s*'([^']+)'/g)].map(
+        (match) => match[1],
+      );
+      expect(actual).toEqual(expected);
+    }
+  });
+
   it('exercises allowed and denied classifier paths', () => {
     expect(
       dependencyViolation({
         source: 'src/products/example/application/use-case.ts',
-        specifier: '../../../core/users/application/users',
-        target: 'src/core/users/application/users',
+        specifier: '../../../modules/users/users.service',
+        target: 'src/modules/users/users.service',
       }),
     ).toBeUndefined();
     expect(
@@ -125,24 +286,49 @@ describe('architecture dependency gates', () => {
     expect(
       dependencyViolation({
         source: 'src/products/example/infrastructure/repository.ts',
-        specifier: 'src/core/persistence/database.service',
-        target: 'src/core/persistence/database.service',
+        specifier: 'src/infrastructure/database/prisma.service',
+        target: 'src/infrastructure/database/prisma.service',
       }),
     ).toContain('product modules cannot access Prisma');
     expect(
       dependencyViolation({
-        source: 'src/core/users/domain/user.ts',
+        source: 'src/modules/users/domain/user.ts',
         specifier: '../infrastructure/prisma-users.repository',
-        target: 'src/core/users/infrastructure/prisma-users.repository',
+        target: 'src/modules/users/infrastructure/prisma-users.repository',
       }),
     ).toContain('domain');
     expect(
       dependencyViolation({
-        source: 'src/core/users/application/users.ts',
+        source: 'src/modules/users/users.service.ts',
         specifier: '../../products/example/application/use-case',
         target: 'src/products/example/application/use-case',
       }),
     ).toContain('Core cannot import product modules');
+    expect(
+      parseBoundary('src/modules/users/users.controller.ts'),
+    ).toMatchObject({ module: 'users', layer: 'presentation' });
+    expect(parseBoundary('src/modules/users/users.service.ts')).toMatchObject({
+      module: 'users',
+      layer: 'application',
+    });
+    expect(
+      parseBoundary('src/modules/users/dto/update-user.dto.ts'),
+    ).toMatchObject({ module: 'users', layer: 'presentation' });
+    expect(
+      dependencyViolation({
+        source: 'src/modules/users/users.controller.ts',
+        specifier: './repositories/users.repository',
+        target: 'src/modules/users/repositories/users.repository',
+      }),
+    ).toContain('presentation adapters cannot access persistence');
+    expect(
+      dependencyViolation({
+        source: 'src/modules/users/users.controller.ts',
+        specifier: '../workspaces/infrastructure/prisma-workspaces.repository',
+        target:
+          'src/modules/workspaces/infrastructure/prisma-workspaces.repository',
+      }),
+    ).toContain('presentation adapters cannot access persistence');
   });
 });
 
@@ -151,21 +337,22 @@ function dependencyViolation(dependency: Dependency): string | undefined {
   const sourceBoundary = parseBoundary(source);
   const targetBoundary = target ? parseBoundary(target) : undefined;
 
-  if (source.startsWith('src/core/') && target?.startsWith('src/products/')) {
+  if (isCoreModulePath(source) && target?.startsWith('src/products/')) {
     return 'Core cannot import product modules';
   }
   if (source.startsWith('src/products/')) {
     if (
       specifier === '@prisma/client' ||
       specifier === '@prisma/adapter-pg' ||
-      target?.startsWith('src/core/persistence/') ||
+      target?.startsWith('src/infrastructure/') ||
       target?.includes('/infrastructure/') ||
-      target?.endsWith('src/core/core-infrastructure.module')
+      target?.endsWith('src/modules/infrastructure.module')
     ) {
       return 'product modules cannot access Prisma or Core infrastructure';
     }
     if (
-      target?.startsWith('src/core/') &&
+      target &&
+      isCoreModulePath(target) &&
       targetBoundary?.layer !== 'application'
     ) {
       return 'product modules may consume only Core application contracts';
@@ -173,6 +360,16 @@ function dependencyViolation(dependency: Dependency): string | undefined {
   }
 
   if (!sourceBoundary) return undefined;
+  if (
+    sourceBoundary.layer === 'presentation' &&
+    (specifier === '@prisma/client' ||
+      specifier === '@prisma/adapter-pg' ||
+      target?.includes('/repositories/') ||
+      target?.includes('/infrastructure/') ||
+      target?.startsWith('src/infrastructure/'))
+  ) {
+    return 'controllers and presentation adapters cannot access persistence';
+  }
   if (
     sourceBoundary.layer === 'domain' &&
     (specifier.startsWith('@nestjs/') ||
@@ -182,11 +379,19 @@ function dependencyViolation(dependency: Dependency): string | undefined {
     return `domain cannot import framework package ${specifier}`;
   }
   if (!target) return undefined;
+  if (isApprovedException(source, target)) return undefined;
+  if (
+    sourceBoundary.layer === 'presentation' &&
+    PUBLIC_PRESENTATION_CONTRACTS.has(target)
+  ) {
+    return undefined;
+  }
   if (
     sourceBoundary.layer === 'domain' &&
     !(
-      target.startsWith(`src/core/${sourceBoundary.module}/domain/`) ||
-      target.startsWith('src/shared/domain/')
+      target.startsWith(
+        `src/${sourceBoundary.namespace}/${sourceBoundary.module}/domain/`,
+      ) || target.startsWith('src/common/domain/')
     ) &&
     !isApprovedException(source, target)
   ) {
@@ -218,8 +423,10 @@ function dependencyViolation(dependency: Dependency): string | undefined {
   if (!targetBoundary || targetBoundary.module === sourceBoundary.module) {
     return undefined;
   }
-  if (isApprovedException(source, target)) return undefined;
-  if (targetBoundary.layer === 'application') return undefined;
+  if (targetBoundary.layer === 'application') {
+    if (target.endsWith('.service')) return undefined;
+    return 'cross-module application imports must use public services';
+  }
   if (
     targetBoundary.module === 'configuration' &&
     targetBoundary.layer === undefined
@@ -234,8 +441,7 @@ function dependencyViolation(dependency: Dependency): string | undefined {
   }
   if (
     source.endsWith('.module.ts') &&
-    (target.endsWith('.module') ||
-      target.endsWith('core-infrastructure.module'))
+    (target.endsWith('.module') || target.endsWith('infrastructure.module'))
   ) {
     return undefined;
   }
@@ -279,32 +485,61 @@ function resolveTarget(source: string, specifier: string): string | undefined {
   );
 }
 
-function parseBoundary(
-  file: string,
-): { module: string; layer?: Layer } | undefined {
-  const match =
-    /^src\/(?:core|products)\/([^/]+)(?:\/(domain|application|infrastructure|presentation))?\//.exec(
-      file,
-    );
+function parseBoundary(file: string): Boundary | undefined {
+  const match = /^src\/(core|modules|products)\/([^/]+)(?:\/([^/]+))?/.exec(
+    file,
+  );
   if (!match) return undefined;
-  const layer = match[2];
+  const namespace = match[1];
+  const module = match[2];
+  if (!isBoundaryNamespace(namespace) || !module || module.endsWith('.ts')) {
+    return undefined;
+  }
+
+  const segment = match[3];
+  const layer = layerForPath(file, segment);
   return {
-    module: match[1],
-    ...(isLayer(layer) ? { layer } : {}),
+    namespace,
+    module,
+    ...(layer ? { layer } : {}),
   };
+}
+
+function layerForPath(
+  file: string,
+  segment: string | undefined,
+): Layer | undefined {
+  if (segment === 'domain') return 'domain';
+  if (segment === 'infrastructure') return 'infrastructure';
+  if (['application', 'services', 'repositories'].includes(segment ?? '')) {
+    return 'application';
+  }
+  if (
+    ['presentation', 'controllers', 'dto', 'guards', 'decorators'].includes(
+      segment ?? '',
+    )
+  ) {
+    return 'presentation';
+  }
+  if (/\.(?:controller|guard|decorator|dto)(?:\.ts)?$/.test(file)) {
+    return 'presentation';
+  }
+  if (/\.service(?:\.ts)?$/.test(file)) return 'application';
+  return undefined;
+}
+
+function isBoundaryNamespace(
+  value: string | undefined,
+): value is Boundary['namespace'] {
+  return value === 'core' || value === 'modules' || value === 'products';
+}
+
+function isCoreModulePath(file: string): boolean {
+  return file.startsWith('src/modules/');
 }
 
 function isApprovedException(source: string, target: string): boolean {
   return APPROVED_CROSS_MODULE_EXCEPTIONS.has(`${source}|${target}`);
-}
-
-function isLayer(value: string | undefined): value is Layer {
-  return (
-    value === 'domain' ||
-    value === 'application' ||
-    value === 'infrastructure' ||
-    value === 'presentation'
-  );
 }
 
 function collectTypeScriptFiles(directory: string): string[] {
@@ -316,6 +551,44 @@ function collectTypeScriptFiles(directory: string): string[] {
       ? [normalize(path.relative(repositoryRoot, absolute))]
       : [];
   });
+}
+
+function collectDirectories(directory: string): string[] {
+  return [
+    directory,
+    ...readdirSync(directory).flatMap((entry) => {
+      const absolute = path.join(directory, entry);
+      return statSync(absolute).isDirectory()
+        ? collectDirectories(absolute)
+        : [];
+    }),
+  ];
+}
+
+function findGraphCycles(
+  edges: ReadonlyMap<string, readonly string[]>,
+): string[] {
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+  const cycles: string[] = [];
+
+  const visit = (node: string, pathToNode: readonly string[]): void => {
+    if (visiting.has(node)) {
+      cycles.push([...pathToNode, node].join(' -> '));
+      return;
+    }
+    if (visited.has(node)) return;
+
+    visiting.add(node);
+    for (const target of edges.get(node) ?? []) {
+      visit(target, [...pathToNode, node]);
+    }
+    visiting.delete(node);
+    visited.add(node);
+  };
+
+  for (const node of edges.keys()) visit(node, []);
+  return cycles;
 }
 
 function normalize(value: string): string {

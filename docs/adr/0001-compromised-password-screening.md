@@ -123,4 +123,4 @@ data migration.
 
 - [ ] Establish a quarterly blocklist refresh and source-review owner.
 - [x] Reuse the same checker for password reset and authenticated password
-  change flows.
+      change flows.

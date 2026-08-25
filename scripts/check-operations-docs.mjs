@@ -5,7 +5,7 @@ const runbook = readFileSync(
   'utf8',
 );
 const configSource = readFileSync(
-  new URL('../src/core/configuration/app-config.ts', import.meta.url),
+  new URL('../src/config/app-config.ts', import.meta.url),
   'utf8',
 );
 const example = readFileSync(

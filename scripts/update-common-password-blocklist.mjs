@@ -5,7 +5,7 @@ import path from 'node:path';
 const SOURCE_URL =
   'https://raw.githubusercontent.com/danielmiessler/SecLists/refs/heads/master/Passwords/Common-Credentials/100k-most-used-passwords-NCSC.txt';
 const OUTPUT_PATH = path.resolve(
-  'src/core/authentication/infrastructure/common-password-hashes.generated.ts',
+  'src/modules/authentication/infrastructure/common-password-hashes.generated.ts',
 );
 const MIN_CODE_POINTS = 15;
 const MAX_CODE_POINTS = 128;

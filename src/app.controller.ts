@@ -1,6 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { AppService } from './app.service';
-import { PublicRoute } from './core/authorization/presentation/route-admission';
+import { PublicRoute } from './modules/authorization/decorators/route-admission.decorator';
 
 /** Provides the public root endpoint used as a simple application greeting. */
 @Controller()

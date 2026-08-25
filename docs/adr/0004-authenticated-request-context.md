@@ -129,7 +129,7 @@ sessions and API responses remain compatible.
 ## Follow-up work
 
 - [x] Add deny-by-default route eligibility metadata and enforcement through
-  ADR-0005.
+      ADR-0005.
 - [x] Introduce base RBAC with membership invitations through ADR-0007.
 - [x] Add multi-workspace selection and switching through ADR-0006.
 - [ ] Add ownership transfer and last-owner protection.

@@ -90,7 +90,7 @@ its roadmap. A downstream product may depend on narrow public Core contracts.
   infrastructure implementing inward-facing ports.
 - Keep domain code free of NestJS, Prisma, HTTP, Redis, queue, and provider SDK
   types.
-- Let an application use case own its transaction boundary.
+- Let a feature application service method own its transaction boundary.
 - Publish committed facts through an outbox or equivalent reliable handoff when
   asynchronous effects are required.
 - Avoid internal HTTP between modules in the monolith.
@@ -105,7 +105,16 @@ its roadmap. A downstream product may depend on narrow public Core contracts.
 
 ```text
 src/
-  core/
+  app.module.ts
+  main.ts
+  configure-app.ts
+  config/
+  common/
+  infrastructure/
+    infrastructure.module.ts
+    database/
+    cache/
+  modules/
     authentication/
     identity/
     users/
@@ -113,9 +122,6 @@ src/
     workspaces/
     memberships/
     audit/
-    persistence/
-    redis/
-  shared/
 prisma/
 test/
 ```
@@ -197,7 +203,7 @@ product-neutral. Product policy stays downstream.
   in unique constraints and leading indexes.
 - Keep repositories scoped by trusted tenant context.
 - Use JSONB for flexible metadata, not queryable core state.
-- Keep transaction boundaries in application use cases.
+- Keep transaction boundaries in feature application service methods.
 - Write durable state and its outbox record in the same transaction.
 - Use real PostgreSQL for persistence and transaction verification.
 

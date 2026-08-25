@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { z } from 'zod';
-import { AppConfig } from '../src/core/configuration/app-config';
+import { AppConfig } from '../src/config/app-config';
 
 const approvalSchema = z.strictObject({
   approvalId: z.string().min(1),
