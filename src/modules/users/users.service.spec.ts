@@ -1,13 +1,13 @@
 import { AuditService, type AppendAuditLog } from '../audit/audit.service';
 import type { SessionStateService } from '../authentication/session-state/session-state.service';
-import { Clock } from '../../common/application/clock';
-import { IdentifierFactory } from '../../common/application/identifier-factory';
-import type { TransactionManager } from '../../common/application/transaction-manager.port';
+import { Clock } from '../../common/clock';
+import { IdentifierFactory } from '../../common/identifier-factory';
+import type { TransactionManager } from '../../common/transaction-manager';
 import {
   UserLifecycleInvalidError,
   UserLifecycleUnavailableError,
-} from './domain/user-lifecycle.errors';
-import type { UsersRepository } from './repositories/users.repository';
+} from './users.errors';
+import type { UsersRepository } from './users.repository';
 import { UsersService } from './users.service';
 
 const USER_ID = '01911457-9b3a-7cc3-9c3a-3b7508f69f5c';
@@ -21,11 +21,11 @@ describe('UsersService.updateOwnProfile', () => {
       users(updateDisplayName),
       sessionAuthority(true),
       new AuditService({
-        append: (audit) => {
+        append: (audit: AppendAuditLog) => {
           audits.push(audit);
           return Promise.resolve();
         },
-      }),
+      } as never),
       new IdentifierFactory(),
       fixedClock(),
       inlineTransactions(),
@@ -60,7 +60,7 @@ describe('UsersService.updateOwnProfile', () => {
     const service = new UsersService(
       users(updateDisplayName),
       sessionAuthority(false),
-      new AuditService({ append: () => Promise.resolve() }),
+      new AuditService({ append: () => Promise.resolve() } as never),
       new IdentifierFactory(),
       fixedClock(),
       inlineTransactions(),
@@ -83,11 +83,11 @@ describe('UsersService.updateOwnProfile', () => {
       users(updateDisplayName),
       sessionAuthority(true),
       new AuditService({
-        append: (audit) => {
+        append: (audit: AppendAuditLog) => {
           audits.push(audit);
           return Promise.resolve();
         },
-      }),
+      } as never),
       new IdentifierFactory(),
       fixedClock(),
       inlineTransactions(),
@@ -112,7 +112,7 @@ describe('UsersService.updateOwnProfile', () => {
     const retrying = new UsersService(
       users(retryingUpdate),
       sessionAuthority(true),
-      new AuditService({ append: () => Promise.resolve() }),
+      new AuditService({ append: () => Promise.resolve() } as never),
       new IdentifierFactory(),
       fixedClock(),
       inlineTransactions(),
@@ -131,7 +131,7 @@ describe('UsersService.updateOwnProfile', () => {
     const conflicting = new UsersService(
       users(conflictingUpdate),
       sessionAuthority(true),
-      new AuditService({ append: () => Promise.resolve() }),
+      new AuditService({ append: () => Promise.resolve() } as never),
       new IdentifierFactory(),
       fixedClock(),
       inlineTransactions(),
@@ -165,16 +165,16 @@ function users(
     findByIdentityId: () => Promise.resolve(null),
     findActiveByIdentityId: () => Promise.resolve(null),
     activate: () => Promise.resolve(false),
-    updateDisplayName: (input) => updateDisplayName(input),
-  };
+    updateDisplayName: (
+      input: Parameters<UsersRepository['updateDisplayName']>[0],
+    ) => updateDisplayName(input),
+  } as never;
 }
 
-function sessionAuthority(
-  active: boolean,
-): Pick<SessionStateService, 'hasActiveContext'> {
+function sessionAuthority(active: boolean): SessionStateService {
   return {
     hasActiveContext: () => Promise.resolve(active),
-  };
+  } as never;
 }
 
 function fixedClock(): Clock {

@@ -1,7 +1,5 @@
-/** Injection token for the durable authentication-session repository. */
-export const AUTHENTICATION_SESSIONS_REPOSITORY = Symbol(
-  'AUTHENTICATION_SESSIONS_REPOSITORY',
-);
+import { Injectable } from '@nestjs/common';
+import { DatabaseContext } from '../../../infrastructure/database/database-context';
 
 /** Durable session state addressed by a hash of the opaque cookie secret. */
 export type SessionRecord = {
@@ -25,25 +23,72 @@ export type SessionContext = Pick<
   'userId' | 'activeWorkspaceId'
 >;
 
-/** Persistence contract owned by Authentication for session lifecycle state. */
-export interface AuthenticationSessionsRepository {
-  /** Inserts a durable session containing only the opaque token hash. */
-  create(input: {
+/** Private repository for Authentication-owned durable session state. */
+@Injectable()
+export class AuthenticationSessionsRepository {
+  constructor(private readonly database: DatabaseContext) {}
+
+  /** Inserts a session through the current database or transaction client. */
+  async create(input: {
     id: string;
     tokenHash: string;
     userId: string;
     activeWorkspaceId: string;
     expiresAt: Date;
-  }): Promise<void>;
-  /** Finds the authoritative session row for a token hash. */
-  findByTokenHash(tokenHash: string): Promise<SessionRecord | null>;
-  /** Finds the latest session still backed by an active membership. */
-  findLatestForUser(userId: string): Promise<SessionContext | null>;
-  /** Atomically revokes one active session and returns its audit context. */
-  revokeByTokenHash(
+  }): Promise<void> {
+    await this.database.client.session.create({ data: input });
+  }
+
+  /** Selects authoritative session fields by unique token hash. */
+  findByTokenHash(tokenHash: string): Promise<SessionRecord | null> {
+    return this.database.client.session.findUnique({
+      where: { tokenHash },
+      select: {
+        id: true,
+        tokenHash: true,
+        userId: true,
+        activeWorkspaceId: true,
+        expiresAt: true,
+        revokedAt: true,
+      },
+    });
+  }
+
+  /** Finds the latest session whose backing membership has not been removed. */
+  findLatestForUser(userId: string): Promise<SessionContext | null> {
+    return this.database.client.session.findFirst({
+      where: { userId, membership: { removedAt: null } },
+      orderBy: { createdAt: 'desc' },
+      select: { userId: true, activeWorkspaceId: true },
+    });
+  }
+
+  /** Atomically marks one still-active session revoked and returns its audit fields. */
+  async revokeByTokenHash(
     tokenHash: string,
     revokedAt: Date,
-  ): Promise<RevokedSession | null>;
-  /** Atomically revokes every active session owned by one user. */
-  revokeAllForUser(userId: string, revokedAt: Date): Promise<RevokedSession[]>;
+  ): Promise<RevokedSession | null> {
+    const sessions = await this.database.client.session.updateManyAndReturn({
+      where: { tokenHash, revokedAt: null },
+      data: { revokedAt },
+      select: revokedSessionSelect,
+    });
+    return sessions[0] ?? null;
+  }
+
+  /** Atomically revokes all still-active sessions for one user. */
+  revokeAllForUser(userId: string, revokedAt: Date): Promise<RevokedSession[]> {
+    return this.database.client.session.updateManyAndReturn({
+      where: { userId, revokedAt: null },
+      data: { revokedAt },
+      select: revokedSessionSelect,
+    });
+  }
 }
+
+const revokedSessionSelect = {
+  id: true,
+  tokenHash: true,
+  userId: true,
+  activeWorkspaceId: true,
+} as const;

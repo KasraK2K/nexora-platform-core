@@ -1,28 +1,27 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { SessionStateService } from '../authentication/session-state/session-state.service';
-import { Clock } from '../../common/application/clock';
-import { IdentifierFactory } from '../../common/application/identifier-factory';
-import { TRANSACTION_MANAGER } from '../../common/application/transaction-manager.port';
-import type { TransactionManager } from '../../common/application/transaction-manager.port';
-import { isTransactionWriteConflict } from '../../common/application/transaction-write-conflict';
+import { Clock } from '../../common/clock';
+import { IdentifierFactory } from '../../common/identifier-factory';
+import { TRANSACTION_MANAGER } from '../../common/transaction-manager';
+import type { TransactionManager } from '../../common/transaction-manager';
+import { isTransactionWriteConflict } from '../../common/transaction-write-conflict';
 import {
   UserLifecycleInvalidError,
   UserLifecycleUnavailableError,
-} from './domain/user-lifecycle.errors';
-import {
-  USERS_REPOSITORY,
-  type UserAuthenticationReference,
-  type UserStatus,
-  type UserSummary,
-  type UsersRepository,
-} from './repositories/users.repository';
+} from './users.errors';
+import { UsersRepository } from './users.repository';
+import type {
+  UserAuthenticationReference,
+  UserStatus,
+  UserSummary,
+} from './users.types';
 
 export type {
   UserAuthenticationReference,
   UserStatus,
   UserSummary,
-} from './repositories/users.repository';
+} from './users.types';
 
 /** Public service for user-owned profile and lifecycle behavior. */
 @Injectable()
@@ -30,12 +29,8 @@ export class UsersService {
   private readonly logger = new Logger('UpdateOwnProfile');
 
   constructor(
-    @Inject(USERS_REPOSITORY) private readonly repository: UsersRepository,
-    @Inject(SessionStateService)
-    private readonly sessionAuthority: Pick<
-      SessionStateService,
-      'hasActiveContext'
-    >,
+    private readonly repository: UsersRepository,
+    private readonly sessionAuthority: SessionStateService,
     private readonly audit: AuditService,
     private readonly identifiers: IdentifierFactory,
     private readonly clock: Clock,

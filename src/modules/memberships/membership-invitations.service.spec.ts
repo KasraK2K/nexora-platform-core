@@ -3,17 +3,15 @@ import {
   AuthorizationDeniedError,
   AuthorizationPolicyService,
 } from '../authorization/policy/authorization-policy.service';
-import { Clock } from '../../common/application/clock';
-import { IdentifierFactory } from '../../common/application/identifier-factory';
-import type { TransactionManager } from '../../common/application/transaction-manager.port';
+import { Clock } from '../../common/clock';
+import { IdentifierFactory } from '../../common/identifier-factory';
+import type { TransactionManager } from '../../common/transaction-manager';
 import {
   MembershipInvitationConflictError,
   MembershipInvitationInvalidError,
-} from './domain/membership-invitation.errors';
-import type { MembershipRole } from './domain/membership-role';
-import { MembershipInvitationTokenService } from './application/membership-invitation-token.service';
-import type { MembershipInvitationsRepository } from './repositories/membership-invitations.repository';
-import type { MembershipsRepository } from './repositories/memberships.repository';
+} from './errors/membership-invitation.errors';
+import type { MembershipRole } from './membership-role';
+import { OpaqueTokenService } from '../../common/security/opaque-token.service';
 import { MembershipInvitationsService } from './membership-invitations.service';
 
 const WORKSPACE_ID = '01911457-e820-7b71-b695-a07fb242b8ec';
@@ -149,7 +147,7 @@ function createIssueFixture(
   const audits: AppendAuditLog[] = [];
   const invitations = new RecordingInvitations();
   const delivery = jest.fn(() => Promise.resolve());
-  const memberships: MembershipsRepository = {
+  const memberships = {
     createOwner: () => Promise.resolve(),
     createInvited: () => Promise.resolve(),
     find: ({ userId }: { workspaceId: string; userId: string }) =>
@@ -183,25 +181,25 @@ function createIssueFixture(
     invitations,
     delivery,
     service: new MembershipInvitationsService(
-      memberships,
-      invitations,
+      memberships as never,
+      invitations as never,
       identities as never,
       users as never,
       new AuthorizationPolicyService(),
       new AuditService({
-        append: (audit) => {
+        append: (audit: AppendAuditLog) => {
           audits.push(audit);
           return Promise.resolve();
         },
-      }),
+      } as never),
       {
         enqueue: delivery,
         attempt: () => Promise.resolve(true),
-      },
-      new MembershipInvitationTokenService(),
+      } as never,
+      new OpaqueTokenService(),
       new IdentifierFactory(),
       fixedClock(),
-      { membershipInvitationTtlSeconds: 3600 },
+      { membershipInvitationTtlSeconds: 3600 } as never,
       inlineTransactions(),
     ),
   };
@@ -213,7 +211,7 @@ function createAcceptanceFixture(
     inviterRole?: MembershipRole;
   } = {},
 ) {
-  const tokenService = new MembershipInvitationTokenService();
+  const tokenService = new OpaqueTokenService();
   const token = tokenService.create();
   let accepted = false;
   const createdMemberships: Array<{
@@ -223,7 +221,7 @@ function createAcceptanceFixture(
     role: MembershipRole;
   }> = [];
   const audits: AppendAuditLog[] = [];
-  const invitations: MembershipInvitationsRepository = {
+  const invitations = {
     create: () => Promise.resolve(),
     retireActive: () => Promise.resolve(),
     findUsableByTokenHash: () =>
@@ -270,7 +268,7 @@ function createAcceptanceFixture(
           : null,
       ),
     listForUser: () => Promise.resolve([]),
-  } satisfies MembershipsRepository;
+  };
   const users = {
     findAuthenticationReferenceById: () =>
       Promise.resolve({
@@ -295,17 +293,17 @@ function createAcceptanceFixture(
     createdMemberships,
     audits,
     service: new MembershipInvitationsService(
-      membershipsRepository,
-      invitations,
+      membershipsRepository as never,
+      invitations as never,
       identities as never,
       users as never,
       new AuthorizationPolicyService(),
       new AuditService({
-        append: (audit) => {
+        append: (audit: AppendAuditLog) => {
           audits.push(audit);
           return Promise.resolve();
         },
-      }),
+      } as never),
       undefined as never,
       tokenService,
       new IdentifierFactory(),

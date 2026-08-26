@@ -2,23 +2,21 @@ import { AuditService, type AppendAuditLog } from '../../audit/audit.service';
 import { AppConfig } from '../../../config/app-config';
 import { PasswordCredentialsService } from '../../identity/password-credentials.service';
 import { UsersService } from '../../users/users.service';
-import { Clock } from '../../../common/application/clock';
-import { IdentifierFactory } from '../../../common/application/identifier-factory';
-import type { TransactionManager } from '../../../common/application/transaction-manager.port';
+import { Clock } from '../../../common/clock';
+import { IdentifierFactory } from '../../../common/identifier-factory';
+import type { TransactionManager } from '../../../common/transaction-manager';
 import {
   InvalidPasswordResetPasswordError,
   PasswordResetInvalidError,
-} from '../domain/registration.errors';
-import { PasswordPolicy } from '../domain/password-policy';
+} from '../errors/authentication.errors';
+import { PasswordPolicy } from '../security/password-policy';
 import type { AuthenticationSessionsRepository } from '../repositories/authentication-sessions.repository';
-import type { PasswordCompromiseChecker } from '../application/password-compromise-checker.port';
-import type { PasswordHasher } from '../application/password-hasher.port';
-import { PasswordResetDelivery } from '../application/password-reset-delivery';
-import { PasswordResetTokenService } from '../application/password-reset-token.service';
-import type { PasswordResetTokensRepository } from '../repositories/password-reset-tokens.repository';
-import type { SessionCachePort } from '../application/session-cache.port';
-import { SessionTokenService } from '../application/session-token.service';
-import { PasswordService } from './password.service';
+import type { PasswordCompromiseChecker } from '../security/password-compromise-checker';
+import type { PasswordHasher } from '../security/password-hasher';
+import { PasswordResetDeliveryService } from '../mail/password-reset-delivery.service';
+import { OpaqueTokenService } from '../../../common/security/opaque-token.service';
+import type { SessionCachePort } from '../cache/session-cache';
+import { PasswordResetService } from './password-reset.service';
 
 class InlineTransactionManager implements TransactionManager {
   execute<T>(operation: () => Promise<T>): Promise<T> {
@@ -38,7 +36,7 @@ type StoredReset = {
   deliveryStatus: 'PENDING' | 'SENT' | 'FAILED';
 };
 
-class InMemoryResetTokens implements PasswordResetTokensRepository {
+class InMemoryResetTokens {
   readonly records: StoredReset[] = [];
 
   create(
@@ -97,7 +95,7 @@ class InMemoryResetTokens implements PasswordResetTokensRepository {
   }
 }
 
-describe('PasswordService reset workflows', () => {
+describe('PasswordResetService', () => {
   beforeAll(() => {
     process.env.NODE_ENV = 'test';
     process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test';
@@ -218,21 +216,24 @@ function createRequestFixture(latestWorkspaces?: readonly string[]) {
   return {
     repository,
     sender,
-    service: new PasswordService(
+    service: new PasswordResetService(
       {
         findByEmail: () =>
           Promise.resolve({
             id: 'identity-id',
             normalizedEmail: 'person@example.com',
           }),
-      },
+      } as never,
       users as never,
       sessions as never,
-      repository,
-      new PasswordResetDelivery(outbox as never, repository, clock, config),
-      new PasswordResetTokenService(),
-      new SessionTokenService(),
-      undefined as never,
+      repository as never,
+      new PasswordResetDeliveryService(
+        outbox as never,
+        repository as never,
+        clock,
+        config,
+      ),
+      new OpaqueTokenService(),
       undefined as never,
       undefined as never,
       new PasswordPolicy(),
@@ -248,7 +249,7 @@ function createRequestFixture(latestWorkspaces?: readonly string[]) {
 
 function createResetFixture(options?: { compromised?: boolean }) {
   const repository = new InMemoryResetTokens();
-  const tokens = new PasswordResetTokenService();
+  const tokens = new OpaqueTokenService();
   const token = tokens.create();
   repository.records.push({
     id: 'reset-id',
@@ -274,11 +275,11 @@ function createResetFixture(options?: { compromised?: boolean }) {
   });
   const audits: AppendAuditLog[] = [];
   const auditLog = new AuditService({
-    append(input) {
+    append(input: AppendAuditLog) {
       audits.push(input);
       return Promise.resolve();
     },
-  });
+  } as never);
   const cacheRemovals: string[] = [];
   const cache: SessionCachePort = {
     store: () => Promise.resolve(),
@@ -304,19 +305,17 @@ function createResetFixture(options?: { compromised?: boolean }) {
     get revoked() {
       return revoked;
     },
-    service: new PasswordService(
+    service: new PasswordResetService(
       undefined as never,
       activeUsers() as never,
       {
         ...sessions,
         removeCacheBestEffort: (hash: string) => cache.remove(hash),
       } as never,
-      repository,
+      repository as never,
       undefined as never,
       tokens,
-      new SessionTokenService(),
       credentials as never,
-      undefined as never,
       auditLog,
       new PasswordPolicy(),
       checker,
@@ -349,7 +348,14 @@ function activeUsers(): Pick<UsersService, 'findById' | 'findByIdentityId'> {
 function sessionRepository(
   onRevoke?: () => void,
   latestWorkspaces: readonly string[] = ['workspace-1'],
-): AuthenticationSessionsRepository {
+): Pick<
+  AuthenticationSessionsRepository,
+  | 'create'
+  | 'findByTokenHash'
+  | 'findLatestForUser'
+  | 'revokeByTokenHash'
+  | 'revokeAllForUser'
+> {
   let latestWorkspaceIndex = 0;
   return {
     create: () => Promise.resolve(),

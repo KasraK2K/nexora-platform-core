@@ -132,52 +132,27 @@ for (const file of sourceFiles.sort()) {
   for (const statement of sourceFile.statements) {
     const exported = hasModifier(statement, ts.SyntaxKind.ExportKeyword);
     if (
-      ts.isClassDeclaration(statement) ||
-      ts.isInterfaceDeclaration(statement) ||
-      (exported &&
-        (ts.isTypeAliasDeclaration(statement) ||
-          ts.isEnumDeclaration(statement)))
+      exported &&
+      (ts.isClassDeclaration(statement) ||
+        ts.isInterfaceDeclaration(statement) ||
+        ts.isTypeAliasDeclaration(statement) ||
+        ts.isEnumDeclaration(statement))
     ) {
       reportMissing(
         statement,
         ts.SyntaxKind[statement.kind],
         declarationName(statement) ?? '<anonymous>',
       );
-    } else if (ts.isFunctionDeclaration(statement) && statement.name) {
-      reportMissing(
-        statement,
-        exported ? 'ExportedFunction' : 'LocalFunction',
-        statement.name.text,
-      );
+    } else if (
+      exported &&
+      ts.isFunctionDeclaration(statement) &&
+      statement.name
+    ) {
+      reportMissing(statement, 'ExportedFunction', statement.name.text);
     } else if (exported && ts.isVariableStatement(statement)) {
       for (const declaration of statement.declarationList.declarations) {
         if (ts.isIdentifier(declaration.name)) {
           reportMissing(statement, 'ExportedVariable', declaration.name.text);
-        }
-      }
-    }
-
-    if (
-      ts.isClassDeclaration(statement) ||
-      ts.isInterfaceDeclaration(statement)
-    ) {
-      for (const member of statement.members) {
-        if (!ts.isMethodDeclaration(member) && !ts.isMethodSignature(member)) {
-          continue;
-        }
-        if (
-          hasModifier(member, ts.SyntaxKind.PrivateKeyword) ||
-          hasModifier(member, ts.SyntaxKind.ProtectedKeyword)
-        ) {
-          continue;
-        }
-        const memberName = declarationName(member);
-        if (memberName) {
-          reportMissing(
-            member,
-            'PublicMethod',
-            `${declarationName(statement)}.${memberName}`,
-          );
         }
       }
     }

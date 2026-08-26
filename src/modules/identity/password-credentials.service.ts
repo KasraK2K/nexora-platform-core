@@ -2,21 +2,8 @@ import { Inject, Injectable } from '@nestjs/common';
 import {
   PASSWORD_VERIFIER,
   type PasswordVerifier,
-} from './ports/password-verifier.port';
-import {
-  PASSWORD_CREDENTIAL_MANAGEMENT_REPOSITORY,
-  PASSWORD_CREDENTIAL_VERIFICATION_REPOSITORY,
-  PASSWORD_IDENTITY_REPOSITORY,
-  type PasswordCredentialManagementRepository,
-  type PasswordCredentialVerificationRepository,
-  type PasswordIdentityRepository,
-} from './repositories/password-credentials.repository';
-
-export type {
-  PasswordCredentialManagementRepository,
-  PasswordCredentialVerificationRepository,
-  PasswordIdentityRepository,
-} from './repositories/password-credentials.repository';
+} from './security/password-verifier';
+import { PasswordCredentialsRepository } from './password-credentials.repository';
 
 const VERIFIED_PASSWORD_HASH = Symbol('VERIFIED_PASSWORD_HASH');
 
@@ -30,12 +17,7 @@ export type VerifiedPasswordCredential = Readonly<{
 @Injectable()
 export class PasswordCredentialsService {
   constructor(
-    @Inject(PASSWORD_IDENTITY_REPOSITORY)
-    private readonly identities: PasswordIdentityRepository,
-    @Inject(PASSWORD_CREDENTIAL_MANAGEMENT_REPOSITORY)
-    private readonly management: PasswordCredentialManagementRepository,
-    @Inject(PASSWORD_CREDENTIAL_VERIFICATION_REPOSITORY)
-    private readonly verification: PasswordCredentialVerificationRepository,
+    private readonly credentials: PasswordCredentialsRepository,
     @Inject(PASSWORD_VERIFIER)
     private readonly passwordVerifier: PasswordVerifier,
   ) {}
@@ -45,7 +27,7 @@ export class PasswordCredentialsService {
     email: string;
     password: string;
   }): Promise<{ identityId: string } | null> {
-    const identity = await this.identities.findByNormalizedEmail(
+    const identity = await this.credentials.findByNormalizedEmail(
       input.email.trim().toLocaleLowerCase('en-US'),
     );
     const matches = await this.passwordVerifier.matches(
@@ -60,7 +42,7 @@ export class PasswordCredentialsService {
     identityId: string,
     passwordHash: string,
   ): Promise<boolean> {
-    return this.management.replacePasswordHash(identityId, passwordHash);
+    return this.credentials.replacePasswordHash(identityId, passwordHash);
   }
 
   /** Creates an opaque proof after verifying the current password. */
@@ -68,7 +50,7 @@ export class PasswordCredentialsService {
     identityId: string;
     password: string;
   }): Promise<VerifiedPasswordCredential | null> {
-    const credential = await this.verification.findByIdentityId(
+    const credential = await this.credentials.findByIdentityId(
       input.identityId,
     );
     const matches = await this.passwordVerifier.matches(
@@ -88,7 +70,7 @@ export class PasswordCredentialsService {
     verified: VerifiedPasswordCredential,
     passwordHash: string,
   ): Promise<boolean> {
-    return this.verification.replacePasswordHashIfCurrent({
+    return this.credentials.replacePasswordHashIfCurrent({
       identityId: verified.identityId,
       expectedPasswordHash: verified[VERIFIED_PASSWORD_HASH],
       passwordHash,

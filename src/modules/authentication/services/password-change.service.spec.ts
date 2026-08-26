@@ -1,32 +1,27 @@
 import { AuditService, type AppendAuditLog } from '../../audit/audit.service';
-import {
-  PasswordCredentialsService,
-  type PasswordCredentialVerificationRepository,
-} from '../../identity/password-credentials.service';
-import type { PasswordVerifier } from '../../identity/ports/password-verifier.port';
+import { PasswordCredentialsService } from '../../identity/password-credentials.service';
+import type { PasswordVerifier } from '../../identity/security/password-verifier';
 import { MembershipsService } from '../../memberships/memberships.service';
 import { UsersService } from '../../users/users.service';
-import { Clock } from '../../../common/application/clock';
-import { IdentifierFactory } from '../../../common/application/identifier-factory';
-import type { TransactionManager } from '../../../common/application/transaction-manager.port';
-import { PasswordPolicy } from '../domain/password-policy';
+import { Clock } from '../../../common/clock';
+import { IdentifierFactory } from '../../../common/identifier-factory';
+import type { TransactionManager } from '../../../common/transaction-manager';
+import { PasswordPolicy } from '../security/password-policy';
 import {
   AuthenticationRequiredError,
   InvalidPasswordChangePasswordError,
   PasswordChangeInvalidCurrentPasswordError,
-} from '../domain/registration.errors';
+} from '../errors/authentication.errors';
 import {
   type AuthenticationSessionsRepository,
   type RevokedSession,
   type SessionRecord,
 } from '../repositories/authentication-sessions.repository';
-import type { PasswordCompromiseChecker } from '../application/password-compromise-checker.port';
-import type { PasswordHasher } from '../application/password-hasher.port';
-import type { PasswordResetTokensRepository } from '../repositories/password-reset-tokens.repository';
-import type { SessionCachePort } from '../application/session-cache.port';
-import { PasswordResetTokenService } from '../application/password-reset-token.service';
-import { SessionTokenService } from '../application/session-token.service';
-import { PasswordService } from './password.service';
+import type { PasswordCompromiseChecker } from '../security/password-compromise-checker';
+import type { PasswordHasher } from '../security/password-hasher';
+import type { SessionCachePort } from '../cache/session-cache';
+import { OpaqueTokenService } from '../../../common/security/opaque-token.service';
+import { PasswordChangeService } from './password-change.service';
 
 const RAW_TOKEN = 'a'.repeat(43);
 const CURRENT_PASSWORD = 'A secure passphrase 123';
@@ -40,7 +35,7 @@ class InlineTransactionManager implements TransactionManager {
   }
 }
 
-class RecordingSessionsRepository implements AuthenticationSessionsRepository {
+class RecordingSessionsRepository {
   readonly sessions: SessionRecord[];
 
   constructor(tokenHash: string) {
@@ -99,7 +94,7 @@ class RecordingSessionsRepository implements AuthenticationSessionsRepository {
   }
 }
 
-class RecordingCredentialRepository implements PasswordCredentialVerificationRepository {
+class RecordingCredentialRepository {
   casAllowed = true;
   replacements: string[] = [];
 
@@ -123,7 +118,7 @@ class RecordingCredentialRepository implements PasswordCredentialVerificationRep
   }
 }
 
-class RecordingResetTokensRepository implements PasswordResetTokensRepository {
+class RecordingResetTokensRepository {
   invalidations: Array<{ userId: string; invalidatedAt: Date }> = [];
 
   create(): Promise<void> {
@@ -196,7 +191,7 @@ describe('ChangePassword', () => {
       expiresAt: EXPIRES_AT,
     });
     expect(active[0].tokenHash).not.toBe(
-      new SessionTokenService().hash(RAW_TOKEN),
+      new OpaqueTokenService().hash(RAW_TOKEN),
     );
     expect(result.sessionExpiresAt).toBe(EXPIRES_AT);
     expect(fixture.audits).toEqual(
@@ -325,7 +320,7 @@ function createFixture(options?: {
   userStatus?: 'PENDING_VERIFICATION' | 'ACTIVE';
   membershipPresent?: boolean;
 }): {
-  service: PasswordService;
+  service: PasswordChangeService;
   sessions: RecordingSessionsRepository;
   credentials: RecordingCredentialRepository;
   resetTokens: RecordingResetTokensRepository;
@@ -333,7 +328,7 @@ function createFixture(options?: {
   cache: RecordingSessionCache;
   hasher: PasswordHasher & { received: string[] };
 } {
-  const sessionTokens = new SessionTokenService();
+  const sessionTokens = new OpaqueTokenService();
   const sessionsRepository = new RecordingSessionsRepository(
     sessionTokens.hash(RAW_TOKEN),
   );
@@ -362,19 +357,17 @@ function createFixture(options?: {
       ),
   };
   const credentialVerification = new PasswordCredentialsService(
-    { findByNormalizedEmail: () => Promise.resolve(null) },
-    { replacePasswordHash: () => Promise.resolve(false) },
-    credentialsRepository,
+    credentialsRepository as never,
     verifier,
   );
   const resetTokensRepository = new RecordingResetTokensRepository();
   const audits: AppendAuditLog[] = [];
   const auditLog = new AuditService({
-    append(input) {
+    append(input: AppendAuditLog) {
       audits.push(input);
       return Promise.resolve();
     },
-  });
+  } as never);
   const compromiseChecker: PasswordCompromiseChecker = {
     isCompromised: () => Promise.resolve(options?.compromised ?? false),
   };
@@ -397,9 +390,9 @@ function createFixture(options?: {
     audits,
     cache,
     hasher,
-    service: new PasswordService(
-      undefined as never,
+    service: new PasswordChangeService(
       users as never,
+      memberships as never,
       {
         findByTokenHash: (hash: string) =>
           sessionsRepository.findByTokenHash(hash),
@@ -413,12 +406,9 @@ function createFixture(options?: {
         storeCacheBestEffort: (hash: string) =>
           cache.store(hash).catch(() => undefined),
       } as never,
-      resetTokensRepository,
-      undefined as never,
-      new PasswordResetTokenService(),
+      resetTokensRepository as never,
       sessionTokens,
       credentialVerification,
-      memberships,
       auditLog,
       new PasswordPolicy(),
       compromiseChecker,
@@ -426,7 +416,6 @@ function createFixture(options?: {
       new InlineTransactionManager(),
       new IdentifierFactory(),
       clock,
-      undefined as never,
     ),
   };
 }

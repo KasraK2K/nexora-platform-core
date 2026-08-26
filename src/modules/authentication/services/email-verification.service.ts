@@ -3,20 +3,17 @@ import { AuditService } from '../../audit/audit.service';
 import { IdentityService } from '../../identity/identity.service';
 import { UsersService } from '../../users/users.service';
 import { AppConfig } from '../../../config/app-config';
-import { Clock } from '../../../common/application/clock';
-import { IdentifierFactory } from '../../../common/application/identifier-factory';
-import { TRANSACTION_MANAGER } from '../../../common/application/transaction-manager.port';
-import type { TransactionManager } from '../../../common/application/transaction-manager.port';
+import { Clock } from '../../../common/clock';
+import { IdentifierFactory } from '../../../common/identifier-factory';
+import { TRANSACTION_MANAGER } from '../../../common/transaction-manager';
+import type { TransactionManager } from '../../../common/transaction-manager';
 import {
   EmailVerificationInvalidError,
   EmailVerificationUnavailableError,
-} from '../domain/registration.errors';
-import { EmailVerificationDelivery } from '../application/email-verification-delivery';
-import { EmailVerificationTokenService } from '../application/email-verification-token.service';
-import {
-  EMAIL_VERIFICATIONS_REPOSITORY,
-  type EmailVerificationsRepository,
-} from '../repositories/email-verifications.repository';
+} from '../errors/authentication.errors';
+import { EmailVerificationDeliveryService } from '../mail/email-verification-delivery.service';
+import { OpaqueTokenService } from '../../../common/security/opaque-token.service';
+import { EmailVerificationsRepository } from '../repositories/email-verifications.repository';
 
 /** Owns email-verification request and confirmation transactions. */
 @Injectable()
@@ -25,17 +22,11 @@ export class EmailVerificationService {
   private readonly confirmationLogger = new Logger('VerifyEmail');
 
   constructor(
-    @Inject(IdentityService)
-    private readonly identities: Pick<IdentityService, 'findByEmail'>,
-    @Inject(UsersService)
-    private readonly users: Pick<
-      UsersService,
-      'findById' | 'findByIdentityId' | 'activate'
-    >,
-    @Inject(EMAIL_VERIFICATIONS_REPOSITORY)
+    private readonly identities: IdentityService,
+    private readonly users: UsersService,
     private readonly verifications: EmailVerificationsRepository,
-    private readonly delivery: EmailVerificationDelivery,
-    private readonly tokens: EmailVerificationTokenService,
+    private readonly delivery: EmailVerificationDeliveryService,
+    private readonly tokens: OpaqueTokenService,
     private readonly identifiers: IdentifierFactory,
     private readonly clock: Clock,
     private readonly auditLog: AuditService,

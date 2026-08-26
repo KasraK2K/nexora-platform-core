@@ -1,6 +1,6 @@
 # ADR-0014: Conventional NestJS module structure
 
-- Status: Accepted
+- Status: Superseded by ADR-0015
 - Date: 2026-08-25
 - Owners: Nexora Platform Core maintainers
 - Supersedes: None

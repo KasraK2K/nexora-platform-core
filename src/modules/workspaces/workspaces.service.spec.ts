@@ -1,18 +1,17 @@
 import { AuditService, type AppendAuditLog } from '../audit/audit.service';
-import type { SessionStateService } from '../authentication/session-state/session-state.service';
 import {
   AuthorizationDeniedError,
   AuthorizationPolicyService,
 } from '../authorization/policy/authorization-policy.service';
 import { MembershipsService } from '../memberships/memberships.service';
 import type { MembershipRole } from '../memberships/memberships.service';
-import { IdentifierFactory } from '../../common/application/identifier-factory';
-import type { WorkspacesRepository } from './repositories/workspaces.repository';
+import { IdentifierFactory } from '../../common/identifier-factory';
+import type { WorkspacesRepository } from './workspaces.repository';
 import { WorkspacesService } from './workspaces.service';
 import {
   WorkspaceLifecycleInvalidError,
   WorkspaceLifecycleUnavailableError,
-} from './domain/workspace-lifecycle.errors';
+} from './workspaces.errors';
 
 const USER_ID = '01911457-9b3a-7cc3-9c3a-3b7508f69f5c';
 const ORGANIZATION_ID = '01911457-a173-70fc-a38f-22f4f688956b';
@@ -132,7 +131,7 @@ function createFixture(
     void input;
     return Promise.resolve(renameResults.shift() ?? true);
   });
-  const workspaces: WorkspacesRepository = {
+  const workspaces = {
     create: () => Promise.resolve(),
     findById: () =>
       Promise.resolve({
@@ -141,25 +140,26 @@ function createFixture(
         name: 'Original Workspace',
       }),
     findByIds: () => Promise.resolve([]),
-    rename: (input) => rename(input),
-  };
+    rename: (input: Parameters<WorkspacesRepository['rename']>[0]) =>
+      rename(input),
+  } as never as WorkspacesRepository;
   const memberships: Pick<MembershipsService, 'find'> = {
     find: () =>
       Promise.resolve({ userId: USER_ID, workspaceId: WORKSPACE_ID, role }),
   };
   const service = new WorkspacesService(
     workspaces,
-    memberships,
+    memberships as never,
     {
       hasActiveContext: () => Promise.resolve(sessionIsActive),
-    } satisfies Pick<SessionStateService, 'hasActiveContext'>,
+    } as never,
     new AuthorizationPolicyService(),
     new AuditService({
-      append: (audit) => {
+      append: (audit: AppendAuditLog) => {
         audits.push(audit);
         return Promise.resolve();
       },
-    }),
+    } as never),
     new IdentifierFactory(),
     { now: () => new Date('2026-08-11T00:00:00.000Z') },
     { execute: (operation) => operation() },

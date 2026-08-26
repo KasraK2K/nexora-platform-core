@@ -8,48 +8,50 @@ import { WorkspacesModule } from '../workspaces/workspaces.module';
 import { InfrastructureModule } from '../../infrastructure/infrastructure.module';
 import { SessionStateModule } from './session-state/session-state.module';
 import { MailModule } from '../mail/mail.module';
-import { Clock } from '../../common/application/clock';
-import { IdentifierFactory } from '../../common/application/identifier-factory';
-import { AUTHENTICATION_RATE_LIMITER } from './application/authentication-rate-limiter.port';
-import { PASSWORD_COMPROMISE_CHECKER } from './application/password-compromise-checker.port';
-import { PASSWORD_HASHER } from './application/password-hasher.port';
-import { SessionTokenService } from './application/session-token.service';
-import { PasswordPolicy } from './domain/password-policy';
-import { Argon2PasswordHasher } from './infrastructure/argon2-password-hasher';
-import { PwnedPasswordsCompromiseChecker } from './infrastructure/pwned-passwords-compromise-checker';
-import { AuthenticationRateLimiter } from './infrastructure/authentication-rate-limiter';
+import { Clock } from '../../common/clock';
+import { IdentifierFactory } from '../../common/identifier-factory';
+import { PASSWORD_COMPROMISE_CHECKER } from './security/password-compromise-checker';
+import { PASSWORD_HASHER } from './security/password-hasher';
+import { OpaqueTokenService } from '../../common/security/opaque-token.service';
+import { PasswordPolicy } from './security/password-policy';
+import { Argon2PasswordHasher } from './security/argon2-password-hasher';
+import { PwnedPasswordsCompromiseChecker } from './security/pwned-passwords-compromise-checker';
+import { AuthenticationRateLimiter } from './rate-limit/redis-authentication-rate-limiter';
 import { RegistrationController } from './controllers/registration.controller';
 import { EmailVerificationController } from './controllers/email-verification.controller';
-import { PasswordController } from './controllers/password.controller';
-import { SessionsController } from './controllers/sessions.controller';
+import { PasswordChangeController } from './controllers/password-change.controller';
+import { PasswordResetController } from './controllers/password-reset.controller';
+import { SessionContextController } from './controllers/session-context.controller';
+import { SessionLoginController } from './controllers/session-login.controller';
+import { SessionManagementController } from './controllers/session-management.controller';
+import { WorkspaceSessionController } from './controllers/workspace-session.controller';
 import { RegistrationRequestGuard } from './guards/registration-request.guard';
 import { LoginRequestGuard } from './guards/login-request.guard';
 import { TrustedOriginGuard } from './guards/trusted-origin.guard';
-import { EmailVerificationTokenService } from './application/email-verification-token.service';
-import { EMAIL_VERIFICATIONS_REPOSITORY } from './repositories/email-verifications.repository';
-import { EmailVerificationDelivery } from './application/email-verification-delivery';
-import { PrismaEmailVerificationsRepository } from './infrastructure/prisma-email-verifications.repository';
+import { EmailVerificationsRepository } from './repositories/email-verifications.repository';
+import { EmailVerificationDeliveryService } from './mail/email-verification-delivery.service';
 import { EmailVerificationRequestGuard } from './guards/email-verification-request.guard';
 import { EmailVerificationConfirmationGuard } from './guards/email-verification-confirmation.guard';
-import { PasswordResetTokenService } from './application/password-reset-token.service';
-import { PASSWORD_RESET_TOKENS_REPOSITORY } from './repositories/password-reset-tokens.repository';
-import { PasswordResetDelivery } from './application/password-reset-delivery';
-import { PrismaPasswordResetTokensRepository } from './infrastructure/prisma-password-reset-tokens.repository';
+import { PasswordResetTokensRepository } from './repositories/password-reset-tokens.repository';
+import { PasswordResetDeliveryService } from './mail/password-reset-delivery.service';
 import { PasswordResetRequestGuard } from './guards/password-reset-request.guard';
 import { PasswordResetConfirmationGuard } from './guards/password-reset-confirmation.guard';
 import { PasswordChangeRequestGuard } from './guards/password-change-request.guard';
 import { AuthenticatedRequestContextGuard } from './guards/authenticated-request-context.guard';
-import { AccessibleWorkspaces } from './application/accessible-workspaces';
+import { AccessibleWorkspacesService } from './services/accessible-workspaces.service';
 import { WorkspaceSwitchRequestGuard } from './guards/workspace-switch-request.guard';
 import { RegistrationService } from './services/registration.service';
 import { EmailVerificationService } from './services/email-verification.service';
-import { PasswordService } from './services/password.service';
-import { SessionsService } from './services/sessions.service';
-import { AUTHENTICATION_SESSIONS_REPOSITORY } from './repositories/authentication-sessions.repository';
-import { PrismaAuthenticationSessionsRepository } from './infrastructure/prisma-authentication-sessions.repository';
-import { SESSION_CACHE } from './application/session-cache.port';
-import { SessionCache } from './infrastructure/session-cache';
-import { SessionStoreService } from './application/session-store.service';
+import { PasswordChangeService } from './services/password-change.service';
+import { PasswordResetService } from './services/password-reset.service';
+import { SessionContextService } from './services/session-context.service';
+import { SessionLoginService } from './services/session-login.service';
+import { SessionManagementService } from './services/session-management.service';
+import { WorkspaceSessionService } from './services/workspace-session.service';
+import { AuthenticationSessionsRepository } from './repositories/authentication-sessions.repository';
+import { SESSION_CACHE } from './cache/session-cache';
+import { SessionCache } from './cache/redis-session-cache';
+import { SessionStoreService } from './services/session-store.service';
 
 /**
  * Composes Platform Core registration, verification, password, login, session,
@@ -70,23 +72,21 @@ import { SessionStoreService } from './application/session-store.service';
   controllers: [
     RegistrationController,
     EmailVerificationController,
-    PasswordController,
-    SessionsController,
+    PasswordResetController,
+    PasswordChangeController,
+    SessionLoginController,
+    SessionContextController,
+    WorkspaceSessionController,
+    SessionManagementController,
   ],
   providers: [
     Clock,
     IdentifierFactory,
     PasswordPolicy,
-    SessionTokenService,
-    EmailVerificationTokenService,
-    EmailVerificationDelivery,
-    PasswordResetTokenService,
-    PasswordResetDelivery,
+    OpaqueTokenService,
+    EmailVerificationDeliveryService,
+    PasswordResetDeliveryService,
     AuthenticationRateLimiter,
-    {
-      provide: AUTHENTICATION_RATE_LIMITER,
-      useExisting: AuthenticationRateLimiter,
-    },
     RegistrationRequestGuard,
     LoginRequestGuard,
     EmailVerificationRequestGuard,
@@ -97,35 +97,27 @@ import { SessionStoreService } from './application/session-store.service';
     AuthenticatedRequestContextGuard,
     TrustedOriginGuard,
     WorkspaceSwitchRequestGuard,
-    AccessibleWorkspaces,
+    AccessibleWorkspacesService,
     RegistrationService,
     EmailVerificationService,
-    PasswordService,
-    SessionsService,
+    PasswordResetService,
+    PasswordChangeService,
+    SessionLoginService,
+    SessionContextService,
+    WorkspaceSessionService,
+    SessionManagementService,
     SessionStoreService,
     SessionCache,
-    PrismaAuthenticationSessionsRepository,
+    AuthenticationSessionsRepository,
     Argon2PasswordHasher,
     PwnedPasswordsCompromiseChecker,
-    PrismaEmailVerificationsRepository,
-    PrismaPasswordResetTokensRepository,
+    EmailVerificationsRepository,
+    PasswordResetTokensRepository,
     { provide: SESSION_CACHE, useExisting: SessionCache },
-    {
-      provide: AUTHENTICATION_SESSIONS_REPOSITORY,
-      useExisting: PrismaAuthenticationSessionsRepository,
-    },
     { provide: PASSWORD_HASHER, useExisting: Argon2PasswordHasher },
     {
       provide: PASSWORD_COMPROMISE_CHECKER,
       useExisting: PwnedPasswordsCompromiseChecker,
-    },
-    {
-      provide: EMAIL_VERIFICATIONS_REPOSITORY,
-      useExisting: PrismaEmailVerificationsRepository,
-    },
-    {
-      provide: PASSWORD_RESET_TOKENS_REPOSITORY,
-      useExisting: PrismaPasswordResetTokensRepository,
     },
   ],
   exports: [AuthenticatedRequestContextGuard, TrustedOriginGuard],

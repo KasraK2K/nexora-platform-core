@@ -90,7 +90,7 @@ active-workspace scope, foreign-resource concealment, and last-owner safety.
 - Policy decorators: `src/modules/authorization/decorators/route-admission.decorator.ts`
 - Global guard: `src/modules/authorization/guards/route-admission.guard.ts`
 - Context guard: `src/modules/authentication/guards/authenticated-request-context.guard.ts`
-- Session resolver: `src/modules/authentication/services/sessions.service.ts`
+- Session resolver: `src/modules/authentication/services/session-context.service.ts`
 - Permission policy: `src/modules/authorization/policy/authorization-policy.service.ts`
 - Unit tests: route-admission and authenticated-context specifications
 - E2E evidence: `test/e2e/` capability specifications and the tenant-isolation matrices

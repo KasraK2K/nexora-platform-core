@@ -4,7 +4,7 @@ import type {
   MembershipRole,
 } from '../../memberships/memberships.service';
 
-export { AuthorizationDeniedError } from '../application/authorization-denied.error';
+export { AuthorizationDeniedError } from '../errors/authorization-denied.error';
 
 /** Closed catalog of product-neutral permissions understood by Core policy. */
 export const PERMISSIONS = [

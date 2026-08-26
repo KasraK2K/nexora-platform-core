@@ -86,18 +86,21 @@ its roadmap. A downstream product may depend on narrow public Core contracts.
 - Keep one deployable modular monolith until measurable extraction criteria are
   met.
 - Organize capabilities as vertical, feature-first modules.
-- Keep dependency direction presentation -> application -> domain, with
-  infrastructure implementing inward-facing ports.
-- Keep domain code free of NestJS, Prisma, HTTP, Redis, queue, and provider SDK
-  types.
-- Let a feature application service method own its transaction boundary.
+- Give each feature one conventional root module, thin controllers, focused
+  services, and private concrete repositories for its own Prisma models.
+- Let controllers call services and let services own authorization and
+  transaction boundaries. Repositories perform only persistence work.
+- Keep reusable business policies and value types free of NestJS, Prisma, HTTP,
+  Redis, queue, and provider SDK types without requiring a generic domain
+  folder in every feature.
 - Publish committed facts through an outbox or equivalent reliable handoff when
   asynchronous effects are required.
 - Avoid internal HTTP between modules in the monolith.
 - Keep the shared kernel limited to stable primitives such as identifiers,
   Money, Clock, Result, Error, and event envelopes.
-- Add an abstraction for a real external boundary, volatile policy, or second
-  proven consumer, not for speculative reuse.
+- Add an interface or injection token only for a real external boundary,
+  volatile policy, or second proven implementation, not for ordinary Prisma
+  repositories or speculative reuse.
 
 ## Repository structure
 

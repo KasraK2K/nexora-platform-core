@@ -1,19 +1,17 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { SESSION_CACHE } from '../application/session-cache.port';
-import type { SessionCachePort } from '../application/session-cache.port';
+import { SESSION_CACHE } from '../cache/session-cache';
+import type { SessionCachePort } from '../cache/session-cache';
 import {
-  SESSION_STATE_REPOSITORY,
   type RevokedSessionState,
-  type SessionStateRepository,
-} from './repositories/session-state.repository';
+  SessionStateRepository,
+} from './session-state.repository';
 
-export type { RevokedSessionState } from './repositories/session-state.repository';
+export type { RevokedSessionState } from './session-state.repository';
 
 /** Coordinates durable membership-scoped revocation with cache cleanup. */
 @Injectable()
 export class SessionStateService {
   constructor(
-    @Inject(SESSION_STATE_REPOSITORY)
     private readonly repository: SessionStateRepository,
     @Inject(SESSION_CACHE) private readonly sessionCache: SessionCachePort,
   ) {}

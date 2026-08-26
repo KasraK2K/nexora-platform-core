@@ -1,5 +1,5 @@
 import type { MailOutboxRepository } from './repositories/mail-outbox.repository';
-import type { MailPayloadProtector } from './ports/mail-payload-protector.port';
+import type { MailPayloadProtector } from './security/mail-payload-protector';
 import { MailService } from './mail.service';
 
 describe('MailService delivery policy', () => {
@@ -159,7 +159,7 @@ describe('MailService delivery policy', () => {
     const claimedExpiresAt = new Date(
       Date.now() + (options.expiresInMs ?? 60_000),
     );
-    const repository: jest.Mocked<MailOutboxRepository> = {
+    const repository = {
       create: jest.fn(),
       findDueIds: jest.fn().mockResolvedValue([]),
       claim: jest.fn().mockResolvedValue(
@@ -182,7 +182,7 @@ describe('MailService delivery policy', () => {
       markRetry: jest.fn(),
       markFailed: jest.fn(),
       expireDue: jest.fn().mockResolvedValue(0),
-    };
+    } as unknown as jest.Mocked<MailOutboxRepository>;
     const protector: MailPayloadProtector = {
       protect: (_id, plaintext) => plaintext,
       unprotect: () => payload,

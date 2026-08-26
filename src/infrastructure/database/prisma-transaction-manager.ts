@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import type { TransactionManager } from '../../common/application/transaction-manager.port';
+import type { TransactionManager } from '../../common/transaction-manager';
 import {
   isTransactionWriteConflict,
   TransactionWriteConflictError,
-} from '../../common/application/transaction-write-conflict';
+} from '../../common/transaction-write-conflict';
 import { DatabaseContext } from './database-context';
 import { PrismaService } from './prisma.service';
 

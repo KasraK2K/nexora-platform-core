@@ -1,17 +1,11 @@
-import { Inject, Injectable } from '@nestjs/common';
-import {
-  ORGANIZATIONS_REPOSITORY,
-  type OrganizationSummary,
-  type OrganizationsRepository,
-} from './repositories/organizations.repository';
+import { Injectable } from '@nestjs/common';
+import { OrganizationsRepository } from './organizations.repository';
+import type { OrganizationSummary } from './organizations.types';
 
 /** Public application service for commercial organization records. */
 @Injectable()
 export class OrganizationsService {
-  constructor(
-    @Inject(ORGANIZATIONS_REPOSITORY)
-    private readonly repository: OrganizationsRepository,
-  ) {}
+  constructor(private readonly repository: OrganizationsRepository) {}
 
   /** Creates a commercial organization with its initial owner. */
   create(input: {

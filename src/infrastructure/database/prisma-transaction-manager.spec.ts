@@ -1,5 +1,5 @@
 import type { Prisma } from '@prisma/client';
-import { TransactionWriteConflictError } from '../../common/application/transaction-write-conflict';
+import { TransactionWriteConflictError } from '../../common/transaction-write-conflict';
 import { DatabaseContext } from './database-context';
 import { PrismaService } from './prisma.service';
 import { PrismaTransactionManager } from './prisma-transaction-manager';

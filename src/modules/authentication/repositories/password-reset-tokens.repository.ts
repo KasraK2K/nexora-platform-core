@@ -1,7 +1,5 @@
-/** Injection token for password-reset token persistence. */
-export const PASSWORD_RESET_TOKENS_REPOSITORY = Symbol(
-  'PASSWORD_RESET_TOKENS_REPOSITORY',
-);
+import { Injectable } from '@nestjs/common';
+import { DatabaseContext } from '../../../infrastructure/database/database-context';
 
 /** Safe context recovered after a reset token hash has been matched. */
 export type PasswordResetTokenRecord = {
@@ -11,30 +9,80 @@ export type PasswordResetTokenRecord = {
   workspaceId: string;
 };
 
-/** Persistence contract for expiring, replaceable, single-use reset tokens. */
-export interface PasswordResetTokensRepository {
-  /** Inserts an expiring reset record containing only the token hash. */
-  create(input: {
+const recordSelection = {
+  id: true,
+  identityId: true,
+  userId: true,
+  workspaceId: true,
+} as const;
+
+/** Private repository for Authentication-owned password-reset records. */
+@Injectable()
+export class PasswordResetTokensRepository {
+  constructor(private readonly database: DatabaseContext) {}
+
+  /** Inserts a hashed reset record through the current database client. */
+  async create(input: {
     id: string;
     identityId: string;
     userId: string;
     workspaceId: string;
     tokenHash: string;
     expiresAt: Date;
-  }): Promise<void>;
-  /** Invalidates every still-open reset token for one user. */
-  invalidateOpenForUser(userId: string, invalidatedAt: Date): Promise<void>;
-  /** Finds a matching reset token only while it is open and unexpired. */
+  }): Promise<void> {
+    await this.database.client.passwordResetToken.create({ data: input });
+  }
+
+  /** Invalidates all still-open reset tokens for one user. */
+  async invalidateOpenForUser(
+    userId: string,
+    invalidatedAt: Date,
+  ): Promise<void> {
+    await this.database.client.passwordResetToken.updateMany({
+      where: { userId, consumedAt: null, invalidatedAt: null },
+      data: { invalidatedAt },
+    });
+  }
+
+  /** Selects a token only when it is unconsumed, valid, and unexpired. */
   findUsableByTokenHash(
     tokenHash: string,
     now: Date,
-  ): Promise<PasswordResetTokenRecord | null>;
-  /** Conditionally consumes one usable reset token exactly once. */
-  consume(id: string, consumedAt: Date): Promise<boolean>;
-  /** Records only the coarse immediate mail-delivery outcome. */
-  markDelivery(
+  ): Promise<PasswordResetTokenRecord | null> {
+    return this.database.client.passwordResetToken.findFirst({
+      where: {
+        tokenHash,
+        consumedAt: null,
+        invalidatedAt: null,
+        expiresAt: { gt: now },
+      },
+      select: recordSelection,
+    });
+  }
+
+  /** Conditionally consumes one still-usable record to enforce single use. */
+  async consume(id: string, consumedAt: Date): Promise<boolean> {
+    const result = await this.database.client.passwordResetToken.updateMany({
+      where: {
+        id,
+        consumedAt: null,
+        invalidatedAt: null,
+        expiresAt: { gt: consumedAt },
+      },
+      data: { consumedAt },
+    });
+    return result.count === 1;
+  }
+
+  /** Records the latest immediate mail-delivery outcome. */
+  async markDelivery(
     id: string,
     status: 'SENT' | 'FAILED',
     attemptedAt: Date,
-  ): Promise<void>;
+  ): Promise<void> {
+    await this.database.client.passwordResetToken.update({
+      where: { id },
+      data: { deliveryStatus: status, deliveryAttemptedAt: attemptedAt },
+    });
+  }
 }

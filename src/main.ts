@@ -3,7 +3,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { configureApp } from './configure-app';
 import { AppConfig } from './config/app-config';
-import { JsonLogger } from './common/presentation/json-logger';
+import { JsonLogger } from './common/logging/json-logger';
 
 /**
  * Starts the HTTP application with the same logger and global configuration

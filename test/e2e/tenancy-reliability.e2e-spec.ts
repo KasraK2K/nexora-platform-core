@@ -314,7 +314,7 @@ describe('Nexora API - Tenancy Reliability (e2e)', () => {
       .split('=', 2)[1];
     const foreignSession = await h.prisma.session.findUniqueOrThrow({
       where: {
-        tokenHash: new h.SessionTokenService().hash(foreignSessionToken),
+        tokenHash: new h.OpaqueTokenService().hash(foreignSessionToken),
       },
     });
     const invitationBId = h.randomUUID();
@@ -334,14 +334,10 @@ describe('Nexora API - Tenancy Reliability (e2e)', () => {
       },
     });
 
-    const membershipsRepository = h.app.get(h.PrismaMembershipsRepository);
-    const invitationsRepository = h.app.get(
-      h.PrismaMembershipInvitationsRepository,
-    );
-    const sessionsRepository = h.app.get(
-      h.PrismaAuthenticationSessionsRepository,
-    );
-    const workspacesRepository = h.app.get(h.PrismaWorkspacesRepository);
+    const membershipsRepository = h.app.get(h.MembershipsRepository);
+    const invitationsRepository = h.app.get(h.MembershipInvitationsRepository);
+    const sessionsRepository = h.app.get(h.SessionStateRepository);
+    const workspacesRepository = h.app.get(h.WorkspacesRepository);
     const now = new Date();
 
     await expect(

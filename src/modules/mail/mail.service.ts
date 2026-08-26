@@ -1,18 +1,17 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { AppConfig } from '../../config/app-config';
 import { ObservabilityService } from '../observability/observability.service';
-import { currentRequestContext } from '../../common/application/request-context';
-import { OUTBOUND_MAIL, type OutboundMail } from './ports/outbound-mail.port';
+import { currentRequestContext } from '../../common/request-context';
+import { OUTBOUND_MAIL, type OutboundMail } from './providers/outbound-mail';
 import {
-  MAIL_OUTBOX_REPOSITORY,
   type ClaimedMail,
-  type MailOutboxRepository,
+  MailOutboxRepository,
   type MailPurpose,
 } from './repositories/mail-outbox.repository';
 import {
   MAIL_PAYLOAD_PROTECTOR,
   type MailPayloadProtector,
-} from './ports/mail-payload-protector.port';
+} from './security/mail-payload-protector';
 
 type ProtectedMailPayload = Readonly<{
   to: string;
@@ -34,7 +33,6 @@ export class MailService {
   private readonly logger = new Logger('MailOutbox');
 
   constructor(
-    @Inject(MAIL_OUTBOX_REPOSITORY)
     private readonly repository: MailOutboxRepository,
     @Inject(MAIL_PAYLOAD_PROTECTOR)
     private readonly protector: MailPayloadProtector,

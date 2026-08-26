@@ -11,31 +11,32 @@ import { AppModule } from '../../src/app.module';
 import { configureApp } from '../../src/configure-app';
 import { PrismaService } from '../../src/infrastructure/database/prisma.service';
 import { RedisService } from '../../src/infrastructure/cache/redis.service';
-import { SessionCache } from '../../src/modules/authentication/infrastructure/session-cache';
+import { SessionCache } from '../../src/modules/authentication/cache/redis-session-cache';
 import { AuditService } from '../../src/modules/audit/audit.service';
-import { PASSWORD_HASHER } from '../../src/modules/authentication/application/password-hasher.port';
-import type { PasswordHasher } from '../../src/modules/authentication/application/password-hasher.port';
+import { PASSWORD_HASHER } from '../../src/modules/authentication/security/password-hasher';
+import type { PasswordHasher } from '../../src/modules/authentication/security/password-hasher';
 import { PasswordCredentialsService } from '../../src/modules/identity/password-credentials.service';
-import { AuthenticationRateLimiter } from '../../src/modules/authentication/infrastructure/authentication-rate-limiter';
-import { SessionTokenService } from '../../src/modules/authentication/application/session-token.service';
+import { AuthenticationRateLimiter } from '../../src/modules/authentication/rate-limit/redis-authentication-rate-limiter';
+import { OpaqueTokenService } from '../../src/common/security/opaque-token.service';
 import {
   OUTBOUND_MAIL,
   type OutboundMail,
-} from '../../src/modules/mail/ports/outbound-mail.port';
-import { PrismaMailOutboxRepository } from '../../src/modules/mail/infrastructure/prisma-mail-outbox.repository';
-import { MembershipInvitationRateLimiter } from '../../src/modules/memberships/infrastructure/membership-invitation-rate-limiter';
-import { MembershipOwnershipTransferRateLimiter } from '../../src/modules/memberships/infrastructure/membership-ownership-transfer-rate-limiter';
-import { PrismaMembershipInvitationsRepository } from '../../src/modules/memberships/infrastructure/prisma-membership-invitations.repository';
-import { PrismaMembershipsRepository } from '../../src/modules/memberships/infrastructure/prisma-memberships.repository';
-import { PrismaAuthenticationSessionsRepository } from '../../src/modules/authentication/infrastructure/prisma-authentication-sessions.repository';
-import { PrismaWorkspacesRepository } from '../../src/modules/workspaces/infrastructure/prisma-workspaces.repository';
+} from '../../src/modules/mail/providers/outbound-mail';
+import { MailOutboxRepository } from '../../src/modules/mail/repositories/mail-outbox.repository';
+import { MembershipInvitationRateLimiter } from '../../src/modules/memberships/rate-limit/redis-membership-invitation-rate-limiter';
+import { MembershipOwnershipTransferRateLimiter } from '../../src/modules/memberships/rate-limit/redis-membership-ownership-transfer-rate-limiter';
+import { MembershipInvitationsRepository } from '../../src/modules/memberships/repositories/membership-invitations.repository';
+import { MembershipsRepository } from '../../src/modules/memberships/repositories/memberships.repository';
+import { AuthenticationSessionsRepository } from '../../src/modules/authentication/repositories/authentication-sessions.repository';
+import { SessionStateRepository } from '../../src/modules/authentication/session-state/session-state.repository';
+import { WorkspacesRepository } from '../../src/modules/workspaces/workspaces.repository';
 import {
   AuthenticatedRoute,
   PublicRoute,
 } from '../../src/modules/authorization/decorators/route-admission.decorator';
 import { CurrentAuthenticatedContext } from '../../src/modules/authentication/decorators/authenticated-request-context.decorator';
-import type { AuthenticatedRequestContext } from '../../src/modules/authentication/application/authenticated-request-context';
-import { ApplicationError } from '../../src/common/domain/application-error';
+import type { AuthenticatedRequestContext } from '../../src/modules/authentication/security/authenticated-request-context';
+import { ApplicationError } from '../../src/common/errors/application-error';
 
 const ALLOWED_ORIGIN = 'http://localhost:3000';
 const verificationDeliveries: Array<{
@@ -209,7 +210,7 @@ export async function createE2eHarness() {
   const membershipOwnershipTransferRateLimiter = app.get(
     MembershipOwnershipTransferRateLimiter,
   );
-  const mailOutboxRepository = app.get(PrismaMailOutboxRepository);
+  const mailOutboxRepository = app.get(MailOutboxRepository);
 
   async function reset(): Promise<void> {
     await clearRegistrationData(prisma);
@@ -675,11 +676,12 @@ export async function createE2eHarness() {
     request,
     verify,
     randomUUID,
-    PrismaMembershipInvitationsRepository,
-    PrismaMembershipsRepository,
-    PrismaAuthenticationSessionsRepository,
-    PrismaWorkspacesRepository,
-    SessionTokenService,
+    MembershipInvitationsRepository,
+    MembershipsRepository,
+    AuthenticationSessionsRepository,
+    SessionStateRepository,
+    WorkspacesRepository,
+    OpaqueTokenService,
     allowedOrigin: ALLOWED_ORIGIN,
     reset,
     close,

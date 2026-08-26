@@ -1,11 +1,10 @@
 import { AuditService, type AppendAuditLog } from '../../audit/audit.service';
 import { UsersService } from '../../users/users.service';
-import { Clock } from '../../../common/application/clock';
-import { IdentifierFactory } from '../../../common/application/identifier-factory';
-import type { TransactionManager } from '../../../common/application/transaction-manager.port';
-import { EmailVerificationInvalidError } from '../domain/registration.errors';
-import { EmailVerificationTokenService } from '../application/email-verification-token.service';
-import type { EmailVerificationsRepository } from '../repositories/email-verifications.repository';
+import { Clock } from '../../../common/clock';
+import { IdentifierFactory } from '../../../common/identifier-factory';
+import type { TransactionManager } from '../../../common/transaction-manager';
+import { EmailVerificationInvalidError } from '../errors/authentication.errors';
+import { OpaqueTokenService } from '../../../common/security/opaque-token.service';
 import { EmailVerificationService } from './email-verification.service';
 
 class InlineTransactionManager implements TransactionManager {
@@ -45,17 +44,17 @@ describe('EmailVerificationService.confirm', () => {
 });
 
 function createFixture(options?: { expired?: boolean }) {
-  const tokens = new EmailVerificationTokenService();
+  const tokens = new OpaqueTokenService();
   const token = tokens.create();
   const clock = new Clock();
   const now = new Date('2026-08-08T00:00:00.000Z');
   jest.spyOn(clock, 'now').mockReturnValue(now);
   let consumed = false;
   let status: 'PENDING_VERIFICATION' | 'ACTIVE' = 'PENDING_VERIFICATION';
-  const repository: EmailVerificationsRepository = {
+  const repository = {
     create: () => Promise.resolve(),
     invalidateOpenForUser: () => Promise.resolve(),
-    findUsableByTokenHash: (tokenHash, at) =>
+    findUsableByTokenHash: (tokenHash: string, at: Date) =>
       Promise.resolve(
         !consumed &&
           tokenHash === token.hash &&
@@ -84,11 +83,11 @@ function createFixture(options?: { expired?: boolean }) {
   };
   const audits: AppendAuditLog[] = [];
   const auditLog = new AuditService({
-    append: (input) => {
+    append: (input: AppendAuditLog) => {
       audits.push(input);
       return Promise.resolve();
     },
-  });
+  } as never);
 
   return {
     rawToken: token.raw,
@@ -97,7 +96,7 @@ function createFixture(options?: { expired?: boolean }) {
     service: new EmailVerificationService(
       undefined as never,
       users as never,
-      repository,
+      repository as never,
       undefined as never,
       tokens,
       new IdentifierFactory(),

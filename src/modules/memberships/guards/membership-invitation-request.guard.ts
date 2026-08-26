@@ -3,26 +3,19 @@ import {
   ExecutionContext,
   HttpException,
   HttpStatus,
-  Inject,
   Injectable,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { normalizeIdentityEmail } from '../../identity/identity.service';
 import { readAuthenticatedRequestContext } from '../../authentication/decorators/authenticated-request-context.decorator';
-import {
-  MEMBERSHIP_INVITATION_RATE_LIMITER,
-  type MembershipInvitationRateLimitDecision,
-  type MembershipInvitationRateLimiterPort,
-} from '../application/membership-invitation-rate-limiter.port';
-import { MembershipInvitationUnavailableError } from '../domain/membership-invitation.errors';
+import type { MembershipInvitationRateLimitDecision } from '../rate-limit/membership-invitation-rate-limiter';
+import { MembershipInvitationRateLimiter } from '../rate-limit/redis-membership-invitation-rate-limiter';
+import { MembershipInvitationUnavailableError } from '../errors/membership-invitation.errors';
 
 /** Fails closed while rate-limiting invitation creation from trusted context. */
 @Injectable()
 export class MembershipInvitationCreateRequestGuard implements CanActivate {
-  constructor(
-    @Inject(MEMBERSHIP_INVITATION_RATE_LIMITER)
-    private readonly rateLimiter: MembershipInvitationRateLimiterPort,
-  ) {}
+  constructor(private readonly rateLimiter: MembershipInvitationRateLimiter) {}
 
   /** Checks client, actor, workspace, and normalized target buckets before writes. */
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -50,10 +43,7 @@ export class MembershipInvitationCreateRequestGuard implements CanActivate {
 /** Fails closed while rate-limiting invitation acceptance by active session. */
 @Injectable()
 export class MembershipInvitationAcceptRequestGuard implements CanActivate {
-  constructor(
-    @Inject(MEMBERSHIP_INVITATION_RATE_LIMITER)
-    private readonly rateLimiter: MembershipInvitationRateLimiterPort,
-  ) {}
+  constructor(private readonly rateLimiter: MembershipInvitationRateLimiter) {}
 
   /** Checks client and authenticated-session buckets before token processing. */
   async canActivate(context: ExecutionContext): Promise<boolean> {

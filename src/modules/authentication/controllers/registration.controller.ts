@@ -14,7 +14,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { Response } from 'express';
-import { ZodValidationPipe } from '../../../common/presentation/zod-validation.pipe';
+import { ZodValidationPipe } from '../../../common/http/zod-validation.pipe';
 import { AppConfig } from '../../../config/app-config';
 import { PublicRoute } from '../../authorization/decorators/route-admission.decorator';
 import {
@@ -22,7 +22,7 @@ import {
   type RegistrationDto,
 } from '../dto/registration.dto';
 import { RegistrationRequestGuard } from '../guards/registration-request.guard';
-import { setPrivateResponseHeaders } from '../http/private-response-headers';
+import { setPrivateResponseHeaders } from '../../../common/http/private-response-headers';
 import { setSessionCookie } from '../http/session-cookie';
 import { RegistrationService } from '../services/registration.service';
 

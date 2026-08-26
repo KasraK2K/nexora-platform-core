@@ -1,16 +1,16 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { AppConfig } from '../../../config/app-config';
-import { SessionsService } from '../services/sessions.service';
+import { SessionContextService } from '../services/session-context.service';
 import { attachAuthenticatedRequestContext } from '../decorators/authenticated-request-context.decorator';
-import { setPrivateResponseHeaders } from '../http/private-response-headers';
+import { setPrivateResponseHeaders } from '../../../common/http/private-response-headers';
 import { readCookie } from '../http/session-cookie';
 
 /** Resolves the opaque cookie into immutable server-authoritative request context. */
 @Injectable()
 export class AuthenticatedRequestContextGuard implements CanActivate {
   constructor(
-    private readonly sessions: SessionsService,
+    private readonly sessions: SessionContextService,
     private readonly config: AppConfig,
   ) {}
 

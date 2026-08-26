@@ -1,7 +1,5 @@
-/** Injection token for email-verification persistence. */
-export const EMAIL_VERIFICATIONS_REPOSITORY = Symbol(
-  'EMAIL_VERIFICATIONS_REPOSITORY',
-);
+import { Injectable } from '@nestjs/common';
+import { DatabaseContext } from '../../../infrastructure/database/database-context';
 
 /** Safe fields returned after a verification token has been matched. */
 export type EmailVerificationRecord = {
@@ -10,31 +8,87 @@ export type EmailVerificationRecord = {
   workspaceId: string;
 };
 
-/** Persistence contract for expiring, replaceable, single-use verifications. */
-export interface EmailVerificationsRepository {
-  /** Inserts an expiring verification record containing only the token hash. */
-  create(input: {
+const recordSelection = {
+  id: true,
+  userId: true,
+  workspaceId: true,
+} as const;
+
+/** Private repository for Authentication-owned email-verification records. */
+@Injectable()
+export class EmailVerificationsRepository {
+  constructor(private readonly database: DatabaseContext) {}
+
+  /** Inserts a hashed verification record through the current database client. */
+  async create(input: {
     id: string;
     userId: string;
     workspaceId: string;
     tokenHash: string;
     expiresAt: Date;
-  }): Promise<void>;
-  /** Invalidates every still-open verification for one user. */
-  invalidateOpenForUser(userId: string, invalidatedAt: Date): Promise<void>;
-  /** Finds a matching verification only while it is open and unexpired. */
+  }): Promise<void> {
+    await this.database.client.emailVerification.create({ data: input });
+  }
+
+  /** Invalidates all still-open verifications for one user. */
+  async invalidateOpenForUser(
+    userId: string,
+    invalidatedAt: Date,
+  ): Promise<void> {
+    await this.database.client.emailVerification.updateMany({
+      where: { userId, consumedAt: null, invalidatedAt: null },
+      data: { invalidatedAt },
+    });
+  }
+
+  /** Selects a token only when it is unconsumed, valid, and unexpired. */
   findUsableByTokenHash(
     tokenHash: string,
     now: Date,
-  ): Promise<EmailVerificationRecord | null>;
-  /** Finds the latest verification for replacement-delivery context. */
-  findLatestForUser(userId: string): Promise<EmailVerificationRecord | null>;
-  /** Conditionally consumes one usable verification exactly once. */
-  consume(id: string, consumedAt: Date): Promise<boolean>;
-  /** Records only the coarse immediate mail-delivery outcome. */
-  markDelivery(
+  ): Promise<EmailVerificationRecord | null> {
+    return this.database.client.emailVerification.findFirst({
+      where: {
+        tokenHash,
+        consumedAt: null,
+        invalidatedAt: null,
+        expiresAt: { gt: now },
+      },
+      select: recordSelection,
+    });
+  }
+
+  /** Finds the user's latest verification record for replacement context. */
+  findLatestForUser(userId: string): Promise<EmailVerificationRecord | null> {
+    return this.database.client.emailVerification.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      select: recordSelection,
+    });
+  }
+
+  /** Conditionally consumes one still-usable record to enforce single use. */
+  async consume(id: string, consumedAt: Date): Promise<boolean> {
+    const result = await this.database.client.emailVerification.updateMany({
+      where: {
+        id,
+        consumedAt: null,
+        invalidatedAt: null,
+        expiresAt: { gt: consumedAt },
+      },
+      data: { consumedAt },
+    });
+    return result.count === 1;
+  }
+
+  /** Records the latest immediate mail-delivery outcome. */
+  async markDelivery(
     id: string,
     status: 'SENT' | 'FAILED',
     attemptedAt: Date,
-  ): Promise<void>;
+  ): Promise<void> {
+    await this.database.client.emailVerification.update({
+      where: { id },
+      data: { deliveryStatus: status, deliveryAttemptedAt: attemptedAt },
+    });
+  }
 }

@@ -31,6 +31,8 @@ jobs:
       - run: pnpm run lint:check
       - run: pnpm run typecheck
       - run: pnpm run check:deprecated
+      - run: pnpm run check:operations
+      - run: pnpm run check:nest-cli
       - run: pnpm run contract:check
       - run: pnpm run docs:check
       - run: pnpm run test:architecture

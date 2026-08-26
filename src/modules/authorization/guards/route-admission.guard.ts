@@ -8,12 +8,12 @@ import { Reflector } from '@nestjs/core';
 import type { Request, Response } from 'express';
 import { readAuthenticatedRequestContext } from '../../authentication/decorators/authenticated-request-context.decorator';
 import { AuthenticatedRequestContextGuard } from '../../authentication/guards/authenticated-request-context.guard';
-import { setPrivateResponseHeaders } from '../../authentication/http/private-response-headers';
+import { setPrivateResponseHeaders } from '../../../common/http/private-response-headers';
 import { TrustedOriginGuard } from '../../authentication/guards/trusted-origin.guard';
 import {
   EmailVerificationRequiredError,
   RouteAccessDeniedError,
-} from '../domain/route-admission.errors';
+} from '../errors/route-admission.errors';
 import {
   AuthorizationPolicyService,
   isPermission,

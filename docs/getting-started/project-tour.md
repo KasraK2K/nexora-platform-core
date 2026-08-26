@@ -1,7 +1,8 @@
 # Project tour
 
-Nexora is one NestJS modular monolith. The outer folders follow normal NestJS
-naming; the inner folders keep the security and data-ownership rules visible.
+Nexora is one NestJS modular monolith. Each business feature has one obvious
+Nest module, familiar controller/service names, and folders named after their
+actual job.
 
 ## The shortest useful reading path
 
@@ -12,11 +13,10 @@ naming; the inner folders keep the security and data-ownership rules visible.
 5. `src/modules/users/users.controller.ts` maps HTTP to the public service.
 6. `src/modules/users/users.service.ts` owns the profile workflow and its
    transaction.
-7. `src/modules/users/repositories/users.repository.ts` defines persistence;
-   `infrastructure/prisma-users.repository.ts` implements it.
+7. `src/modules/users/users.repository.ts` contains the private database queries.
 
 That is the default reading order for any feature: module, controller, service,
-repository contract, then infrastructure adapter.
+then repository.
 
 ## One real request: update my profile
 
@@ -29,7 +29,7 @@ flowchart LR
     Controller --> Service["UsersService.updateOwnProfile"]
     Service --> Session["SessionStateService"]
     Service --> Repository["UsersRepository"]
-    Repository --> Prisma["PrismaUsersRepository"]
+    Repository --> Database["DatabaseContext / Prisma"]
     Service --> Audit["AuditService"]
 ```
 
@@ -57,9 +57,9 @@ src/
       users.controller.ts
       users.service.ts
       dto/
-      repositories/
-      domain/
-      infrastructure/
+      users.repository.ts
+      users.types.ts
+      users.errors.ts
 ```
 
 Complex features such as Authentication and Memberships may have
@@ -73,13 +73,14 @@ module file, so the Nest CLI registers a new feature with `AppModule`.
   response. They do not import repositories, Prisma, or infrastructure.
 - Services own orchestration, authorization-sensitive rechecks, and transaction
   boundaries.
-- Repository interfaces and tokens live in `repositories/`; Prisma adapters
-  live in the same feature's `infrastructure/` directory.
+- Ordinary Prisma queries live in a private concrete repository. Large features
+  may group several repositories under `repositories/`.
 - Other modules import only exported services, never another feature's
-  repositories or adapters.
-- Domain code stays independent of NestJS, Prisma, HTTP, Redis, and providers.
+  repositories, cache, rate-limit, mail, or provider code.
+- Add an interface only for a real external boundary, volatile policy, or a
+  second proven implementation.
 
-The executable rules are in `test/architecture/architecture.spec.ts`. See
+The executable rules are split by concern under `test/architecture/`. See
 [Create a module and add an endpoint](../how-to/create-a-module.md) for the
 generator workflow and the extra steps required by authenticated or
 tenant-owned operations.

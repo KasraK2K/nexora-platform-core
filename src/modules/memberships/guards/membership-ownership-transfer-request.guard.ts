@@ -3,24 +3,19 @@ import {
   ExecutionContext,
   HttpException,
   HttpStatus,
-  Inject,
   Injectable,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { readAuthenticatedRequestContext } from '../../authentication/decorators/authenticated-request-context.decorator';
-import {
-  MEMBERSHIP_OWNERSHIP_TRANSFER_RATE_LIMITER,
-  type MembershipOwnershipTransferRateLimitDecision,
-  type MembershipOwnershipTransferRateLimiterPort,
-} from '../application/membership-ownership-transfer-rate-limiter.port';
-import { MembershipAdministrationUnavailableError } from '../domain/membership-administration.errors';
+import type { MembershipOwnershipTransferRateLimitDecision } from '../rate-limit/membership-ownership-transfer-rate-limiter';
+import { MembershipOwnershipTransferRateLimiter } from '../rate-limit/redis-membership-ownership-transfer-rate-limiter';
+import { MembershipAdministrationUnavailableError } from '../errors/membership-administration.errors';
 
 /** Fails closed while rate-limiting step-up ownership transfer attempts. */
 @Injectable()
 export class MembershipOwnershipTransferRequestGuard implements CanActivate {
   constructor(
-    @Inject(MEMBERSHIP_OWNERSHIP_TRANSFER_RATE_LIMITER)
-    private readonly rateLimiter: MembershipOwnershipTransferRateLimiterPort,
+    private readonly rateLimiter: MembershipOwnershipTransferRateLimiter,
   ) {}
 
   /** Checks client and trusted session/workspace buckets before password work. */

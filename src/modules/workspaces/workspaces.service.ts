@@ -6,22 +6,19 @@ import {
   AuthorizationPolicyService,
 } from '../authorization/policy/authorization-policy.service';
 import { MembershipsService } from '../memberships/memberships.service';
-import { Clock } from '../../common/application/clock';
-import { IdentifierFactory } from '../../common/application/identifier-factory';
-import { TRANSACTION_MANAGER } from '../../common/application/transaction-manager.port';
-import type { TransactionManager } from '../../common/application/transaction-manager.port';
-import { isTransactionWriteConflict } from '../../common/application/transaction-write-conflict';
+import { Clock } from '../../common/clock';
+import { IdentifierFactory } from '../../common/identifier-factory';
+import { TRANSACTION_MANAGER } from '../../common/transaction-manager';
+import type { TransactionManager } from '../../common/transaction-manager';
+import { isTransactionWriteConflict } from '../../common/transaction-write-conflict';
 import {
   WorkspaceLifecycleInvalidError,
   WorkspaceLifecycleUnavailableError,
-} from './domain/workspace-lifecycle.errors';
-import {
-  WORKSPACES_REPOSITORY,
-  type WorkspacesRepository,
-  type WorkspaceSummary,
-} from './repositories/workspaces.repository';
+} from './workspaces.errors';
+import { WorkspacesRepository } from './workspaces.repository';
+import type { WorkspaceSummary } from './workspaces.types';
 
-export type { WorkspaceSummary } from './repositories/workspaces.repository';
+export type { WorkspaceSummary } from './workspaces.types';
 
 /** Public service for Workspace-owned tenant state and lifecycle behavior. */
 @Injectable()
@@ -29,15 +26,9 @@ export class WorkspacesService {
   private readonly logger = new Logger('RenameCurrentWorkspace');
 
   constructor(
-    @Inject(WORKSPACES_REPOSITORY)
     private readonly repository: WorkspacesRepository,
-    @Inject(MembershipsService)
-    private readonly memberships: Pick<MembershipsService, 'find'>,
-    @Inject(SessionStateService)
-    private readonly sessionAuthority: Pick<
-      SessionStateService,
-      'hasActiveContext'
-    >,
+    private readonly memberships: MembershipsService,
+    private readonly sessionAuthority: SessionStateService,
     private readonly authorization: AuthorizationPolicyService,
     private readonly audit: AuditService,
     private readonly identifiers: IdentifierFactory,

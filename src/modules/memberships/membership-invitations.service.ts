@@ -10,27 +10,21 @@ import {
 } from '../identity/identity.service';
 import { UsersService } from '../users/users.service';
 import { AppConfig } from '../../config/app-config';
-import { Clock } from '../../common/application/clock';
-import { IdentifierFactory } from '../../common/application/identifier-factory';
-import { TRANSACTION_MANAGER } from '../../common/application/transaction-manager.port';
-import type { TransactionManager } from '../../common/application/transaction-manager.port';
-import { isTransactionWriteConflict } from '../../common/application/transaction-write-conflict';
+import { Clock } from '../../common/clock';
+import { IdentifierFactory } from '../../common/identifier-factory';
+import { TRANSACTION_MANAGER } from '../../common/transaction-manager';
+import type { TransactionManager } from '../../common/transaction-manager';
+import { isTransactionWriteConflict } from '../../common/transaction-write-conflict';
 import {
   MembershipInvitationConflictError,
   MembershipInvitationInvalidError,
   MembershipInvitationUnavailableError,
-} from './domain/membership-invitation.errors';
-import type { InvitableMembershipRole } from './domain/membership-role';
-import { MembershipInvitationDelivery } from './application/membership-invitation-delivery';
-import { MembershipInvitationTokenService } from './application/membership-invitation-token.service';
-import {
-  MEMBERSHIP_INVITATIONS_REPOSITORY,
-  type MembershipInvitationsRepository,
-} from './repositories/membership-invitations.repository';
-import {
-  MEMBERSHIPS_REPOSITORY,
-  type MembershipsRepository,
-} from './repositories/memberships.repository';
+} from './errors/membership-invitation.errors';
+import type { InvitableMembershipRole } from './membership-role';
+import { MembershipInvitationDeliveryService } from './mail/membership-invitation-delivery.service';
+import { OpaqueTokenService } from '../../common/security/opaque-token.service';
+import { MembershipInvitationsRepository } from './repositories/membership-invitations.repository';
+import { MembershipsRepository } from './repositories/memberships.repository';
 
 /** Invitation response safe for the API; the raw token is deliberately absent. */
 export type CreatedMembershipInvitation = Readonly<{
@@ -50,32 +44,17 @@ export class MembershipInvitationsService {
   private readonly revokeLogger = new Logger('RevokeMembershipInvitation');
 
   constructor(
-    @Inject(MEMBERSHIPS_REPOSITORY)
     private readonly memberships: MembershipsRepository,
-    @Inject(MEMBERSHIP_INVITATIONS_REPOSITORY)
     private readonly invitations: MembershipInvitationsRepository,
-    @Inject(IdentityService)
-    private readonly identities: Pick<
-      IdentityService,
-      'findByEmail' | 'findById'
-    >,
-    @Inject(UsersService)
-    private readonly users: Pick<
-      UsersService,
-      'findByIdentityId' | 'findAuthenticationReferenceById'
-    >,
+    private readonly identities: IdentityService,
+    private readonly users: UsersService,
     private readonly authorization: AuthorizationPolicyService,
     private readonly auditLog: AuditService,
-    @Inject(MembershipInvitationDelivery)
-    private readonly delivery: Pick<
-      MembershipInvitationDelivery,
-      'enqueue' | 'attempt'
-    >,
-    private readonly tokens: MembershipInvitationTokenService,
+    private readonly delivery: MembershipInvitationDeliveryService,
+    private readonly tokens: OpaqueTokenService,
     private readonly identifiers: IdentifierFactory,
     private readonly clock: Clock,
-    @Inject(AppConfig)
-    private readonly config: Pick<AppConfig, 'membershipInvitationTtlSeconds'>,
+    private readonly config: AppConfig,
     @Inject(TRANSACTION_MANAGER)
     private readonly transactions: TransactionManager,
   ) {}
@@ -155,9 +134,8 @@ export class MembershipInvitationsService {
           normalizedEmail,
           role: input.role,
           tokenHash: token.hash,
-          activeKey: this.tokens.createActiveKey(
-            input.workspaceId,
-            normalizedEmail,
+          activeKey: this.tokens.hash(
+            `${input.workspaceId}\0${normalizedEmail}`,
           ),
           expiresAt,
         });

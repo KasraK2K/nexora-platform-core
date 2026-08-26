@@ -3,24 +3,17 @@ import {
   ExecutionContext,
   HttpException,
   HttpStatus,
-  Inject,
   Injectable,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import {
-  AUTHENTICATION_RATE_LIMITER,
-  type AuthenticationRateLimitPort,
-} from '../application/authentication-rate-limiter.port';
-import { PasswordResetUnavailableError } from '../domain/registration.errors';
+import { AuthenticationRateLimiter } from '../rate-limit/redis-authentication-rate-limiter';
+import { PasswordResetUnavailableError } from '../errors/authentication.errors';
 import { readNormalizedEmail } from '../dto/request-email.dto';
 
 /** Throttles password-reset requests without exposing account existence. */
 @Injectable()
 export class PasswordResetRequestGuard implements CanActivate {
-  constructor(
-    @Inject(AUTHENTICATION_RATE_LIMITER)
-    private readonly rateLimiter: AuthenticationRateLimitPort,
-  ) {}
+  constructor(private readonly rateLimiter: AuthenticationRateLimiter) {}
 
   /** Returns true when allowed; limiter failures map to a safe availability error. */
   async canActivate(context: ExecutionContext): Promise<boolean> {

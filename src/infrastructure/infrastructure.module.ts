@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
-import { SECURITY_POLICY } from '../common/application/security-policy';
-import { TRANSACTION_MANAGER } from '../common/application/transaction-manager.port';
+import { TRANSACTION_MANAGER } from '../common/transaction-manager';
 import { AppConfig } from '../config/app-config';
 import { DatabaseContext } from './database/database-context';
 import { PrismaService } from './database/prisma.service';
@@ -20,7 +19,6 @@ import { RedisService } from './cache/redis.service';
     PrismaTransactionManager,
     RedisService,
     { provide: TRANSACTION_MANAGER, useExisting: PrismaTransactionManager },
-    { provide: SECURITY_POLICY, useExisting: AppConfig },
   ],
   exports: [
     AppConfig,
@@ -28,7 +26,6 @@ import { RedisService } from './cache/redis.service';
     DatabaseContext,
     RedisService,
     TRANSACTION_MANAGER,
-    SECURITY_POLICY,
   ],
 })
 export class InfrastructureModule {}

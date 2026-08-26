@@ -3,25 +3,18 @@ import {
   ExecutionContext,
   HttpException,
   HttpStatus,
-  Inject,
   Injectable,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
-import { RegistrationUnavailableError } from '../domain/registration.errors';
-import {
-  AUTHENTICATION_RATE_LIMITER,
-  type AuthenticationRateLimitPort,
-  type RateLimitDecision,
-} from '../application/authentication-rate-limiter.port';
+import { RegistrationUnavailableError } from '../errors/authentication.errors';
+import type { RateLimitDecision } from '../rate-limit/authentication-rate-limiter';
+import { AuthenticationRateLimiter } from '../rate-limit/redis-authentication-rate-limiter';
 import { readNormalizedEmail } from '../dto/request-email.dto';
 
 /** Applies registration throttling before validation, screening, and hashing work. */
 @Injectable()
 export class RegistrationRequestGuard implements CanActivate {
-  constructor(
-    @Inject(AUTHENTICATION_RATE_LIMITER)
-    private readonly rateLimiter: AuthenticationRateLimitPort,
-  ) {}
+  constructor(private readonly rateLimiter: AuthenticationRateLimiter) {}
 
   /** Returns true when allowed, otherwise emits a stable 429 or availability error. */
   async canActivate(context: ExecutionContext): Promise<boolean> {

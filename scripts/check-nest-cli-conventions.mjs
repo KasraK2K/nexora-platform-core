@@ -70,31 +70,17 @@ const checks = [
     expected: ['CREATE src/modules/audit/dto/nest-cli-smoke.dto.ts'],
   },
   {
-    label: 'repository interface exposes the installed CLI suffix',
-    args: [
-      'generate',
-      'interface',
-      'modules/audit/repositories/nest-cli-smoke.repository',
-      '--flat',
-      '--dry-run',
-      '--no-spec',
-    ],
-    expected: [
-      'CREATE src/modules/audit/repositories/nest-cli-smoke.repository.interface.ts',
-    ],
-  },
-  {
-    label: 'repository provider targets its owning feature module',
+    label: 'repository targets its owning feature module',
     args: [
       'generate',
       'provider',
-      'modules/audit/infrastructure/prisma-nest-cli-smoke.repository',
+      'modules/audit/nest-cli-smoke.repository',
       '--flat',
       '--dry-run',
       '--no-spec',
     ],
     expected: [
-      'CREATE src/modules/audit/infrastructure/prisma-nest-cli-smoke.repository.ts',
+      'CREATE src/modules/audit/nest-cli-smoke.repository.ts',
       'UPDATE src/modules/audit/audit.module.ts',
     ],
   },
@@ -130,8 +116,7 @@ const unexpectedWrites = [
   'src/modules/audit/nest-cli-smoke.controller.ts',
   'src/modules/audit/nest-cli-smoke.service.ts',
   'src/modules/audit/dto/nest-cli-smoke.dto.ts',
-  'src/modules/audit/repositories/nest-cli-smoke.repository.interface.ts',
-  'src/modules/audit/infrastructure/prisma-nest-cli-smoke.repository.ts',
+  'src/modules/audit/nest-cli-smoke.repository.ts',
 ].filter((entry) => existsSync(path.join(repositoryRoot, entry)));
 
 if (unexpectedWrites.length > 0) {

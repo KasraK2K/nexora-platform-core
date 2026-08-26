@@ -3,24 +3,17 @@ import {
   ExecutionContext,
   HttpException,
   HttpStatus,
-  Inject,
   Injectable,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import {
-  AUTHENTICATION_RATE_LIMITER,
-  type AuthenticationRateLimitPort,
-} from '../application/authentication-rate-limiter.port';
-import { EmailVerificationUnavailableError } from '../domain/registration.errors';
+import { AuthenticationRateLimiter } from '../rate-limit/redis-authentication-rate-limiter';
+import { EmailVerificationUnavailableError } from '../errors/authentication.errors';
 import { readNormalizedEmail } from '../dto/request-email.dto';
 
 /** Throttles replacement verification requests by pseudonymous IP and email buckets. */
 @Injectable()
 export class EmailVerificationRequestGuard implements CanActivate {
-  constructor(
-    @Inject(AUTHENTICATION_RATE_LIMITER)
-    private readonly rateLimiter: AuthenticationRateLimitPort,
-  ) {}
+  constructor(private readonly rateLimiter: AuthenticationRateLimiter) {}
 
   /** Returns true when allowed; limiter failures map to a safe availability error. */
   async canActivate(context: ExecutionContext): Promise<boolean> {

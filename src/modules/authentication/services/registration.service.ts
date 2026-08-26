@@ -9,28 +9,24 @@ import { OrganizationsService } from '../../organizations/organizations.service'
 import { UsersService } from '../../users/users.service';
 import { WorkspacesService } from '../../workspaces/workspaces.service';
 import { AppConfig } from '../../../config/app-config';
-import { Clock } from '../../../common/application/clock';
-import { IdentifierFactory } from '../../../common/application/identifier-factory';
-import { TRANSACTION_MANAGER } from '../../../common/application/transaction-manager.port';
-import type { TransactionManager } from '../../../common/application/transaction-manager.port';
-import { PasswordPolicy } from '../domain/password-policy';
+import { Clock } from '../../../common/clock';
+import { IdentifierFactory } from '../../../common/identifier-factory';
+import { TRANSACTION_MANAGER } from '../../../common/transaction-manager';
+import type { TransactionManager } from '../../../common/transaction-manager';
+import { PasswordPolicy } from '../security/password-policy';
 import {
   EmailAlreadyRegisteredError,
   InvalidRegistrationError,
   RegistrationUnavailableError,
-} from '../domain/registration.errors';
-import { PASSWORD_COMPROMISE_CHECKER } from '../application/password-compromise-checker.port';
-import type { PasswordCompromiseChecker } from '../application/password-compromise-checker.port';
-import { PASSWORD_HASHER } from '../application/password-hasher.port';
-import type { PasswordHasher } from '../application/password-hasher.port';
-import { SessionTokenService } from '../application/session-token.service';
-import { EmailVerificationDelivery } from '../application/email-verification-delivery';
-import { EmailVerificationTokenService } from '../application/email-verification-token.service';
-import {
-  EMAIL_VERIFICATIONS_REPOSITORY,
-  type EmailVerificationsRepository,
-} from '../repositories/email-verifications.repository';
-import { SessionStoreService } from '../application/session-store.service';
+} from '../errors/authentication.errors';
+import { PASSWORD_COMPROMISE_CHECKER } from '../security/password-compromise-checker';
+import type { PasswordCompromiseChecker } from '../security/password-compromise-checker';
+import { PASSWORD_HASHER } from '../security/password-hasher';
+import type { PasswordHasher } from '../security/password-hasher';
+import { OpaqueTokenService } from '../../../common/security/opaque-token.service';
+import { EmailVerificationDeliveryService } from '../mail/email-verification-delivery.service';
+import { EmailVerificationsRepository } from '../repositories/email-verifications.repository';
+import { SessionStoreService } from '../services/session-store.service';
 
 /** Validated onboarding data for the default Platform Core registration policy. */
 export type RegisterAccountCommand = {
@@ -66,26 +62,17 @@ export class RegistrationService {
     private readonly passwordCompromiseChecker: PasswordCompromiseChecker,
     @Inject(TRANSACTION_MANAGER)
     private readonly transactions: TransactionManager,
-    @Inject(IdentityService)
-    private readonly identities: Pick<
-      IdentityService,
-      'createPasswordIdentity'
-    >,
-    @Inject(UsersService)
-    private readonly users: Pick<UsersService, 'create'>,
+    private readonly identities: IdentityService,
+    private readonly users: UsersService,
     private readonly organizations: OrganizationsService,
-    @Inject(WorkspacesService)
-    private readonly workspaces: Pick<WorkspacesService, 'create'>,
-    @Inject(MembershipsService)
-    private readonly memberships: Pick<MembershipsService, 'createOwner'>,
+    private readonly workspaces: WorkspacesService,
+    private readonly memberships: MembershipsService,
     private readonly sessions: SessionStoreService,
     private readonly auditLog: AuditService,
-    @Inject(EMAIL_VERIFICATIONS_REPOSITORY)
     private readonly emailVerifications: EmailVerificationsRepository,
     private readonly passwordPolicy: PasswordPolicy,
-    private readonly sessionTokens: SessionTokenService,
-    private readonly verificationTokens: EmailVerificationTokenService,
-    private readonly verificationDelivery: EmailVerificationDelivery,
+    private readonly tokens: OpaqueTokenService,
+    private readonly verificationDelivery: EmailVerificationDeliveryService,
     private readonly identifiers: IdentifierFactory,
     private readonly clock: Clock,
     private readonly config: AppConfig,
@@ -108,11 +95,11 @@ export class RegistrationService {
       );
     }
 
-    const session = this.sessionTokens.create();
+    const session = this.tokens.create();
     const sessionExpiresAt = new Date(
       this.clock.now().getTime() + this.config.sessionTtlSeconds * 1000,
     );
-    const verification = this.verificationTokens.create();
+    const verification = this.tokens.create();
     const verificationId = this.identifiers.create();
     const verificationExpiresAt = new Date(
       this.clock.now().getTime() +

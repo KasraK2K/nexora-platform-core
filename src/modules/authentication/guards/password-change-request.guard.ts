@@ -3,24 +3,19 @@ import {
   ExecutionContext,
   HttpException,
   HttpStatus,
-  Inject,
   Injectable,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { AppConfig } from '../../../config/app-config';
-import {
-  AUTHENTICATION_RATE_LIMITER,
-  type AuthenticationRateLimitPort,
-} from '../application/authentication-rate-limiter.port';
-import { PasswordChangeUnavailableError } from '../domain/registration.errors';
+import { AuthenticationRateLimiter } from '../rate-limit/redis-authentication-rate-limiter';
+import { PasswordChangeUnavailableError } from '../errors/authentication.errors';
 import { readCookie } from '../http/session-cookie';
 
 /** Throttles password changes by pseudonymous IP and opaque-session buckets. */
 @Injectable()
 export class PasswordChangeRequestGuard implements CanActivate {
   constructor(
-    @Inject(AUTHENTICATION_RATE_LIMITER)
-    private readonly rateLimiter: AuthenticationRateLimitPort,
+    private readonly rateLimiter: AuthenticationRateLimiter,
     private readonly config: AppConfig,
   ) {}
 

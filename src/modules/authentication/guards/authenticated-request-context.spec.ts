@@ -1,12 +1,12 @@
 import type { ExecutionContext } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { AppConfig } from '../../../config/app-config';
-import { createAuthenticatedRequestContext } from '../application/authenticated-request-context';
+import { createAuthenticatedRequestContext } from '../security/authenticated-request-context';
 import {
-  SessionsService,
+  SessionContextService,
   type ResolvedAuthenticatedRequest,
-} from '../services/sessions.service';
-import { AuthenticationRequiredError } from '../domain/registration.errors';
+} from '../services/session-context.service';
+import { AuthenticationRequiredError } from '../errors/authentication.errors';
 import {
   attachAuthenticatedRequestContext,
   readAuthenticatedRequestContext,
@@ -72,7 +72,7 @@ describe('authenticated request context presentation boundary', () => {
     const guard = new AuthenticatedRequestContextGuard(
       {
         resolveAuthenticatedRequest,
-      } as unknown as SessionsService,
+      } as unknown as SessionContextService,
       {
         sessionCookieName: '__Host-nexora_session',
       } as AppConfig,

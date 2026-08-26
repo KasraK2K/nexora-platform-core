@@ -1,10 +1,6 @@
 import { PasswordCredentialsService } from './password-credentials.service';
-import type { PasswordVerifier } from './ports/password-verifier.port';
-import type {
-  PasswordCredentialManagementRepository,
-  PasswordCredentialVerificationRepository,
-  PasswordIdentityRepository,
-} from './repositories/password-credentials.repository';
+import type { PasswordVerifier } from './security/password-verifier';
+import type { PasswordCredentialsRepository } from './password-credentials.repository';
 
 class RecordingVerifier implements PasswordVerifier {
   calls: Array<{ password: string; passwordHash: string | null }> = [];
@@ -20,9 +16,7 @@ describe('PasswordCredentialsService', () => {
   it('performs dummy verification and returns the same null result for an unknown email', async () => {
     const verifier = new RecordingVerifier();
     const authentication = new PasswordCredentialsService(
-      repositoryReturning(null),
-      passwordManagement(),
-      passwordVerification(),
+      repositoryReturning(null) as never,
       verifier,
     );
 
@@ -44,9 +38,7 @@ describe('PasswordCredentialsService', () => {
       repositoryReturning({
         identityId: 'identity-id',
         passwordHash: 'stored-hash',
-      }),
-      passwordManagement(),
-      passwordVerification(),
+      }) as never,
       verifier,
     );
 
@@ -67,24 +59,13 @@ describe('PasswordCredentialsService', () => {
 
 function repositoryReturning(
   result: Awaited<
-    ReturnType<PasswordIdentityRepository['findByNormalizedEmail']>
+    ReturnType<PasswordCredentialsRepository['findByNormalizedEmail']>
   >,
-): PasswordIdentityRepository {
+): Pick<PasswordCredentialsRepository, 'findByNormalizedEmail'> {
   return {
     findByNormalizedEmail(normalizedEmail) {
       expect(normalizedEmail).toMatch(/^[a-z]+@example\.com$/);
       return Promise.resolve(result);
     },
-  };
-}
-
-function passwordManagement(): PasswordCredentialManagementRepository {
-  return { replacePasswordHash: () => Promise.resolve(false) };
-}
-
-function passwordVerification(): PasswordCredentialVerificationRepository {
-  return {
-    findByIdentityId: () => Promise.resolve(null),
-    replacePasswordHashIfCurrent: () => Promise.resolve(false),
   };
 }

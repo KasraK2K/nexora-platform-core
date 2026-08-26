@@ -13,42 +13,42 @@ telemetry, and durable mail-delivery foundations.
 A downstream product owns its customer workflow, product schema and APIs, UI,
 provider behavior, prompts, retrieval, evaluations, pricing, and product usage
 policy. Core must never import a downstream product. A product may consume only
-narrow Core application contracts.
+narrow services exported by Core modules.
 
 Promote a product capability into Core only after a second proven consumer or
 an explicit platform requirement. See ADR-0002 and the downstream product guide
 for the accepted boundary.
 
-## Layers inside a capability
+## The normal request flow
 
 ```mermaid
 flowchart LR
-    Presentation["Presentation<br/>HTTP mapping and guards"] --> Application["Application<br/>services and ports"]
-    Application --> Domain["Domain<br/>framework-independent rules"]
-    Infrastructure["Infrastructure<br/>Prisma, Redis, Resend adapter"] --> Application
-    Composition["Nest module<br/>composition root"] --> Presentation
-    Composition --> Application
-    Composition --> Infrastructure
+    Request["HTTP request"] --> Guard["admission and request guards"]
+    Guard --> Controller["feature controller"]
+    Controller --> Service["feature service"]
+    Service --> Repository["private repository"]
+    Repository --> Database["DatabaseContext / Prisma"]
+    Service --> PublicService["another module's exported service"]
 ```
 
-- **Presentation** validates transport input, resolves trusted context,
-  authorizes, invokes one service method, and maps the result.
-- **Application** coordinates module contracts and owns transaction boundaries.
-- **Domain** contains business rules and stable domain errors without framework
-  dependencies.
-- **Infrastructure** implements inward-facing ports and owns external side
-  effects.
-- **Nest modules** wire implementations to tokens and expose intentional public
-  application contracts.
+- A **controller** handles HTTP validation, trusted request context, and response
+  mapping.
+- A **service** owns the workflow, authorization-sensitive rechecks, transaction,
+  audit write, and reliable handoff.
+- A private **repository** contains the feature's Prisma queries.
+- A **Nest module** registers controllers and providers, and exports only the
+  narrow services another module needs.
 
-The arrows describe dependency direction, not the chronological execution of a
-request.
+Small features keep these files at their root. Complex features use descriptive
+folders such as `controllers`, `services`, `repositories`, `security`,
+`rate-limit`, `mail`, or `providers`. Generic architecture-layer folders are not
+used.
 
 ## Data ownership
 
 Every Prisma model and business rule has one owning Core module. Only that
-module's infrastructure may access its Prisma delegate. Cross-module work uses
-stable IDs and application contracts rather than ORM objects.
+module's repositories may access its Prisma delegate. Cross-module work uses
+stable IDs and exported services rather than ORM objects.
 
 `Workspace` is the operational tenant boundary. Tenant-owned reads, writes,
 audits, sessions, mail, and resource lookups carry a server-resolved
@@ -56,12 +56,12 @@ audits, sessions, mail, and resource lookups carry a server-resolved
 for workspace authorization.
 
 The executable ownership map lives in
-`test/architecture/architecture.spec.ts`; the human-readable map lives in the
+the tests under `test/architecture/`; the human-readable map lives in the
 [module catalog](../modules/README.md).
 
 ## Transactions and side effects
 
-The application service method decides what must commit atomically. The shared
+The feature service method decides what must commit atomically. The shared
 `TransactionManager` runs the callback at serializable isolation and maps known
 write conflicts to a stable application error. Module repositories obtain the
 active transaction through `DatabaseContext`.
@@ -92,11 +92,10 @@ trusted as authority.
 
 ## Stable boundaries worth protecting
 
-- Domain code remains framework-independent.
 - Core never imports product modules.
-- Products never receive Prisma or Core infrastructure access.
+- Products never receive Prisma or Core implementation access.
 - Controllers stay thin and do not own transactions.
-- A module does not query another module's table.
+- A module does not query another module's table or import its repository.
 - Every tenant-owned operation uses trusted workspace scope.
 - Raw tokens, credentials, sensitive payloads, and provider errors stay out of
   normal logs.

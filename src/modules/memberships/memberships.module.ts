@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
-import { MEMBERSHIPS_REPOSITORY } from './repositories/memberships.repository';
-import { PrismaMembershipsRepository } from './infrastructure/prisma-memberships.repository';
+import { MembershipsRepository } from './repositories/memberships.repository';
 import { InfrastructureModule } from '../../infrastructure/infrastructure.module';
 import { SessionStateModule } from '../authentication/session-state/session-state.module';
 import { AuditModule } from '../audit/audit.module';
@@ -8,26 +7,24 @@ import { AuthorizationPolicyModule } from '../authorization/policy/authorization
 import { IdentityModule } from '../identity/identity.module';
 import { MailModule } from '../mail/mail.module';
 import { UsersModule } from '../users/users.module';
-import { Clock } from '../../common/application/clock';
-import { IdentifierFactory } from '../../common/application/identifier-factory';
-import { MembershipInvitationDelivery } from './application/membership-invitation-delivery';
-import { MEMBERSHIP_INVITATION_RATE_LIMITER } from './application/membership-invitation-rate-limiter.port';
-import { MembershipInvitationTokenService } from './application/membership-invitation-token.service';
-import { MEMBERSHIP_INVITATIONS_REPOSITORY } from './repositories/membership-invitations.repository';
-import { PrismaMembershipInvitationsRepository } from './infrastructure/prisma-membership-invitations.repository';
-import { MembershipInvitationRateLimiter } from './infrastructure/membership-invitation-rate-limiter';
+import { Clock } from '../../common/clock';
+import { IdentifierFactory } from '../../common/identifier-factory';
+import { MembershipInvitationDeliveryService } from './mail/membership-invitation-delivery.service';
+import { OpaqueTokenService } from '../../common/security/opaque-token.service';
+import { MembershipInvitationsRepository } from './repositories/membership-invitations.repository';
+import { MembershipInvitationRateLimiter } from './rate-limit/redis-membership-invitation-rate-limiter';
 import { MembershipInvitationsController } from './controllers/membership-invitations.controller';
 import { MembershipsController } from './controllers/memberships.controller';
 import {
   MembershipInvitationAcceptRequestGuard,
   MembershipInvitationCreateRequestGuard,
 } from './guards/membership-invitation-request.guard';
-import { MEMBERSHIP_ADMINISTRATION_REPOSITORY } from './repositories/membership-administration.repository';
-import { MEMBERSHIP_OWNERSHIP_TRANSFER_RATE_LIMITER } from './application/membership-ownership-transfer-rate-limiter.port';
-import { MembershipOwnershipTransferRateLimiter } from './infrastructure/membership-ownership-transfer-rate-limiter';
+import { MembershipOwnershipTransferRateLimiter } from './rate-limit/redis-membership-ownership-transfer-rate-limiter';
 import { MembershipOwnershipTransferRequestGuard } from './guards/membership-ownership-transfer-request.guard';
 import { MembershipInvitationsService } from './membership-invitations.service';
+import { MembershipAdministrationService } from './membership-administration.service';
 import { MembershipsService } from './memberships.service';
+import { MembershipAdministrationController } from './controllers/membership-administration.controller';
 
 /**
  * Composes product-neutral membership, invitation, administration, rate-limit,
@@ -43,42 +40,27 @@ import { MembershipsService } from './memberships.service';
     MailModule,
     UsersModule,
   ],
-  controllers: [MembershipInvitationsController, MembershipsController],
+  controllers: [
+    MembershipInvitationsController,
+    MembershipsController,
+    MembershipAdministrationController,
+  ],
   providers: [
     Clock,
     IdentifierFactory,
-    MembershipInvitationTokenService,
-    MembershipInvitationDelivery,
+    OpaqueTokenService,
+    MembershipInvitationDeliveryService,
     MembershipInvitationCreateRequestGuard,
     MembershipInvitationAcceptRequestGuard,
     MembershipsService,
+    MembershipAdministrationService,
     MembershipInvitationsService,
-    PrismaMembershipsRepository,
-    PrismaMembershipInvitationsRepository,
+    MembershipsRepository,
+    MembershipInvitationsRepository,
     MembershipInvitationRateLimiter,
     MembershipOwnershipTransferRateLimiter,
     MembershipOwnershipTransferRequestGuard,
-    {
-      provide: MEMBERSHIPS_REPOSITORY,
-      useExisting: PrismaMembershipsRepository,
-    },
-    {
-      provide: MEMBERSHIP_ADMINISTRATION_REPOSITORY,
-      useExisting: PrismaMembershipsRepository,
-    },
-    {
-      provide: MEMBERSHIP_INVITATIONS_REPOSITORY,
-      useExisting: PrismaMembershipInvitationsRepository,
-    },
-    {
-      provide: MEMBERSHIP_INVITATION_RATE_LIMITER,
-      useExisting: MembershipInvitationRateLimiter,
-    },
-    {
-      provide: MEMBERSHIP_OWNERSHIP_TRANSFER_RATE_LIMITER,
-      useExisting: MembershipOwnershipTransferRateLimiter,
-    },
   ],
-  exports: [MembershipsService, MembershipInvitationsService],
+  exports: [MembershipsService],
 })
 export class MembershipsModule {}

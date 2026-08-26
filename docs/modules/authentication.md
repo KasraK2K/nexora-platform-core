@@ -30,28 +30,30 @@ Workspaces, and Memberships own their corresponding records.
 
 ## Source map
 
-- `controllers/` separates registration, email verification, password, and
-  session routes while preserving the single `/v1/auth` contract.
-- `services/` provides the four workflow-focused application entry points and
-  owns their transaction and authorization decisions.
+- `controllers/` separates registration, verification, password reset,
+  password change, login, session context, workspace selection, and session
+  management while preserving the single `/v1/auth` contract.
+- `services/` contains matching focused workflows and owns their transaction
+  and authorization decisions.
 - `dto/` holds strict Zod schemas and inferred transport types; `guards/`
   handles rate limits, origin, and route-admission prerequisites.
-- `repositories/` defines the session and single-use-token persistence
-  interfaces with their injection tokens.
-- `application/` retains only focused supporting ports and helpers for cache,
-  hashing, token creation, workspace lookup, and durable mail delivery.
-- `domain/password-policy.ts` and stable authentication errors hold reusable
+- `repositories/` contains private concrete database access for sessions and
+  single-use tokens.
+- `cache/`, `rate-limit/`, `security/`, and `mail/` name the supporting behavior
+  directly.
+- `security/password-policy.ts` and stable authentication errors hold reusable
   decisions without transport concerns.
-- Infrastructure implements Prisma repositories, Redis cache/rate limits,
-  Argon2, and Pwned Passwords lookup.
+- Concrete providers implement Redis cache/rate limits, Argon2, and Pwned
+  Passwords lookup.
 - `authentication.module.ts` is the composition root.
 - `session-state/session-state.module.ts` exposes the narrower session state
-  needed by Memberships without importing Authentication presentation code.
+  needed by Memberships without importing Authentication's full session
+  workflows.
 
 ## Dependencies
 
 Authentication consumes exported services from Identity, Users, Organizations,
-Workspaces, Memberships, Audit, and Mail. Infrastructure consumes the shared
+Workspaces, Memberships, Audit, and Mail. Its private providers consume shared
 database and Redis facilities. The module exports only the guards
 needed to establish trusted request context and origin policy; other Core
 modules receive session-state contracts through the dedicated session-state
@@ -86,7 +88,7 @@ environments.
 
 - Service unit tests cover registration, verification, reset, login,
   password change, revocation, request-context resolution, and workspace switch.
-- Presentation tests cover route admission and authenticated-context attachment.
+- Guard tests cover route admission and authenticated-context attachment.
 - Capability E2E specifications under `test/e2e/` cover the public API with
   PostgreSQL and Redis,
   including cross-tenant and forged-header denials.

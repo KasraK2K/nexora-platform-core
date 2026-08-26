@@ -19,10 +19,12 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import type { AuthenticatedRequestContext } from '../../authentication/services/sessions.service';
-import { CurrentAuthenticatedContext } from '../../authentication/decorators/authenticated-request-context.decorator';
+import {
+  CurrentAuthenticatedContext,
+  type AuthenticatedRequestContext,
+} from '../../authentication/decorators/authenticated-request-context.decorator';
 import { AuthenticatedRoute } from '../../authorization/decorators/route-admission.decorator';
-import { ZodValidationPipe } from '../../../common/presentation/zod-validation.pipe';
+import { ZodValidationPipe } from '../../../common/http/zod-validation.pipe';
 import { MembershipInvitationsService } from '../membership-invitations.service';
 import {
   acceptMembershipInvitationSchema,

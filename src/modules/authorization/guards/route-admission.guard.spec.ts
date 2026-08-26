@@ -1,15 +1,15 @@
 import type { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Request, Response } from 'express';
-import { createAuthenticatedRequestContext } from '../../authentication/application/authenticated-request-context';
-import type { ResolvedAuthenticatedRequest } from '../../authentication/services/sessions.service';
+import { createAuthenticatedRequestContext } from '../../authentication/security/authenticated-request-context';
+import type { ResolvedAuthenticatedRequest } from '../../authentication/services/session-context.service';
 import { attachAuthenticatedRequestContext } from '../../authentication/decorators/authenticated-request-context.decorator';
 import { AuthenticatedRequestContextGuard } from '../../authentication/guards/authenticated-request-context.guard';
 import { TrustedOriginGuard } from '../../authentication/guards/trusted-origin.guard';
 import {
   EmailVerificationRequiredError,
   RouteAccessDeniedError,
-} from '../domain/route-admission.errors';
+} from '../errors/route-admission.errors';
 import {
   AuthorizationDeniedError,
   AuthorizationPolicyService,

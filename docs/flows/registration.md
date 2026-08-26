@@ -86,6 +86,6 @@ whether the immediate verification message was sent.
 - Public service: `src/modules/authentication/services/registration.service.ts`
 - Registration workflow: `src/modules/authentication/services/registration.service.ts`
 - Unit tests: `src/modules/authentication/services/registration.service.spec.ts`
-- E2E tests: `test/e2e/authentication.e2e-spec.ts`
+- E2E tests: `test/e2e/registration-verification.e2e-spec.ts`
 - Transaction adapter: `src/infrastructure/database/prisma-transaction-manager.ts`
 - Durable delivery: `src/modules/mail/mail.service.ts`

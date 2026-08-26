@@ -90,14 +90,14 @@ A downstream product repository may consume public Core contracts. Core must nev
 
 - Keep one deployable modular monolith until measurable extraction criteria are met.
 - Organize capabilities as vertical, feature-first modules.
-- A module owns its domain model, use cases, repository ports, persistence implementation, schema changes, presentation adapters, and public contract.
-- Import another module only through its public application contract. Never query another module's tables directly.
+- A module owns its business rules, service workflows, private repositories, schema changes, controllers, and public services.
+- Import another module only through an exported service or explicit public contract. Never query another module's tables directly.
 - Do not add internal HTTP calls between modules in the monolith.
-- Keep dependency direction explicit: presentation -> application -> domain; infrastructure implements inward-facing ports and is wired at the composition root.
-- Keep domain code independent of NestJS, Prisma, HTTP, Redis, queues, provider SDKs, and framework decorators.
-- Let the application use case own transaction boundaries. Publish post-transaction effects through an outbox or equivalent reliable handoff.
+- Keep dependency direction explicit: controllers call services, and services call their feature's private concrete repositories or genuine external-boundary ports.
+- Keep reusable business policies and value types independent of NestJS, Prisma, HTTP, Redis, queues, provider SDKs, and framework decorators without requiring generic layer folders.
+- Let the feature service method own transaction boundaries. Publish post-transaction effects through an outbox or equivalent reliable handoff.
 - Keep the shared kernel limited to stable primitives such as IDs, Money, Clock, Result, Error, and event envelopes.
-- Add an abstraction only for an external boundary, a volatile policy, or a second proven use.
+- Add an abstraction only for an external boundary, a volatile policy, or a second proven implementation. Ordinary Prisma access uses a private concrete repository.
 
 ## SOLID and clean-code rules
 

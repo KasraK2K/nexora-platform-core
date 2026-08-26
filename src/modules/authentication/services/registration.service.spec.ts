@@ -8,21 +8,19 @@ import { MembershipsService } from '../../memberships/memberships.service';
 import { OrganizationsService } from '../../organizations/organizations.service';
 import { UsersService } from '../../users/users.service';
 import { WorkspacesService } from '../../workspaces/workspaces.service';
-import { Clock } from '../../../common/application/clock';
-import { IdentifierFactory } from '../../../common/application/identifier-factory';
-import type { TransactionManager } from '../../../common/application/transaction-manager.port';
-import { PasswordPolicy } from '../domain/password-policy';
+import { Clock } from '../../../common/clock';
+import { IdentifierFactory } from '../../../common/identifier-factory';
+import type { TransactionManager } from '../../../common/transaction-manager';
+import { PasswordPolicy } from '../security/password-policy';
 import {
   InvalidRegistrationError,
   RegistrationUnavailableError,
-} from '../domain/registration.errors';
-import type { PasswordCompromiseChecker } from '../application/password-compromise-checker.port';
-import type { PasswordHasher } from '../application/password-hasher.port';
-import type { SessionCachePort } from '../application/session-cache.port';
-import { SessionTokenService } from '../application/session-token.service';
-import { EmailVerificationDelivery } from '../application/email-verification-delivery';
-import { EmailVerificationTokenService } from '../application/email-verification-token.service';
-import type { EmailVerificationsRepository } from '../repositories/email-verifications.repository';
+} from '../errors/authentication.errors';
+import type { PasswordCompromiseChecker } from '../security/password-compromise-checker';
+import type { PasswordHasher } from '../security/password-hasher';
+import type { SessionCachePort } from '../cache/session-cache';
+import { OpaqueTokenService } from '../../../common/security/opaque-token.service';
+import { EmailVerificationDeliveryService } from '../mail/email-verification-delivery.service';
 import { RegistrationService } from './registration.service';
 
 class RecordingHasher implements PasswordHasher {
@@ -80,7 +78,7 @@ class RecordingEmailSender {
   }
 }
 
-class RecordingEmailVerifications implements EmailVerificationsRepository {
+class RecordingEmailVerifications {
   writes: Array<{
     id: string;
     userId: string;
@@ -259,7 +257,7 @@ function createFixture(): {
     create: () => Promise.resolve(),
     findById: () => Promise.resolve(null),
     findByIds: () => Promise.resolve([]),
-  });
+  } as never);
   const workspaces: Pick<WorkspacesService, 'create'> = {
     create: () => Promise.resolve(),
   };
@@ -274,7 +272,9 @@ function createFixture(): {
     revokeAllForUser: () => Promise.resolve([]),
     storeCacheBestEffort: (tokenHash: string) => sessionCache.store(tokenHash),
   };
-  const auditLog = new AuditService({ append: () => Promise.resolve() });
+  const auditLog = new AuditService({
+    append: () => Promise.resolve(),
+  } as never);
   const config = new AppConfig();
   let queuedMail: { to: string; text: string; expiresAt: Date } | undefined;
   const outbox = {
@@ -310,20 +310,19 @@ function createFixture(): {
       hasher,
       passwordCompromiseChecker,
       new InlineTransactionManager(),
-      identities,
-      users,
+      identities as never,
+      users as never,
       organizations,
-      workspaces,
-      memberships,
+      workspaces as never,
+      memberships as never,
       sessions as never,
       auditLog,
-      emailVerificationRepository,
+      emailVerificationRepository as never,
       new PasswordPolicy(),
-      new SessionTokenService(),
-      new EmailVerificationTokenService(),
-      new EmailVerificationDelivery(
+      new OpaqueTokenService(),
+      new EmailVerificationDeliveryService(
         outbox as never,
-        emailVerificationRepository,
+        emailVerificationRepository as never,
         clock,
         config,
       ),

@@ -1,11 +1,11 @@
-import type { InvitableMembershipRole } from '../domain/membership-role';
+import { Injectable } from '@nestjs/common';
+import { DatabaseContext } from '../../../infrastructure/database/database-context';
+import {
+  isInvitableMembershipRole,
+  type InvitableMembershipRole,
+} from '../membership-role';
 
-/** Injection token for invitation persistence. */
-export const MEMBERSHIP_INVITATIONS_REPOSITORY = Symbol(
-  'MEMBERSHIP_INVITATIONS_REPOSITORY',
-);
-
-/** Safe invitation fields returned to application services; no raw token. */
+/** Safe invitation fields returned to services; never includes the raw token. */
 export type MembershipInvitationRecord = Readonly<{
   id: string;
   workspaceId: string;
@@ -14,10 +14,13 @@ export type MembershipInvitationRecord = Readonly<{
   role: InvitableMembershipRole;
 }>;
 
-/** Persistence contract for hashed, email-bound membership invitations. */
-export interface MembershipInvitationsRepository {
-  /** Creates an invitation containing only the token hash and active key. */
-  create(input: {
+/** Private repository for hashed, workspace-scoped membership invitations. */
+@Injectable()
+export class MembershipInvitationsRepository {
+  constructor(private readonly database: DatabaseContext) {}
+
+  /** Persists an invitation without ever receiving or storing its raw token. */
+  async create(input: {
     id: string;
     workspaceId: string;
     invitedByUserId: string;
@@ -26,44 +29,173 @@ export interface MembershipInvitationsRepository {
     tokenHash: string;
     activeKey: string;
     expiresAt: Date;
-  }): Promise<void>;
-  /** Retires a replaceable active invitation for one workspace and email. */
-  retireActive(
+  }): Promise<void> {
+    await this.database.client.membershipInvitation.create({ data: input });
+  }
+
+  /** Revokes replaceable active invitations for one workspace and email. */
+  async retireActive(
     workspaceId: string,
     normalizedEmail: string,
     revokedAt: Date,
-  ): Promise<void>;
-  /** Finds an unexpired invitation by token hash for email-bound acceptance. */
-  findUsableByTokenHash(
+  ): Promise<void> {
+    await this.database.client.membershipInvitation.updateMany({
+      where: {
+        workspaceId,
+        normalizedEmail,
+        activeKey: { not: null },
+        acceptedAt: null,
+        revokedAt: null,
+      },
+      data: { activeKey: null, revokedAt },
+    });
+  }
+
+  /** Finds a usable invitation by token hash, independent of current workspace. */
+  async findUsableByTokenHash(
     tokenHash: string,
     now: Date,
-  ): Promise<MembershipInvitationRecord | null>;
-  /** Finds an active invitation by ID inside the trusted workspace. */
-  findActiveById(
+  ): Promise<MembershipInvitationRecord | null> {
+    const invitation =
+      await this.database.client.membershipInvitation.findFirst({
+        where: {
+          tokenHash,
+          activeKey: { not: null },
+          acceptedAt: null,
+          revokedAt: null,
+          expiresAt: { gt: now },
+          role: { in: ['ADMIN', 'MEMBER'] },
+        },
+        select: {
+          id: true,
+          workspaceId: true,
+          invitedByUserId: true,
+          normalizedEmail: true,
+          role: true,
+        },
+      });
+    const role = invitation?.role;
+    if (!invitation || !isInvitableMembershipRole(role)) {
+      return null;
+    }
+    return { ...invitation, role };
+  }
+
+  /** Finds a usable invitation by ID only inside the trusted workspace. */
+  async findActiveById(
     workspaceId: string,
     id: string,
     now: Date,
-  ): Promise<MembershipInvitationRecord | null>;
-  /** Finds an active invitation for a normalized email in one workspace. */
-  findActiveForEmail(
+  ): Promise<MembershipInvitationRecord | null> {
+    const invitation =
+      await this.database.client.membershipInvitation.findFirst({
+        where: {
+          id,
+          workspaceId,
+          activeKey: { not: null },
+          acceptedAt: null,
+          revokedAt: null,
+          expiresAt: { gt: now },
+          role: { in: ['ADMIN', 'MEMBER'] },
+        },
+        select: {
+          id: true,
+          workspaceId: true,
+          invitedByUserId: true,
+          normalizedEmail: true,
+          role: true,
+        },
+      });
+    const role = invitation?.role;
+    if (!invitation || !isInvitableMembershipRole(role)) {
+      return null;
+    }
+    return { ...invitation, role };
+  }
+
+  /** Finds a usable invitation by normalized email in one workspace. */
+  async findActiveForEmail(
     workspaceId: string,
     normalizedEmail: string,
     now: Date,
-  ): Promise<MembershipInvitationRecord | null>;
-  /** Atomically revokes a still-active workspace-scoped invitation. */
-  revoke(workspaceId: string, id: string, revokedAt: Date): Promise<boolean>;
-  /** Atomically consumes a still-active invitation for the accepting user. */
-  accept(
+  ): Promise<MembershipInvitationRecord | null> {
+    const invitation =
+      await this.database.client.membershipInvitation.findFirst({
+        where: {
+          workspaceId,
+          normalizedEmail,
+          activeKey: { not: null },
+          acceptedAt: null,
+          revokedAt: null,
+          expiresAt: { gt: now },
+          role: { in: ['ADMIN', 'MEMBER'] },
+        },
+        select: {
+          id: true,
+          workspaceId: true,
+          invitedByUserId: true,
+          normalizedEmail: true,
+          role: true,
+        },
+      });
+    const role = invitation?.role;
+    if (!invitation || !isInvitableMembershipRole(role)) {
+      return null;
+    }
+    return { ...invitation, role };
+  }
+
+  /** Compare-and-set revokes a still-active, unexpired scoped invitation. */
+  async revoke(
+    workspaceId: string,
+    id: string,
+    revokedAt: Date,
+  ): Promise<boolean> {
+    const result = await this.database.client.membershipInvitation.updateMany({
+      where: {
+        id,
+        workspaceId,
+        activeKey: { not: null },
+        acceptedAt: null,
+        revokedAt: null,
+        expiresAt: { gt: revokedAt },
+      },
+      data: { activeKey: null, revokedAt },
+    });
+    return result.count === 1;
+  }
+
+  /** Compare-and-set consumes a still-active invitation for the accepting user. */
+  async accept(
     workspaceId: string,
     id: string,
     acceptedByUserId: string,
     acceptedAt: Date,
-  ): Promise<boolean>;
-  /** Records only coarse post-commit delivery status. */
-  markDelivery(
+  ): Promise<boolean> {
+    const result = await this.database.client.membershipInvitation.updateMany({
+      where: {
+        id,
+        workspaceId,
+        activeKey: { not: null },
+        acceptedAt: null,
+        revokedAt: null,
+        expiresAt: { gt: acceptedAt },
+      },
+      data: { activeKey: null, acceptedAt, acceptedByUserId },
+    });
+    return result.count === 1;
+  }
+
+  /** Records only coarse delivery state for the scoped invitation. */
+  async markDelivery(
     workspaceId: string,
     id: string,
     status: 'SENT' | 'FAILED',
     attemptedAt: Date,
-  ): Promise<void>;
+  ): Promise<void> {
+    await this.database.client.membershipInvitation.updateMany({
+      where: { id, workspaceId },
+      data: { deliveryStatus: status, deliveryAttemptedAt: attemptedAt },
+    });
+  }
 }

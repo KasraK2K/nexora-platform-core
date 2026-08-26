@@ -11,9 +11,7 @@ pnpm exec nest g module modules/example
 pnpm exec nest g controller modules/example --flat
 pnpm exec nest g service modules/example --flat
 pnpm exec nest g class modules/example/dto/create-example.dto --flat
-pnpm exec nest g interface modules/example/repositories/example.repository --flat
-pnpm exec nest g provider modules/example/infrastructure/prisma-example.repository --flat
-Move-Item -LiteralPath src/modules/example/repositories/example.repository.interface.ts -Destination src/modules/example/repositories/example.repository.ts
+pnpm exec nest g provider modules/example/example.repository --flat
 ```
 
 The result starts with `example.module.ts`, `example.controller.ts`, and
@@ -21,11 +19,11 @@ The result starts with `example.module.ts`, `example.controller.ts`, and
 generated DTO class is only a file scaffold and should not introduce
 `class-validator`, `class-transformer`, or a duplicate Prisma entity.
 
-The installed Nest interface schematic always appends `.interface.ts`. The
-explicit `Move-Item` keeps the repository contract at the project convention
-`repositories/<aggregate>.repository.ts`; then place the injection token beside
-the interface. This is the only filename correction and does not require a
-custom schematic.
+For ordinary database access, rename the generated provider class to
+`ExampleRepository`, inject `DatabaseContext`, and put the Prisma calls directly
+in that class. Register it only in `ExampleModule`; do not export it. Add a
+separate interface and adapter only when there is a real interchangeable
+external boundary or more than one proven implementation.
 
 Do not use `nest g resource` for tenant-sensitive features. Generated CRUD
 cannot infer trusted workspace scope, permission checks, transaction ownership,
@@ -42,16 +40,16 @@ files.
    route-admission metadata, invoke one service method, and map the response.
 3. Put the workflow in the feature service. The service owns authorization
    rechecks, the transaction, audit writes, and reliable post-commit handoff.
-4. Add or extend a narrow interface in `repositories/`. Keep its injection token
-   beside the interface.
-5. Implement the interface in `infrastructure/prisma-<aggregate>.repository.ts`
-   and bind the token in the feature module. Do not export the repository.
+4. Add the minimum operation to `<feature>.repository.ts` (or
+   `repositories/<aggregate>.repository.ts` in a large feature). Scope every
+   tenant-owned query by trusted `workspaceId`.
+5. Register the concrete repository in the feature module. Do not export it.
 6. Export the service only when another module has a proven need for it.
 
 The normal flow is:
 
 ```text
-controller -> service -> repository interface -> Prisma implementation
+controller -> service -> repository -> DatabaseContext -> Prisma
 ```
 
 ## Authenticated and tenant-owned operations

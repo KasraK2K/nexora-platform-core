@@ -14,7 +14,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { Response } from 'express';
-import { ZodValidationPipe } from '../../../common/presentation/zod-validation.pipe';
+import { ZodValidationPipe } from '../../../common/http/zod-validation.pipe';
 import { PublicRoute } from '../../authorization/decorators/route-admission.decorator';
 import {
   emailVerificationConfirmationSchema,
@@ -24,7 +24,7 @@ import {
 } from '../dto/email-verification.dto';
 import { EmailVerificationConfirmationGuard } from '../guards/email-verification-confirmation.guard';
 import { EmailVerificationRequestGuard } from '../guards/email-verification-request.guard';
-import { setPrivateResponseHeaders } from '../http/private-response-headers';
+import { setPrivateResponseHeaders } from '../../../common/http/private-response-headers';
 import { EmailVerificationService } from '../services/email-verification.service';
 
 /** HTTP adapter for replacement-link requests and email confirmation. */

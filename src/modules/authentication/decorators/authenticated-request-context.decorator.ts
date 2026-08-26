@@ -1,11 +1,12 @@
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 import type { Request } from 'express';
-import type { AuthenticatedRequestContext } from '../application/authenticated-request-context';
+import type { AuthenticatedRequestContext } from '../security/authenticated-request-context';
+export type { AuthenticatedRequestContext } from '../security/authenticated-request-context';
 import type {
   CurrentSession,
   ResolvedAuthenticatedRequest,
-} from '../services/sessions.service';
-import { AuthenticationRequiredError } from '../domain/registration.errors';
+} from '../services/session-context.service';
+import { AuthenticationRequiredError } from '../errors/authentication.errors';
 
 const AUTHENTICATED_REQUEST_CONTEXT = Symbol('AUTHENTICATED_REQUEST_CONTEXT');
 
