@@ -1,16 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { AppConfig } from '../../../config/app-config';
 import { MailService } from '../../mail/mail.service';
-import { Clock } from '../../../common/clock';
-import { PasswordResetTokensRepository } from '../repositories/password-reset-tokens.repository';
 
-/** Writes password-reset mail to the durable outbox and triggers immediate delivery. */
+/** Writes password-reset mail to the durable outbox for asynchronous delivery. */
 @Injectable()
 export class PasswordResetDeliveryService {
   constructor(
     private readonly outbox: MailService,
-    private readonly tokens: PasswordResetTokensRepository,
-    private readonly clock: Clock,
     private readonly config: AppConfig,
   ) {}
 
@@ -41,19 +37,5 @@ export class PasswordResetDeliveryService {
       ].join('\n\n'),
       expiresAt: input.expiresAt,
     });
-  }
-
-  /** Attempts delivery now and best-effort records whether it was sent. */
-  async attempt(resetId: string): Promise<boolean> {
-    const sent = await this.outbox.deliverNow(resetId);
-    await this.tokens
-      .markDelivery(resetId, sent ? 'SENT' : 'FAILED', this.clock.now())
-      .catch(() => undefined);
-    return sent;
-  }
-
-  /** Starts a non-blocking delivery attempt after the durable transaction commits. */
-  dispatch(resetId: string): void {
-    void this.attempt(resetId).catch(() => undefined);
   }
 }

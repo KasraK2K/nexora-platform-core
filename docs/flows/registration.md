@@ -1,91 +1,48 @@
 # Registration flow
 
-`POST /v1/auth/registrations` is the default product-neutral onboarding policy.
-It creates an identity, user, organization, initial workspace, OWNER membership,
-verification intent, session, and audit facts as one business transaction.
-
-## Sequence
+`POST /v1/auth/registrations` creates the lean account graph as one transaction.
+The request contains `email`, `password`, `displayName`, and `workspaceName`.
 
 ```mermaid
 sequenceDiagram
     actor Client
-    participant Guard as Registration guards
-    participant Controller as AuthenticationController
-    participant UseCase as RegisterAccount
-    participant Security as Password policy and compromise checker
-    participant Tx as TransactionManager
-    participant Core as Owning module contracts
+    participant Guard as Origin/rate-limit/DTO guards
+    participant Controller as RegistrationController
+    participant Service as RegistrationService
+    participant Users as UsersService
+    participant Workspaces as WorkspacesService
+    participant Memberships as MembershipsService
+    participant Sessions as SessionsService
     participant Mail as MailService
     participant DB as PostgreSQL
-    participant Redis as Session cache
-    participant Resend as Resend adapter
 
-    Client->>Guard: POST registration body and Origin
-    Guard->>Guard: Validate origin, rate limits, and Zod contract
-    Guard->>Controller: Normalized request
-    Controller->>UseCase: RegisterAccountCommand
-    UseCase->>Security: Validate and screen password
-    UseCase->>Security: Hash password and create raw and hashed token pairs
-    UseCase->>Tx: Execute serializable transaction
-    Tx->>Core: Create Identity and PasswordCredential
-    Tx->>Core: Create User, Organization, Workspace, OWNER Membership
-    Tx->>Core: Create EmailVerification and Session
-    Tx->>Mail: Enqueue encrypted verification email
-    Tx->>Core: Append audit facts
-    Core->>DB: Persist owned records through repositories
-    Mail->>DB: Persist outbox message
-    DB-->>Tx: Commit all durable facts
-    UseCase->>Redis: Best-effort session cache write
-    UseCase->>Mail: Attempt delivery after commit
-    Mail->>Resend: Send message with raw token link and idempotency key
-    UseCase-->>Controller: RegisteredAccount and raw session token
-    Controller-->>Client: 201 and Secure HttpOnly session cookie
+    Client->>Guard: POST registration
+    Guard->>Controller: validated request
+    Controller->>Service: register(command)
+    Service->>Users: validate/hash password
+    Service->>DB: begin serializable transaction
+    Service->>Users: create User
+    Service->>Workspaces: create owner Workspace
+    Service->>Memberships: create owner Membership
+    Service->>Sessions: create hashed Session
+    Service->>DB: create verification token and audit rows
+    Service->>Mail: enqueue encrypted verification message
+    DB-->>Service: commit all or roll back all
+    Service-->>Controller: IDs, queued flag, raw session secret
+    Controller-->>Client: 201 plus HttpOnly session cookie
 ```
 
-## Before the transaction
+Email normalization and password hashing happen before the transaction. Inside
+the transaction, each feature writes only its owned table. Duplicate normalized
+email becomes the stable `EMAIL_ALREADY_REGISTERED` error. Any other persistence
+failure rolls the entire graph back.
 
-The registration service normalizes email, validates password policy, checks compromise
-data, hashes the password, and generates identifiers and token pairs. Failures
-here create no account state.
+Only token hashes are stored. The raw verification token is encrypted inside the
+outbox payload, and the raw session secret only reaches the cookie. The response
+uses `verificationEmailQueued: true`; the mail worker performs delivery later.
 
-Only hashes enter durable session and verification records. The raw verification
-token exists long enough to build the protected mail payload; the raw session
-token is returned only to the controller so it can set the cookie.
+The user remains `PENDING_VERIFICATION`. The registration session may access
+only routes that explicitly allow pending users.
 
-## Inside the transaction
-
-The registration service owns one serializable transaction. Each called module
-still writes through its own application contract and repository. The encrypted
-mail outbox row is part of the transaction, so a committed verification intent
-has a durable delivery handoff.
-
-Duplicate normalized identity maps to a stable email-already-registered error.
-Other transaction failures are logged without secrets and mapped to a stable
-registration-unavailable error.
-
-## After commit
-
-Redis is populated best-effort because PostgreSQL owns session authority. An
-immediate email delivery attempt improves latency, but its failure does not roll
-back the account. Durable outbox state allows retry, and the API response reports
-whether the immediate verification message was sent.
-
-## Invariants to preserve
-
-- All durable account and initial-tenant facts commit or roll back together.
-- No raw password, session token, or verification token is persisted or logged.
-- The initial membership is OWNER for the newly created workspace.
-- The user remains `PENDING_VERIFICATION` until token confirmation.
-- A cache or Resend outage cannot make a committed registration ambiguous.
-- The flow remains product-neutral; downstream onboarding policy requires a
-  separately reviewed contract change.
-
-## Code and tests
-
-- Controller: `src/modules/authentication/controllers/registration.controller.ts`
-- Public service: `src/modules/authentication/services/registration.service.ts`
-- Registration workflow: `src/modules/authentication/services/registration.service.ts`
-- Unit tests: `src/modules/authentication/services/registration.service.spec.ts`
-- E2E tests: `test/e2e/registration-verification.e2e-spec.ts`
-- Transaction adapter: `src/infrastructure/database/prisma-transaction-manager.ts`
-- Durable delivery: `src/modules/mail/mail.service.ts`
+Evidence: `test/e2e/lean-core.e2e-spec.ts` and
+`test/e2e/security-and-mail.e2e-spec.ts`.

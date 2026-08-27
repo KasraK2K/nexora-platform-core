@@ -20,7 +20,6 @@ export const registrationRequestSchema = z
         }
       }),
     displayName: z.string().trim().min(1).max(100),
-    organizationName: z.string().trim().min(1).max(120),
     workspaceName: z.string().trim().min(1).max(120),
   })
   .strict();

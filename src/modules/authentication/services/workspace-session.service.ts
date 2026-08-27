@@ -18,8 +18,10 @@ import {
 import { AccessibleWorkspacesService } from '../services/accessible-workspaces.service';
 import type { AuthenticatedRequestContext } from '../security/authenticated-request-context';
 import { OpaqueTokenService } from '../../../common/security/opaque-token.service';
-import type { SessionRecord } from '../repositories/authentication-sessions.repository';
-import { SessionStoreService } from '../services/session-store.service';
+import {
+  SessionsService,
+  type SessionRecord,
+} from '../../sessions/sessions.service';
 import type { SwitchedWorkspaceSession } from './session.types';
 
 export type { SwitchedWorkspaceSession } from './session.types';
@@ -34,7 +36,7 @@ export class WorkspaceSessionService {
     private readonly users: UsersService,
     private readonly memberships: MembershipsService,
     private readonly accessibleWorkspaces: AccessibleWorkspacesService,
-    private readonly sessions: SessionStoreService,
+    private readonly sessions: SessionsService,
     private readonly audit: AuditService,
     @Inject(TRANSACTION_MANAGER)
     private readonly transactions: TransactionManager,
@@ -98,11 +100,10 @@ export class WorkspaceSessionService {
           if (!target) throw new WorkspaceAccessDeniedError();
           const currentSession = Object.freeze({
             user: Object.freeze({ ...user }),
-            organization: target.organization,
             workspace: target.workspace,
             membership: target.membership,
           });
-          if (session.activeWorkspaceId === input.workspaceId) {
+          if (session.workspaceId === input.workspaceId) {
             return Object.freeze({
               currentSession,
               sessionToken: rawSessionToken,
@@ -118,13 +119,10 @@ export class WorkspaceSessionService {
             id: replacementSessionId,
             tokenHash: replacement.hash,
             userId: session.userId,
-            activeWorkspaceId: input.workspaceId,
+            workspaceId: input.workspaceId,
             expiresAt: session.expiresAt,
           });
-          for (const workspaceId of [
-            session.activeWorkspaceId,
-            input.workspaceId,
-          ]) {
+          for (const workspaceId of [session.workspaceId, input.workspaceId]) {
             await this.audit.append({
               id: this.identifiers.create(),
               workspaceId,
@@ -158,17 +156,6 @@ export class WorkspaceSessionService {
       }
     }
     if (!result) throw new WorkspaceSwitchUnavailableError();
-    if (result.rotated) {
-      await this.sessions.removeCacheBestEffort(tokenHash);
-      await this.sessions.storeCacheBestEffort(
-        replacement.hash,
-        {
-          userId: input.expectedContext.actorUserId,
-          workspaceId: input.workspaceId,
-        },
-        result.sessionExpiresAt,
-      );
-    }
     return result;
   }
 
@@ -182,7 +169,7 @@ export class WorkspaceSessionService {
       !session ||
       session.id !== expected.sessionId ||
       session.userId !== expected.actorUserId ||
-      session.activeWorkspaceId !== expected.workspaceId ||
+      session.workspaceId !== expected.workspaceId ||
       session.revokedAt ||
       session.expiresAt.getTime() <= now.getTime()
     ) {

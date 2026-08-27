@@ -62,9 +62,8 @@ export class AuthenticationInvalidError extends ApplicationError {
 
 /** Bounded, safe tenant summary offered after valid multi-workspace credentials. */
 export type WorkspaceSelectionOption = Readonly<{
-  organization: Readonly<{ id: string; name: string }>;
   workspace: Readonly<{ id: string; name: string }>;
-  membership: Readonly<{ role: 'OWNER' | 'ADMIN' | 'MEMBER' }>;
+  membership: Readonly<{ role: 'OWNER' | 'MEMBER' }>;
 }>;
 
 /** Valid credentials require the caller to choose one accessible workspace. */
@@ -133,7 +132,7 @@ export class PasswordResetInvalidError extends ApplicationError {
   }
 }
 
-/** The proposed reset password fails password or compromise policy. */
+/** The proposed reset password fails the local password policy. */
 export class InvalidPasswordResetPasswordError extends ApplicationError {
   readonly code = 'PASSWORD_RESET_INVALID_PASSWORD';
   readonly retryable = false;
@@ -165,7 +164,7 @@ export class PasswordChangeInvalidCurrentPasswordError extends ApplicationError 
   }
 }
 
-/** The proposed replacement fails password or compromise policy. */
+/** The proposed replacement fails the local password policy. */
 export class InvalidPasswordChangePasswordError extends ApplicationError {
   readonly code = 'PASSWORD_CHANGE_INVALID_PASSWORD';
   readonly retryable = false;

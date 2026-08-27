@@ -1,9 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { AuditService } from '../../audit/audit.service';
-import {
-  PasswordCredentialsService,
-  type VerifiedPasswordCredential,
-} from '../../identity/password-credentials.service';
 import { MembershipsService } from '../../memberships/memberships.service';
 import { UsersService } from '../../users/users.service';
 import { Clock } from '../../../common/clock';
@@ -19,17 +15,13 @@ import {
   PasswordChangeInvalidCurrentPasswordError,
   PasswordChangeUnavailableError,
 } from '../errors/authentication.errors';
-import { PASSWORD_COMPROMISE_CHECKER } from '../security/password-compromise-checker';
-import type { PasswordCompromiseChecker } from '../security/password-compromise-checker';
-import { PASSWORD_HASHER } from '../security/password-hasher';
-import type { PasswordHasher } from '../security/password-hasher';
 import { PasswordResetTokensRepository } from '../repositories/password-reset-tokens.repository';
 import { OpaqueTokenService } from '../../../common/security/opaque-token.service';
-import type {
-  RevokedSession,
-  SessionRecord,
-} from '../repositories/authentication-sessions.repository';
-import { SessionStoreService } from '../services/session-store.service';
+import {
+  SessionsService,
+  type SessionRecord,
+} from '../../sessions/sessions.service';
+import type { VerifiedUserPassword } from '../../users/users.service';
 
 /** Rotated current-session secret returned after a successful password change. */
 export type ChangedPasswordSession = {
@@ -37,7 +29,7 @@ export type ChangedPasswordSession = {
   sessionExpiresAt: Date;
 };
 
-type PasswordChangeContext = { session: SessionRecord; identityId: string };
+type PasswordChangeContext = { session: SessionRecord };
 
 /** Owns authenticated password replacement and session rotation. */
 @Injectable()
@@ -47,15 +39,11 @@ export class PasswordChangeService {
   constructor(
     private readonly users: UsersService,
     private readonly memberships: MembershipsService,
-    private readonly sessions: SessionStoreService,
+    private readonly sessions: SessionsService,
     private readonly resetTokens: PasswordResetTokensRepository,
     private readonly sessionTokens: OpaqueTokenService,
-    private readonly credentials: PasswordCredentialsService,
     private readonly audit: AuditService,
     private readonly passwordPolicy: PasswordPolicy,
-    @Inject(PASSWORD_COMPROMISE_CHECKER)
-    private readonly compromiseChecker: PasswordCompromiseChecker,
-    @Inject(PASSWORD_HASHER) private readonly passwordHasher: PasswordHasher,
     @Inject(TRANSACTION_MANAGER)
     private readonly transactions: TransactionManager,
     private readonly identifiers: IdentifierFactory,
@@ -74,7 +62,7 @@ export class PasswordChangeService {
     const context = await this.resolveContext(tokenHash);
     const currentPassword = input.currentPassword.normalize('NFC');
     const verifiedCredential = await this.verifyCurrentPassword(
-      context.identityId,
+      context.session.userId,
       currentPassword,
     );
     const newPassword = this.passwordPolicy.validateChangedPassword(
@@ -85,16 +73,14 @@ export class PasswordChangeService {
         'The new password must differ from the current password.',
       );
     }
-    await this.assertReplacementIsAllowed(newPassword);
     const passwordHash = await this.hashReplacement(newPassword);
     const replacement = this.sessionTokens.create();
     const replacementSessionId = this.identifiers.create();
 
-    let result:
-      { revokedSessions: RevokedSession[]; sessionExpiresAt: Date } | undefined;
+    let sessionExpiresAt: Date | undefined;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
-        result = await this.transactions.execute(async () => {
+        sessionExpiresAt = await this.transactions.execute(async () => {
           const now = this.clock.now();
           const current = await this.sessions.findByTokenHash(tokenHash);
           const currentSession = await this.requireCurrentContext(
@@ -102,7 +88,7 @@ export class PasswordChangeService {
             context,
             now,
           );
-          const replaced = await this.credentials.replacePasswordHashIfVerified(
+          const replaced = await this.users.replacePasswordHashIfVerified(
             verifiedCredential,
             passwordHash,
           );
@@ -120,12 +106,12 @@ export class PasswordChangeService {
             id: replacementSessionId,
             tokenHash: replacement.hash,
             userId: context.session.userId,
-            activeWorkspaceId: context.session.activeWorkspaceId,
+            workspaceId: context.session.workspaceId,
             expiresAt: sessionExpiresAt,
           });
           const workspaceIds = new Set([
-            context.session.activeWorkspaceId,
-            ...revokedSessions.map((session) => session.activeWorkspaceId),
+            context.session.workspaceId,
+            ...revokedSessions.map((session) => session.workspaceId),
           ]);
           for (const workspaceId of workspaceIds) {
             await this.audit.append({
@@ -136,7 +122,7 @@ export class PasswordChangeService {
               resourceId: context.session.userId,
             });
           }
-          return { revokedSessions, sessionExpiresAt };
+          return sessionExpiresAt;
         });
         break;
       } catch (error) {
@@ -151,23 +137,10 @@ export class PasswordChangeService {
         throw new PasswordChangeUnavailableError();
       }
     }
-    if (!result) throw new PasswordChangeUnavailableError();
-    await Promise.all(
-      result.revokedSessions.map((session) =>
-        this.sessions.removeCacheBestEffort(session.tokenHash),
-      ),
-    );
-    await this.sessions.storeCacheBestEffort(
-      replacement.hash,
-      {
-        userId: context.session.userId,
-        workspaceId: context.session.activeWorkspaceId,
-      },
-      result.sessionExpiresAt,
-    );
+    if (!sessionExpiresAt) throw new PasswordChangeUnavailableError();
     return {
       sessionToken: replacement.raw,
-      sessionExpiresAt: result.sessionExpiresAt,
+      sessionExpiresAt,
     };
   }
 
@@ -200,26 +173,26 @@ export class PasswordChangeService {
       throw new AuthenticationRequiredError();
     }
     const [user, membership] = await Promise.all([
-      this.users.findAuthenticationReferenceById(session.userId),
+      this.users.findById(session.userId),
       this.memberships.find({
         userId: session.userId,
-        workspaceId: session.activeWorkspaceId,
+        workspaceId: session.workspaceId,
       }),
     ]);
     if (!user || user.status !== 'ACTIVE' || !membership) {
       throw new AuthenticationRequiredError();
     }
-    return { session, identityId: user.identityId };
+    return { session };
   }
 
   /** Verifies the current password and returns a stale-write proof. */
   private async verifyCurrentPassword(
-    identityId: string,
+    userId: string,
     currentPassword: string,
-  ): Promise<VerifiedPasswordCredential> {
+  ): Promise<VerifiedUserPassword> {
     try {
-      const verified = await this.credentials.verify({
-        identityId,
+      const verified = await this.users.verifyPassword({
+        userId,
         password: currentPassword,
       });
       if (!verified) throw new PasswordChangeInvalidCurrentPasswordError();
@@ -233,25 +206,10 @@ export class PasswordChangeService {
     }
   }
 
-  /** Rejects a compromised replacement password. */
-  private async assertReplacementIsAllowed(password: string): Promise<void> {
-    try {
-      if (await this.compromiseChecker.isCompromised(password)) {
-        throw new InvalidPasswordChangePasswordError(
-          'Choose a password that has not appeared in common-password or breach data.',
-        );
-      }
-    } catch (error) {
-      if (error instanceof InvalidPasswordChangePasswordError) throw error;
-      this.logFailure('password_change.compromise_check_failed', error);
-      throw new PasswordChangeUnavailableError();
-    }
-  }
-
   /** Hashes a replacement password through the configured crypto boundary. */
   private async hashReplacement(password: string): Promise<string> {
     try {
-      return await this.passwordHasher.hash(password);
+      return await this.users.hashPassword(password);
     } catch (error) {
       this.logFailure('password_change.hash_failed', error);
       throw new PasswordChangeUnavailableError();
@@ -268,25 +226,20 @@ export class PasswordChangeService {
       !current ||
       current.id !== expected.session.id ||
       current.userId !== expected.session.userId ||
-      current.activeWorkspaceId !== expected.session.activeWorkspaceId ||
+      current.workspaceId !== expected.session.workspaceId ||
       current.revokedAt ||
       current.expiresAt.getTime() <= now.getTime()
     ) {
       throw new AuthenticationRequiredError();
     }
     const [user, membership] = await Promise.all([
-      this.users.findAuthenticationReferenceById(current.userId),
+      this.users.findById(current.userId),
       this.memberships.find({
         userId: current.userId,
-        workspaceId: current.activeWorkspaceId,
+        workspaceId: current.workspaceId,
       }),
     ]);
-    if (
-      !user ||
-      user.identityId !== expected.identityId ||
-      user.status !== 'ACTIVE' ||
-      !membership
-    ) {
+    if (!user || user.status !== 'ACTIVE' || !membership) {
       throw new AuthenticationRequiredError();
     }
     return current;

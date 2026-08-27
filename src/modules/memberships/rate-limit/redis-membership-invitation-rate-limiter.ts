@@ -1,27 +1,11 @@
-import { createHmac } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
-import { AppConfig } from '../../../config/app-config';
-import { RedisService } from '../../../infrastructure/cache/redis.service';
+import { RedisFixedWindowRateLimiter } from '../../../infrastructure/cache/redis-fixed-window-rate-limiter';
 import type { MembershipInvitationRateLimitDecision } from './membership-invitation-rate-limiter';
-
-/** Fixed window used for every invitation throttling bucket. */
-const WINDOW_SECONDS = 15 * 60;
-
-/** Atomically increments a Redis bucket and returns its count and remaining TTL. */
-const SCRIPT = `
-local current = redis.call('INCR', KEYS[1])
-if current == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end
-local ttl = redis.call('TTL', KEYS[1])
-return {current, ttl}
-`;
 
 /** Redis-backed, privacy-preserving limiter for invitation endpoints. */
 @Injectable()
 export class MembershipInvitationRateLimiter {
-  constructor(
-    private readonly redis: RedisService,
-    private readonly config: AppConfig,
-  ) {}
+  constructor(private readonly windows: RedisFixedWindowRateLimiter) {}
 
   /** Applies IP, actor/workspace, and optional target-email creation limits. */
   async checkCreate(input: {
@@ -76,23 +60,11 @@ export class MembershipInvitationRateLimiter {
     key: string,
     limit: number,
   ): Promise<MembershipInvitationRateLimitDecision> {
-    const result = await this.redis.client.eval(SCRIPT, {
-      keys: [key],
-      arguments: [WINDOW_SECONDS.toString()],
-    });
-    if (!Array.isArray(result) || result.length !== 2) {
-      return { allowed: false, retryAfterSeconds: WINDOW_SECONDS };
-    }
-    return {
-      allowed: Number(result[0]) <= limit,
-      retryAfterSeconds: Math.max(1, Number(result[1])),
-    };
+    return this.windows.increment(key, limit);
   }
 
   /** HMACs identifying bucket material before it becomes a Redis key. */
   private digest(value: string): string {
-    return createHmac('sha256', this.config.rateLimitKeySecret)
-      .update(value, 'utf8')
-      .digest('hex');
+    return this.windows.digest(value);
   }
 }

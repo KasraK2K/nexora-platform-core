@@ -1,5 +1,5 @@
 import { Reflector } from '@nestjs/core';
-import type { Permission } from '../policy/authorization-policy.service';
+import type { Permission } from '../authorization.policy';
 
 /** Options for an explicitly unauthenticated handler. */
 export type PublicRouteOptions = Readonly<{

@@ -1,17 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { AppConfig } from '../../../config/app-config';
 import { MailService } from '../../mail/mail.service';
-import { Clock } from '../../../common/clock';
-import type { InvitableMembershipRole } from '../membership-role';
-import { MembershipInvitationsRepository } from '../repositories/membership-invitations.repository';
 
-/** Stages invitation email in the durable mail outbox and attempts delivery. */
+/** Stages invitation email in the durable outbox for asynchronous delivery. */
 @Injectable()
 export class MembershipInvitationDeliveryService {
   constructor(
     private readonly outbox: MailService,
-    private readonly invitations: MembershipInvitationsRepository,
-    private readonly clock: Clock,
     private readonly config: AppConfig,
   ) {}
 
@@ -24,7 +19,6 @@ export class MembershipInvitationDeliveryService {
     invitationId: string;
     email: string;
     token: string;
-    role: InvitableMembershipRole;
     expiresAt: Date;
   }): Promise<void> {
     const url = new URL(this.config.membershipInvitationUrl);
@@ -36,7 +30,7 @@ export class MembershipInvitationDeliveryService {
       to: input.email,
       subject: 'Workspace membership invitation',
       text: [
-        `You were invited to a workspace as ${input.role}.`,
+        'You were invited to join a workspace as a member.',
         'Sign in with this email address and open the invitation link:',
         url.toString(),
         `This link expires at ${input.expiresAt.toISOString()}.`,
@@ -44,25 +38,5 @@ export class MembershipInvitationDeliveryService {
       ].join('\n\n'),
       expiresAt: input.expiresAt,
     });
-  }
-
-  /**
-   * Attempts delivery after commit and records only coarse status.
-   * Status persistence is best effort and never rolls back the invitation.
-   */
-  async attempt(input: {
-    workspaceId: string;
-    invitationId: string;
-  }): Promise<boolean> {
-    const sent = await this.outbox.deliverNow(input.invitationId);
-    await this.invitations
-      .markDelivery(
-        input.workspaceId,
-        input.invitationId,
-        sent ? 'SENT' : 'FAILED',
-        this.clock.now(),
-      )
-      .catch(() => undefined);
-    return sent;
   }
 }

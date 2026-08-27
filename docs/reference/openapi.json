@@ -17,20 +17,6 @@
   },
   "openapi": "3.0.0",
   "paths": {
-    "/": {
-      "get": {
-        "operationId": "AppController_getHello",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "App"
-        ]
-      }
-    },
     "/health/live": {
       "get": {
         "operationId": "HealthController_liveness",
@@ -75,7 +61,7 @@
     },
     "/v1/auth/email-verification-requests": {
       "post": {
-        "operationId": "AuthenticationController_requestVerification",
+        "operationId": "EmailVerificationController_requestVerification",
         "parameters": [],
         "responses": {
           "202": {
@@ -90,7 +76,7 @@
     },
     "/v1/auth/email-verifications": {
       "post": {
-        "operationId": "AuthenticationController_confirmVerification",
+        "operationId": "EmailVerificationController_confirmVerification",
         "parameters": [],
         "responses": {
           "204": {
@@ -105,7 +91,7 @@
     },
     "/v1/auth/password": {
       "put": {
-        "operationId": "AuthenticationController_changeAuthenticatedPassword",
+        "operationId": "PasswordChangeController_changeAuthenticatedPassword",
         "parameters": [],
         "requestBody": {
           "content": {
@@ -154,7 +140,7 @@
     },
     "/v1/auth/password-reset-requests": {
       "post": {
-        "operationId": "AuthenticationController_requestPasswordResetLink",
+        "operationId": "PasswordResetController_requestPasswordResetLink",
         "parameters": [],
         "requestBody": {
           "content": {
@@ -190,7 +176,7 @@
     },
     "/v1/auth/password-resets": {
       "post": {
-        "operationId": "AuthenticationController_confirmPasswordReset",
+        "operationId": "PasswordResetController_confirmPasswordReset",
         "parameters": [],
         "requestBody": {
           "content": {
@@ -234,7 +220,7 @@
     },
     "/v1/auth/registrations": {
       "post": {
-        "operationId": "AuthenticationController_register",
+        "operationId": "RegistrationController_register",
         "parameters": [],
         "requestBody": {
           "content": {
@@ -250,11 +236,6 @@
                   "email": {
                     "format": "email",
                     "maxLength": 254,
-                    "type": "string"
-                  },
-                  "organizationName": {
-                    "maxLength": 120,
-                    "minLength": 1,
                     "type": "string"
                   },
                   "password": {
@@ -273,7 +254,6 @@
                   "email",
                   "password",
                   "displayName",
-                  "organizationName",
                   "workspaceName"
                 ],
                 "type": "object"
@@ -287,7 +267,7 @@
             "description": "Account created and session cookie issued."
           }
         },
-        "summary": "Create an account and its initial organization and workspace",
+        "summary": "Create an account and its initial workspace",
         "tags": [
           "Authentication"
         ]
@@ -295,7 +275,7 @@
     },
     "/v1/auth/session": {
       "delete": {
-        "operationId": "AuthenticationController_logout",
+        "operationId": "SessionManagementController_logout",
         "parameters": [],
         "responses": {
           "204": {
@@ -313,7 +293,7 @@
         ]
       },
       "get": {
-        "operationId": "AuthenticationController_currentSession",
+        "operationId": "SessionContextController_currentSession",
         "parameters": [],
         "responses": {
           "200": {
@@ -333,7 +313,7 @@
     },
     "/v1/auth/session/workspace": {
       "put": {
-        "operationId": "AuthenticationController_selectWorkspace",
+        "operationId": "WorkspaceSessionController_selectWorkspace",
         "parameters": [],
         "requestBody": {
           "content": {
@@ -376,7 +356,7 @@
     },
     "/v1/auth/session/workspaces": {
       "get": {
-        "operationId": "AuthenticationController_availableWorkspaces",
+        "operationId": "WorkspaceSessionController_availableWorkspaces",
         "parameters": [],
         "responses": {
           "200": {
@@ -396,7 +376,7 @@
     },
     "/v1/auth/sessions": {
       "delete": {
-        "operationId": "AuthenticationController_logoutEverywhere",
+        "operationId": "SessionManagementController_logoutEverywhere",
         "parameters": [],
         "responses": {
           "204": {
@@ -414,7 +394,7 @@
         ]
       },
       "post": {
-        "operationId": "AuthenticationController_login",
+        "operationId": "SessionLoginController_login",
         "parameters": [],
         "requestBody": {
           "content": {
@@ -476,18 +456,10 @@
                     "format": "email",
                     "maxLength": 254,
                     "type": "string"
-                  },
-                  "role": {
-                    "enum": [
-                      "ADMIN",
-                      "MEMBER"
-                    ],
-                    "type": "string"
                   }
                 },
                 "required": [
-                  "email",
-                  "role"
+                  "email"
                 ],
                 "type": "object"
               }
@@ -668,60 +640,6 @@
         ]
       }
     },
-    "/v1/memberships/owner": {
-      "put": {
-        "operationId": "MembershipsController_transferWorkspaceOwner",
-        "parameters": [],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "additionalProperties": false,
-                "properties": {
-                  "currentPassword": {
-                    "description": "Maximum 128 normalized Unicode code points and 512 UTF-8 bytes.",
-                    "maxLength": 512,
-                    "minLength": 1,
-                    "type": "string",
-                    "writeOnly": true
-                  },
-                  "membershipId": {
-                    "format": "uuid",
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "membershipId",
-                  "currentPassword"
-                ],
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "204": {
-            "description": "Workspace ownership transferred."
-          },
-          "400": {
-            "description": "Transfer confirmation was invalid."
-          },
-          "403": {
-            "description": "Ownership transfer permission denied."
-          }
-        },
-        "security": [
-          {
-            "cookie": []
-          }
-        ],
-        "summary": "Transfer active-workspace operational ownership",
-        "tags": [
-          "Memberships"
-        ]
-      }
-    },
     "/v1/memberships/{membershipId}": {
       "delete": {
         "operationId": "MembershipsController_remove",
@@ -737,13 +655,13 @@
         ],
         "responses": {
           "204": {
-            "description": "Membership removed or not visible in the active workspace."
+            "description": "Member removed or not visible."
           },
           "403": {
-            "description": "Membership removal permission denied."
+            "description": "Membership removal denied."
           },
           "409": {
-            "description": "Workspace ownership is protected."
+            "description": "Permanent ownership is protected."
           }
         },
         "security": [
@@ -751,65 +669,7 @@
             "cookie": []
           }
         ],
-        "summary": "Remove a non-owner active-workspace membership",
-        "tags": [
-          "Memberships"
-        ]
-      }
-    },
-    "/v1/memberships/{membershipId}/role": {
-      "patch": {
-        "operationId": "MembershipsController_updateRole",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "membershipId",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "additionalProperties": false,
-                "properties": {
-                  "role": {
-                    "enum": [
-                      "ADMIN",
-                      "MEMBER"
-                    ],
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "role"
-                ],
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "204": {
-            "description": "Membership role updated or unchanged."
-          },
-          "403": {
-            "description": "Role update permission denied."
-          },
-          "409": {
-            "description": "Workspace ownership is protected."
-          }
-        },
-        "security": [
-          {
-            "cookie": []
-          }
-        ],
-        "summary": "Change a non-owner membership role",
+        "summary": "Remove a member from the active workspace",
         "tags": [
           "Memberships"
         ]
@@ -853,6 +713,47 @@
         "summary": "Update the current user profile",
         "tags": [
           "Users"
+        ]
+      }
+    },
+    "/v1/workspaces": {
+      "post": {
+        "operationId": "WorkspacesController_create",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "maxLength": 120,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Workspace created."
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "summary": "Create an independently owned workspace",
+        "tags": [
+          "Workspaces"
         ]
       }
     },

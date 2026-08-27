@@ -1,103 +1,67 @@
 # Architecture overview
 
-Nexora Platform Core is a reusable, product-neutral SaaS foundation. It is one
-deployable NestJS modular monolith with a shared PostgreSQL schema and explicit
-logical module ownership.
+Nexora is one product-neutral NestJS modular monolith with feature-first module
+ownership and one PostgreSQL schema.
 
-## Platform boundary
-
-Core owns reusable identity, authentication, users, organizations, workspaces,
-memberships, authorization, audit, configuration, persistence, operational
-telemetry, and durable mail-delivery foundations.
-
-A downstream product owns its customer workflow, product schema and APIs, UI,
-provider behavior, prompts, retrieval, evaluations, pricing, and product usage
-policy. Core must never import a downstream product. A product may consume only
-narrow services exported by Core modules.
-
-Promote a product capability into Core only after a second proven consumer or
-an explicit platform requirement. See ADR-0002 and the downstream product guide
-for the accepted boundary.
-
-## The normal request flow
+## Normal flow
 
 ```mermaid
 flowchart LR
-    Request["HTTP request"] --> Guard["admission and request guards"]
-    Guard --> Controller["feature controller"]
-    Controller --> Service["feature service"]
-    Service --> Repository["private repository"]
+    Request --> Guard
+    Guard --> Controller
+    Controller --> Service
+    Service --> Repository
     Repository --> Database["DatabaseContext / Prisma"]
-    Service --> PublicService["another module's exported service"]
+    Service --> ExportedService["another module's exported service"]
 ```
 
-- A **controller** handles HTTP validation, trusted request context, and response
-  mapping.
-- A **service** owns the workflow, authorization-sensitive rechecks, transaction,
-  audit write, and reliable handoff.
-- A private **repository** contains the feature's Prisma queries.
-- A **Nest module** registers controllers and providers, and exports only the
-  narrow services another module needs.
-
-Small features keep these files at their root. Complex features use descriptive
-folders such as `controllers`, `services`, `repositories`, `security`,
-`rate-limit`, `mail`, or `providers`. Generic architecture-layer folders are not
-used.
+- Controllers validate transport input and map responses.
+- Services own business workflows, authorization rechecks, transactions, audit,
+  and reliable side-effect handoffs.
+- Private concrete repositories own Prisma queries.
+- Modules export only narrow services or intentional guards.
 
 ## Data ownership
 
-Every Prisma model and business rule has one owning Core module. Only that
-module's repositories may access its Prisma delegate. Cross-module work uses
-stable IDs and exported services rather than ORM objects.
+| Module | Owned data |
+| --- | --- |
+| Users | `User` |
+| Workspaces | `Workspace` |
+| Memberships | `Membership`, `MembershipInvitation` |
+| Sessions | `Session` |
+| Authentication | `EmailVerification`, `PasswordResetToken` |
+| Mail | `MailOutboxMessage` |
+| Audit | `AuditLog` |
 
-`Workspace` is the operational tenant boundary. Tenant-owned reads, writes,
-audits, sessions, mail, and resource lookups carry a server-resolved
-`workspaceId`. `Organization` is the commercial boundary and is not a substitute
-for workspace authorization.
+Only the owning module's repository may call that Prisma delegate. Cross-module
+work uses exported services. Workspace is the only tenant boundary; every
+tenant-owned query and audit write carries a server-resolved `workspaceId`.
 
-The executable ownership map lives in
-the tests under `test/architecture/`; the human-readable map lives in the
-[module catalog](../modules/README.md).
+## Transactions and mail
 
-## Transactions and side effects
+The feature service chooses what commits together. `TransactionManager` runs
+serializable transactions and `DatabaseContext` supplies the active transaction
+to concrete repositories. Verification, reset, and invitation requests insert
+encrypted outbox mail in the same transaction as their token and audit record.
+HTTP never reports provider delivery success. The mail worker owns delivery,
+retry, fencing, and payload erasure.
 
-The feature service method decides what must commit atomically. The shared
-`TransactionManager` runs the callback at serializable isolation and maps known
-write conflicts to a stable application error. Module repositories obtain the
-active transaction through `DatabaseContext`.
+## Authentication and authorization
 
-Effects that must survive process failure are represented durably. For example,
-verification, password-reset, and invitation email payloads are encrypted and
-inserted into `MailOutboxMessage` inside the owning business transaction. An
-immediate delivery attempt may happen after commit; the worker can safely retry
-from durable state.
+1. Global route admission rejects unclassified handlers.
+2. Exact trusted-origin checks run before protected browser mutations.
+3. The opaque cookie hash resolves a durable PostgreSQL session.
+4. User, workspace, and active membership are loaded server-side.
+5. OWNER/MEMBER is derived from permanent workspace ownership.
+6. Sensitive services recheck the exact session, membership, and resource in
+   their transaction.
 
-Redis is disposable acceleration and rate-limit state. PostgreSQL remains
-authoritative for sessions and durable business facts.
+Client identity, workspace, or role headers never grant authority. Redis is used
+for distributed rate limiting only.
 
-## Authentication, admission, and authorization
+## Product boundary
 
-These are separate decisions:
-
-1. **Route admission** classifies every controller method as public,
-   context-authenticated, or application-authenticated. Unclassified routes are
-   denied.
-2. **Authentication context** validates the opaque cookie against PostgreSQL and
-   resolves the active user, workspace, membership, and organization.
-3. **Authorization** evaluates a named permission against the resolved
-   membership role and, inside services, checks resource-specific rules.
-
-Client-supplied identity, workspace, organization, and role headers are never
-trusted as authority.
-
-## Stable boundaries worth protecting
-
-- Core never imports product modules.
-- Products never receive Prisma or Core implementation access.
-- Controllers stay thin and do not own transactions.
-- A module does not query another module's table or import its repository.
-- Every tenant-owned operation uses trusted workspace scope.
-- Raw tokens, credentials, sensitive payloads, and provider errors stay out of
-  normal logs.
-- Planned baseline components are not described as implemented until code,
-  configuration, and tests exist.
+Core owns reusable account, tenant, membership, session, authorization, audit,
+mail, configuration, persistence, health, and observability foundations. A
+downstream product owns product workflows, schema, APIs, providers, prompts,
+evaluation data, pricing, and UI. Core never imports a downstream product.

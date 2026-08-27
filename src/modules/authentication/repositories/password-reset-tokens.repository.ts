@@ -4,14 +4,12 @@ import { DatabaseContext } from '../../../infrastructure/database/database-conte
 /** Safe context recovered after a reset token hash has been matched. */
 export type PasswordResetTokenRecord = {
   id: string;
-  identityId: string;
   userId: string;
   workspaceId: string;
 };
 
 const recordSelection = {
   id: true,
-  identityId: true,
   userId: true,
   workspaceId: true,
 } as const;
@@ -24,7 +22,6 @@ export class PasswordResetTokensRepository {
   /** Inserts a hashed reset record through the current database client. */
   async create(input: {
     id: string;
-    identityId: string;
     userId: string;
     workspaceId: string;
     tokenHash: string;
@@ -72,17 +69,5 @@ export class PasswordResetTokensRepository {
       data: { consumedAt },
     });
     return result.count === 1;
-  }
-
-  /** Records the latest immediate mail-delivery outcome. */
-  async markDelivery(
-    id: string,
-    status: 'SENT' | 'FAILED',
-    attemptedAt: Date,
-  ): Promise<void> {
-    await this.database.client.passwordResetToken.update({
-      where: { id },
-      data: { deliveryStatus: status, deliveryAttemptedAt: attemptedAt },
-    });
   }
 }

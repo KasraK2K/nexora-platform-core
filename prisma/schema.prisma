@@ -13,35 +13,6 @@ enum UserStatus {
   ACTIVE
 }
 
-enum EmailVerificationDeliveryStatus {
-  PENDING
-  SENT
-  FAILED
-}
-
-enum PasswordResetDeliveryStatus {
-  PENDING
-  SENT
-  FAILED
-}
-
-enum MembershipRole {
-  OWNER
-  ADMIN
-  MEMBER
-}
-
-enum MembershipInvitationDeliveryStatus {
-  PENDING
-  SENT
-  FAILED
-}
-
-enum MembershipInvitationRole {
-  ADMIN
-  MEMBER
-}
-
 enum MailOutboxStatus {
   PENDING
   PROCESSING
@@ -56,36 +27,16 @@ enum MailPurpose {
   MEMBERSHIP_INVITATION
 }
 
-model Identity {
-  id                  String               @id @db.Uuid
-  normalizedEmail     String               @unique(map: "identities_normalized_email_key") @map("normalized_email") @db.VarChar(254)
-  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
-  passwordCredential  PasswordCredential?
-  user                User?
-  passwordResetTokens PasswordResetToken[]
-
-  @@map("identities")
-}
-
-model PasswordCredential {
-  identityId   String   @id @map("identity_id") @db.Uuid
-  passwordHash String   @map("password_hash") @db.VarChar(255)
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
-  identity     Identity @relation(fields: [identityId], references: [id], onDelete: Restrict)
-
-  @@map("password_credentials")
-}
-
 model User {
   id                            String                 @id @db.Uuid
-  identityId                    String                 @unique(map: "users_identity_id_key") @map("identity_id") @db.Uuid
+  normalizedEmail               String                 @unique(map: "users_normalized_email_key") @map("normalized_email") @db.VarChar(254)
+  passwordHash                  String                 @map("password_hash") @db.VarChar(255)
+  passwordUpdatedAt             DateTime               @default(now()) @map("password_updated_at") @db.Timestamptz(3)
   displayName                   String                 @map("display_name") @db.VarChar(100)
   status                        UserStatus             @default(PENDING_VERIFICATION)
   createdAt                     DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt                     DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
-  identity                      Identity               @relation(fields: [identityId], references: [id], onDelete: Restrict)
-  ownedOrganizations            Organization[]
+  ownedWorkspaces               Workspace[]            @relation("WorkspaceOwner")
   memberships                   Membership[]
   sessions                      Session[]
   auditLogs                     AuditLog[]
@@ -98,20 +49,16 @@ model User {
 }
 
 model PasswordResetToken {
-  id                  String                      @id @db.Uuid
-  identityId          String                      @map("identity_id") @db.Uuid
-  userId              String                      @map("user_id") @db.Uuid
-  workspaceId         String                      @map("workspace_id") @db.Uuid
-  tokenHash           String                      @unique(map: "password_reset_tokens_token_hash_key") @map("token_hash") @db.Char(64)
-  expiresAt           DateTime                    @map("expires_at") @db.Timestamptz(3)
-  consumedAt          DateTime?                   @map("consumed_at") @db.Timestamptz(3)
-  invalidatedAt       DateTime?                   @map("invalidated_at") @db.Timestamptz(3)
-  deliveryStatus      PasswordResetDeliveryStatus @default(PENDING) @map("delivery_status")
-  deliveryAttemptedAt DateTime?                   @map("delivery_attempted_at") @db.Timestamptz(3)
-  createdAt           DateTime                    @default(now()) @map("created_at") @db.Timestamptz(3)
-  identity            Identity                    @relation(fields: [identityId], references: [id], onDelete: Restrict)
-  user                User                        @relation(fields: [userId], references: [id], onDelete: Restrict)
-  workspace           Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  id            String    @id @db.Uuid
+  userId        String    @map("user_id") @db.Uuid
+  workspaceId   String    @map("workspace_id") @db.Uuid
+  tokenHash     String    @unique(map: "password_reset_tokens_token_hash_key") @map("token_hash") @db.Char(64)
+  expiresAt     DateTime  @map("expires_at") @db.Timestamptz(3)
+  consumedAt    DateTime? @map("consumed_at") @db.Timestamptz(3)
+  invalidatedAt DateTime? @map("invalidated_at") @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  user          User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
 
   @@index([userId, createdAt(sort: Desc)], map: "password_reset_tokens_user_id_created_at_idx")
   @@index([expiresAt], map: "password_reset_tokens_expires_at_idx")
@@ -119,44 +66,29 @@ model PasswordResetToken {
 }
 
 model EmailVerification {
-  id                  String                          @id @db.Uuid
-  userId              String                          @map("user_id") @db.Uuid
-  workspaceId         String                          @map("workspace_id") @db.Uuid
-  tokenHash           String                          @unique(map: "email_verifications_token_hash_key") @map("token_hash") @db.Char(64)
-  expiresAt           DateTime                        @map("expires_at") @db.Timestamptz(3)
-  consumedAt          DateTime?                       @map("consumed_at") @db.Timestamptz(3)
-  invalidatedAt       DateTime?                       @map("invalidated_at") @db.Timestamptz(3)
-  deliveryStatus      EmailVerificationDeliveryStatus @default(PENDING) @map("delivery_status")
-  deliveryAttemptedAt DateTime?                       @map("delivery_attempted_at") @db.Timestamptz(3)
-  createdAt           DateTime                        @default(now()) @map("created_at") @db.Timestamptz(3)
-  user                User                            @relation(fields: [userId], references: [id], onDelete: Restrict)
-  workspace           Workspace                       @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  id            String    @id @db.Uuid
+  userId        String    @map("user_id") @db.Uuid
+  workspaceId   String    @map("workspace_id") @db.Uuid
+  tokenHash     String    @unique(map: "email_verifications_token_hash_key") @map("token_hash") @db.Char(64)
+  expiresAt     DateTime  @map("expires_at") @db.Timestamptz(3)
+  consumedAt    DateTime? @map("consumed_at") @db.Timestamptz(3)
+  invalidatedAt DateTime? @map("invalidated_at") @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  user          User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
 
   @@index([userId, createdAt(sort: Desc)], map: "email_verifications_user_id_created_at_idx")
   @@index([expiresAt], map: "email_verifications_expires_at_idx")
   @@map("email_verifications")
 }
 
-model Organization {
-  id          String      @id @db.Uuid
-  ownerUserId String      @map("owner_user_id") @db.Uuid
-  name        String      @db.VarChar(120)
-  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
-  workspaces  Workspace[]
-  owner       User        @relation(fields: [ownerUserId], references: [id], onDelete: Restrict)
-
-  @@index([ownerUserId], map: "organizations_owner_user_id_idx")
-  @@map("organizations")
-}
-
 model Workspace {
   id                    String                 @id @db.Uuid
-  organizationId        String                 @map("organization_id") @db.Uuid
+  ownerUserId           String                 @map("owner_user_id") @db.Uuid
   name                  String                 @db.VarChar(120)
   createdAt             DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt             DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
-  organization          Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  owner                 User                   @relation("WorkspaceOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
   memberships           Membership[]
   auditLogs             AuditLog[]
   emailVerifications    EmailVerification[]
@@ -164,19 +96,18 @@ model Workspace {
   membershipInvitations MembershipInvitation[]
   mailOutboxMessages    MailOutboxMessage[]
 
-  @@index([organizationId], map: "workspaces_organization_id_idx")
+  @@index([ownerUserId], map: "workspaces_owner_user_id_idx")
   @@map("workspaces")
 }
 
 model Membership {
-  id          String         @id @db.Uuid
-  workspaceId String         @map("workspace_id") @db.Uuid
-  userId      String         @map("user_id") @db.Uuid
-  role        MembershipRole
-  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
-  removedAt   DateTime?      @map("removed_at") @db.Timestamptz(3)
-  workspace   Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
-  user        User           @relation(fields: [userId], references: [id], onDelete: Restrict)
+  id          String      @id @db.Uuid
+  workspaceId String      @map("workspace_id") @db.Uuid
+  userId      String      @map("user_id") @db.Uuid
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  removedAt   DateTime?   @map("removed_at") @db.Timestamptz(3)
+  workspace   Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Restrict)
   sessions    Session[]
 
   @@unique([workspaceId, userId], map: "memberships_workspace_id_user_id_key")
@@ -186,23 +117,20 @@ model Membership {
 }
 
 model MembershipInvitation {
-  id                  String                             @id @db.Uuid
-  workspaceId         String                             @map("workspace_id") @db.Uuid
-  invitedByUserId     String                             @map("invited_by_user_id") @db.Uuid
-  acceptedByUserId    String?                            @map("accepted_by_user_id") @db.Uuid
-  normalizedEmail     String                             @map("normalized_email") @db.VarChar(254)
-  role                MembershipInvitationRole
-  tokenHash           String                             @unique(map: "membership_invitations_token_hash_key") @map("token_hash") @db.Char(64)
-  activeKey           String?                            @unique(map: "membership_invitations_active_key_key") @map("active_key") @db.Char(64)
-  expiresAt           DateTime                           @map("expires_at") @db.Timestamptz(3)
-  acceptedAt          DateTime?                          @map("accepted_at") @db.Timestamptz(3)
-  revokedAt           DateTime?                          @map("revoked_at") @db.Timestamptz(3)
-  deliveryStatus      MembershipInvitationDeliveryStatus @default(PENDING) @map("delivery_status")
-  deliveryAttemptedAt DateTime?                          @map("delivery_attempted_at") @db.Timestamptz(3)
-  createdAt           DateTime                           @default(now()) @map("created_at") @db.Timestamptz(3)
-  workspace           Workspace                          @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
-  invitedBy           User                               @relation("MembershipInvitationInviter", fields: [invitedByUserId], references: [id], onDelete: Restrict)
-  acceptedBy          User?                              @relation("MembershipInvitationAcceptor", fields: [acceptedByUserId], references: [id], onDelete: Restrict)
+  id               String    @id @db.Uuid
+  workspaceId      String    @map("workspace_id") @db.Uuid
+  invitedByUserId  String    @map("invited_by_user_id") @db.Uuid
+  acceptedByUserId String?   @map("accepted_by_user_id") @db.Uuid
+  normalizedEmail  String    @map("normalized_email") @db.VarChar(254)
+  tokenHash        String    @unique(map: "membership_invitations_token_hash_key") @map("token_hash") @db.Char(64)
+  activeKey        String?   @unique(map: "membership_invitations_active_key_key") @map("active_key") @db.Char(64)
+  expiresAt        DateTime  @map("expires_at") @db.Timestamptz(3)
+  acceptedAt       DateTime? @map("accepted_at") @db.Timestamptz(3)
+  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz(3)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  workspace        Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  invitedBy        User      @relation("MembershipInvitationInviter", fields: [invitedByUserId], references: [id], onDelete: Restrict)
+  acceptedBy       User?     @relation("MembershipInvitationAcceptor", fields: [acceptedByUserId], references: [id], onDelete: Restrict)
 
   @@index([workspaceId, createdAt(sort: Desc)], map: "membership_invitations_workspace_id_created_at_idx")
   @@index([workspaceId, normalizedEmail, expiresAt], map: "membership_invitations_workspace_email_expires_at_idx")
@@ -236,18 +164,18 @@ model MailOutboxMessage {
 }
 
 model Session {
-  id                String     @id @db.Uuid
-  tokenHash         String     @unique(map: "sessions_token_hash_key") @map("token_hash") @db.Char(64)
-  userId            String     @map("user_id") @db.Uuid
-  activeWorkspaceId String     @map("active_workspace_id") @db.Uuid
-  expiresAt         DateTime   @map("expires_at") @db.Timestamptz(3)
-  revokedAt         DateTime?  @map("revoked_at") @db.Timestamptz(3)
-  createdAt         DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
-  user              User       @relation(fields: [userId], references: [id], onDelete: Restrict)
-  membership        Membership @relation(fields: [activeWorkspaceId, userId], references: [workspaceId, userId], onDelete: Restrict)
+  id          String     @id @db.Uuid
+  tokenHash   String     @unique(map: "sessions_token_hash_key") @map("token_hash") @db.Char(64)
+  userId      String     @map("user_id") @db.Uuid
+  workspaceId String     @map("workspace_id") @db.Uuid
+  expiresAt   DateTime   @map("expires_at") @db.Timestamptz(3)
+  revokedAt   DateTime?  @map("revoked_at") @db.Timestamptz(3)
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  user        User       @relation(fields: [userId], references: [id], onDelete: Restrict)
+  membership  Membership @relation(fields: [workspaceId, userId], references: [workspaceId, userId], onDelete: Restrict)
 
   @@index([userId, expiresAt], map: "sessions_user_id_expires_at_idx")
-  @@index([activeWorkspaceId, expiresAt], map: "sessions_workspace_id_expires_at_idx")
+  @@index([workspaceId, expiresAt], map: "sessions_workspace_id_expires_at_idx")
   @@map("sessions")
 }
 

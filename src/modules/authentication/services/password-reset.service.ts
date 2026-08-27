@@ -1,11 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { AuditService } from '../../audit/audit.service';
-import { PasswordCredentialsService } from '../../identity/password-credentials.service';
-import {
-  IdentityService,
-  type IdentitySummary,
-} from '../../identity/identity.service';
-import { UsersService, type UserSummary } from '../../users/users.service';
+import { UsersService } from '../../users/users.service';
 import { AppConfig } from '../../../config/app-config';
 import { Clock } from '../../../common/clock';
 import { IdentifierFactory } from '../../../common/identifier-factory';
@@ -15,22 +10,16 @@ import type { TransactionManager } from '../../../common/transaction-manager';
 import { isTransactionWriteConflict } from '../../../common/transaction-write-conflict';
 import { PasswordPolicy } from '../security/password-policy';
 import {
-  InvalidPasswordResetPasswordError,
   PasswordResetInvalidError,
   PasswordResetUnavailableError,
 } from '../errors/authentication.errors';
-import { PASSWORD_COMPROMISE_CHECKER } from '../security/password-compromise-checker';
-import type { PasswordCompromiseChecker } from '../security/password-compromise-checker';
-import { PASSWORD_HASHER } from '../security/password-hasher';
-import type { PasswordHasher } from '../security/password-hasher';
 import { PasswordResetDeliveryService } from '../mail/password-reset-delivery.service';
 import { OpaqueTokenService } from '../../../common/security/opaque-token.service';
 import {
   type PasswordResetTokenRecord,
   PasswordResetTokensRepository,
 } from '../repositories/password-reset-tokens.repository';
-import type { SessionContext } from '../repositories/authentication-sessions.repository';
-import { SessionStoreService } from '../services/session-store.service';
+import { SessionsService } from '../../sessions/sessions.service';
 
 /** Owns enumeration-resistant password reset request and confirmation flows. */
 @Injectable()
@@ -39,18 +28,13 @@ export class PasswordResetService {
   private readonly resetLogger = new Logger('ResetPassword');
 
   constructor(
-    private readonly identities: IdentityService,
     private readonly users: UsersService,
-    private readonly sessions: SessionStoreService,
+    private readonly sessions: SessionsService,
     private readonly resetTokens: PasswordResetTokensRepository,
     private readonly delivery: PasswordResetDeliveryService,
     private readonly tokenService: OpaqueTokenService,
-    private readonly credentials: PasswordCredentialsService,
     private readonly audit: AuditService,
     private readonly passwordPolicy: PasswordPolicy,
-    @Inject(PASSWORD_COMPROMISE_CHECKER)
-    private readonly compromiseChecker: PasswordCompromiseChecker,
-    @Inject(PASSWORD_HASHER) private readonly passwordHasher: PasswordHasher,
     @Inject(TRANSACTION_MANAGER)
     private readonly transactions: TransactionManager,
     private readonly identifiers: IdentifierFactory,
@@ -60,25 +44,13 @@ export class PasswordResetService {
 
   /** Accepts an enumeration-resistant password reset request. */
   async requestReset(email: string): Promise<void> {
-    let identity: IdentitySummary | null;
+    let user;
     try {
-      identity = await this.identities.findByEmail(email);
+      user = await this.users.findByEmail(email);
     } catch {
       throw new PasswordResetUnavailableError();
     }
-    if (!identity) return;
-
-    let user: UserSummary | null;
-    let sessionContext: SessionContext | null;
-    try {
-      user = await this.users.findByIdentityId(identity.id);
-      sessionContext = user
-        ? await this.sessions.findLatestForUser(user.id)
-        : null;
-    } catch {
-      throw new PasswordResetUnavailableError();
-    }
-    if (!user || user.status !== 'ACTIVE' || !sessionContext) return;
+    if (!user || user.status !== 'ACTIVE') return;
 
     const token = this.tokenService.create();
     const resetId = this.identifiers.create();
@@ -86,33 +58,30 @@ export class PasswordResetService {
     const expiresAt = new Date(
       now.getTime() + this.config.passwordResetTtlSeconds * 1000,
     );
-    let created = false;
     try {
-      created = await this.transactions.execute(async () => {
+      await this.transactions.execute(async () => {
         const [current, currentSessionContext] = await Promise.all([
           this.users.findById(user.id),
           this.sessions.findLatestForUser(user.id),
         ]);
         if (!current || current.status !== 'ACTIVE' || !currentSessionContext) {
-          return false;
+          return;
         }
         await this.resetTokens.invalidateOpenForUser(user.id, now);
         await this.resetTokens.create({
           id: resetId,
-          identityId: identity.id,
           userId: user.id,
-          workspaceId: currentSessionContext.activeWorkspaceId,
+          workspaceId: currentSessionContext.workspaceId,
           tokenHash: token.hash,
           expiresAt,
         });
         await this.delivery.enqueue({
           resetId,
-          workspaceId: currentSessionContext.activeWorkspaceId,
-          email: identity.normalizedEmail,
+          workspaceId: currentSessionContext.workspaceId,
+          email: user.normalizedEmail,
           token: token.raw,
           expiresAt,
         });
-        return true;
       });
     } catch (error) {
       this.logFailure(
@@ -122,7 +91,6 @@ export class PasswordResetService {
       );
       throw new PasswordResetUnavailableError();
     }
-    if (created) this.delivery.dispatch(resetId);
   }
 
   /** Replaces a password from a valid single-use reset token. */
@@ -145,28 +113,16 @@ export class PasswordResetService {
     const password = this.passwordPolicy.validateResetPassword(
       input.newPassword,
     );
-    let compromised: boolean;
-    try {
-      compromised = await this.compromiseChecker.isCompromised(password);
-    } catch {
-      throw new PasswordResetUnavailableError();
-    }
-    if (compromised) {
-      throw new InvalidPasswordResetPasswordError(
-        'Choose a password that has not appeared in common-password or breach data.',
-      );
-    }
     let passwordHash: string;
     try {
-      passwordHash = await this.passwordHasher.hash(password);
+      passwordHash = await this.users.hashPassword(password);
     } catch {
       throw new PasswordResetUnavailableError();
     }
 
-    let revokedTokenHashes: string[] = [];
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
-        revokedTokenHashes = await this.transactions.execute(async () => {
+        await this.transactions.execute(async () => {
           const transactionTime = this.clock.now();
           const reset = await this.resetTokens.findUsableByTokenHash(
             tokenHash,
@@ -187,10 +143,7 @@ export class PasswordResetService {
             transactionTime,
           );
           if (
-            !(await this.credentials.replacePasswordHash(
-              reset.identityId,
-              passwordHash,
-            ))
+            !(await this.users.replacePasswordHash(reset.userId, passwordHash))
           ) {
             throw new Error('Password credential is missing.');
           }
@@ -200,7 +153,7 @@ export class PasswordResetService {
           );
           const workspaceIds = new Set([
             reset.workspaceId,
-            ...revoked.map((session) => session.activeWorkspaceId),
+            ...revoked.map((session) => session.workspaceId),
           ]);
           for (const workspaceId of workspaceIds) {
             await this.audit.append({
@@ -211,7 +164,6 @@ export class PasswordResetService {
               resourceId: reset.userId,
             });
           }
-          return revoked.map((session) => session.tokenHash);
         });
         break;
       } catch (error) {
@@ -225,11 +177,6 @@ export class PasswordResetService {
         throw new PasswordResetUnavailableError();
       }
     }
-    await Promise.all(
-      revokedTokenHashes.map((hash) =>
-        this.sessions.removeCacheBestEffort(hash),
-      ),
-    );
   }
 
   /** Writes only a safe failure classification to structured logs. */

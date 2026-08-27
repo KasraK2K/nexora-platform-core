@@ -1,99 +1,44 @@
 # Authentication module
 
-Authentication owns account-entry and session workflows. It coordinates several
-Core modules but does not take ownership of their tables.
+Authentication coordinates User credentials and durable Sessions. It owns only
+verification and reset token records; Users owns email/password state and
+Sessions owns the `Session` table.
 
-## Responsibilities
+## Workflows
 
-- register a password account and initial tenant graph;
-- verify email ownership;
-- request and complete password reset;
-- authenticate and create an opaque session;
-- change a password and rotate the current session;
-- resolve, revoke, and switch the active workspace of sessions;
-- enforce authentication-specific origin and rate-limit policies;
-- issue hashed, expiring, replaceable, single-use verification/reset tokens.
+- Registration creates User, owner Workspace, Membership, verification token,
+  Session, audit rows, and encrypted outbox mail atomically.
+- Email verification replaces/consumes hashed single-use tokens.
+- Login authenticates through `UsersService` and selects one accessible
+  workspace.
+- Workspace switching rotates the session only when the workspace changes.
+- Password change verifies the current hash, replaces it optimistically,
+  revokes all sessions, and creates one replacement session atomically.
+- Password reset is enumeration-resistant, consumes one token, replaces the
+  password, and revokes every session.
+- Logout and revoke-all update durable session state and audit records.
 
-It does not own user profiles, organization/workspace records, membership rules,
-authorization policy, or generic mail delivery.
+## Internal structure
 
-## Owned data
+`controllers/` maps the `/v1/auth` routes. `services/` contains focused workflow
+services. `repositories/` contains private token repositories. `guards/` owns
+trusted-origin, rate-limit, and request-context admission helpers. No nested
+session-state module or Redis session cache exists.
 
-| Prisma model         | Purpose                                                                   |
-| -------------------- | ------------------------------------------------------------------------- |
-| `Session`            | Hashed opaque token, user, active workspace, expiry, and revocation state |
-| `EmailVerification`  | Hashed single-use email proof and delivery state                          |
-| `PasswordResetToken` | Hashed single-use credential-reset authority and delivery state           |
+## Invariants
 
-Identity owns `Identity` and `PasswordCredential`; Users, Organizations,
-Workspaces, and Memberships own their corresponding records.
+- PostgreSQL is authoritative for sessions.
+- Raw session, verification, and reset tokens are never stored or logged.
+- Passwords are NFC-normalized, bounded to 15–128 code points and 512 UTF-8
+  bytes, and hashed with Argon2id.
+- Pending users reach only explicitly allowed routes.
+- Exact trusted-origin validation precedes protected browser mutations.
+- Multi-workspace login returns `409 WORKSPACE_SELECTION_REQUIRED` without
+  creating a session when no workspace was selected.
+- Mail creation is transactional and reports queued state only; the worker owns
+  delivery.
+- Session rotation never extends absolute expiry.
 
-## Source map
-
-- `controllers/` separates registration, verification, password reset,
-  password change, login, session context, workspace selection, and session
-  management while preserving the single `/v1/auth` contract.
-- `services/` contains matching focused workflows and owns their transaction
-  and authorization decisions.
-- `dto/` holds strict Zod schemas and inferred transport types; `guards/`
-  handles rate limits, origin, and route-admission prerequisites.
-- `repositories/` contains private concrete database access for sessions and
-  single-use tokens.
-- `cache/`, `rate-limit/`, `security/`, and `mail/` name the supporting behavior
-  directly.
-- `security/password-policy.ts` and stable authentication errors hold reusable
-  decisions without transport concerns.
-- Concrete providers implement Redis cache/rate limits, Argon2, and Pwned
-  Passwords lookup.
-- `authentication.module.ts` is the composition root.
-- `session-state/session-state.module.ts` exposes the narrower session state
-  needed by Memberships without importing Authentication's full session
-  workflows.
-
-## Dependencies
-
-Authentication consumes exported services from Identity, Users, Organizations,
-Workspaces, Memberships, Audit, and Mail. Its private providers consume shared
-database and Redis facilities. The module exports only the guards
-needed to establish trusted request context and origin policy; other Core
-modules receive session-state contracts through the dedicated session-state
-module.
-
-## Security and tenancy invariants
-
-- Store only token hashes for sessions, verifications, and password resets.
-- Never return or log raw verification/reset tokens. Deliver them through the
-  encrypted mail outbox.
-- PostgreSQL is authoritative for session validity. Redis failure cannot create
-  or revoke durable authority.
-- Resolve active workspace and membership server-side for every authenticated
-  request; ignore client identity, role, and workspace headers.
-- Validate exact browser origin before protected mutations when route policy
-  requires it.
-- Preserve enumeration-resistant responses for email verification and password
-  reset requests.
-- Keep password changes and resets transactional with the required credential,
-  token, session, and audit mutations.
-- Do not extend a session's absolute expiry when changing its workspace or
-  rotating it after authenticated password change.
-
-## Public HTTP contract
-
-The canonical operation list and schemas are generated in
-[`../reference/openapi.json`](../reference/openapi.json). The routes are grouped
-under `/v1/auth`. Swagger UI is available at `/docs` in enabled non-production
-environments.
-
-## Behavioral evidence
-
-- Service unit tests cover registration, verification, reset, login,
-  password change, revocation, request-context resolution, and workspace switch.
-- Guard tests cover route admission and authenticated-context attachment.
-- Capability E2E specifications under `test/e2e/` cover the public API with
-  PostgreSQL and Redis,
-  including cross-tenant and forged-header denials.
-- `docs/architecture/tenant-isolation-matrices.md` maps tenant-owned surfaces to
-  positive and tenant A/B negative coverage.
-
-For a chronological view, read the [registration flow](../flows/registration.md)
-and [protected-request flow](../flows/protected-request-admission.md).
+See [registration](../flows/registration.md),
+[protected request admission](../flows/protected-request-admission.md), and the
+[OpenAPI contract](../reference/openapi.json).

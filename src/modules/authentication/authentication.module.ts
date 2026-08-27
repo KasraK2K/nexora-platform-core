@@ -1,21 +1,15 @@
 import { Module } from '@nestjs/common';
 import { AuditModule } from '../audit/audit.module';
-import { IdentityModule } from '../identity/identity.module';
 import { MembershipsModule } from '../memberships/memberships.module';
-import { OrganizationsModule } from '../organizations/organizations.module';
 import { UsersModule } from '../users/users.module';
 import { WorkspacesModule } from '../workspaces/workspaces.module';
 import { InfrastructureModule } from '../../infrastructure/infrastructure.module';
-import { SessionStateModule } from './session-state/session-state.module';
+import { SessionsModule } from '../sessions/sessions.module';
 import { MailModule } from '../mail/mail.module';
 import { Clock } from '../../common/clock';
 import { IdentifierFactory } from '../../common/identifier-factory';
-import { PASSWORD_COMPROMISE_CHECKER } from './security/password-compromise-checker';
-import { PASSWORD_HASHER } from './security/password-hasher';
 import { OpaqueTokenService } from '../../common/security/opaque-token.service';
 import { PasswordPolicy } from './security/password-policy';
-import { Argon2PasswordHasher } from './security/argon2-password-hasher';
-import { PwnedPasswordsCompromiseChecker } from './security/pwned-passwords-compromise-checker';
 import { AuthenticationRateLimiter } from './rate-limit/redis-authentication-rate-limiter';
 import { RegistrationController } from './controllers/registration.controller';
 import { EmailVerificationController } from './controllers/email-verification.controller';
@@ -48,22 +42,16 @@ import { SessionContextService } from './services/session-context.service';
 import { SessionLoginService } from './services/session-login.service';
 import { SessionManagementService } from './services/session-management.service';
 import { WorkspaceSessionService } from './services/workspace-session.service';
-import { AuthenticationSessionsRepository } from './repositories/authentication-sessions.repository';
-import { SESSION_CACHE } from './cache/session-cache';
-import { SessionCache } from './cache/redis-session-cache';
-import { SessionStoreService } from './services/session-store.service';
 
 /**
  * Composes Platform Core registration, verification, password, login, session,
- * and workspace-switching flows with their transport and infrastructure adapters.
+ * and workspace-switching flows with their controllers and private providers.
  */
 @Module({
   imports: [
     InfrastructureModule,
-    SessionStateModule,
-    IdentityModule,
+    SessionsModule,
     UsersModule,
-    OrganizationsModule,
     WorkspacesModule,
     MembershipsModule,
     AuditModule,
@@ -106,19 +94,8 @@ import { SessionStoreService } from './services/session-store.service';
     SessionContextService,
     WorkspaceSessionService,
     SessionManagementService,
-    SessionStoreService,
-    SessionCache,
-    AuthenticationSessionsRepository,
-    Argon2PasswordHasher,
-    PwnedPasswordsCompromiseChecker,
     EmailVerificationsRepository,
     PasswordResetTokensRepository,
-    { provide: SESSION_CACHE, useExisting: SessionCache },
-    { provide: PASSWORD_HASHER, useExisting: Argon2PasswordHasher },
-    {
-      provide: PASSWORD_COMPROMISE_CHECKER,
-      useExisting: PwnedPasswordsCompromiseChecker,
-    },
   ],
   exports: [AuthenticatedRequestContextGuard, TrustedOriginGuard],
 })

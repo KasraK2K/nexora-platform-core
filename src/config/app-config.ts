@@ -15,10 +15,6 @@ export class AppConfig {
   readonly apiDocsEnabled = this.environment.API_DOCS_ENABLED === 'true';
   readonly metricsEnabled = this.environment.METRICS_ENABLED === 'true';
   readonly metricsBearerToken = this.environment.METRICS_BEARER_TOKEN;
-  readonly pwnedPasswordsEnabled =
-    this.environment.PWNED_PASSWORDS_ENABLED === 'true';
-  readonly pwnedPasswordsTimeoutMs =
-    this.environment.PWNED_PASSWORDS_TIMEOUT_MS;
   readonly sessionTtlSeconds = this.environment.SESSION_TTL_SECONDS;
   readonly emailVerificationTtlSeconds =
     this.environment.EMAIL_VERIFICATION_TTL_SECONDS;

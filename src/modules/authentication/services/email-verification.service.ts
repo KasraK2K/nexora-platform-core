@@ -1,6 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { AuditService } from '../../audit/audit.service';
-import { IdentityService } from '../../identity/identity.service';
 import { UsersService } from '../../users/users.service';
 import { AppConfig } from '../../../config/app-config';
 import { Clock } from '../../../common/clock';
@@ -22,7 +21,6 @@ export class EmailVerificationService {
   private readonly confirmationLogger = new Logger('VerifyEmail');
 
   constructor(
-    private readonly identities: IdentityService,
     private readonly users: UsersService,
     private readonly verifications: EmailVerificationsRepository,
     private readonly delivery: EmailVerificationDeliveryService,
@@ -37,11 +35,7 @@ export class EmailVerificationService {
 
   /** Accepts an enumeration-resistant replacement verification request. */
   async request(email: string): Promise<void> {
-    const identity = await this.identities.findByEmail(email).catch(() => {
-      throw new EmailVerificationUnavailableError();
-    });
-    if (!identity) return;
-    const user = await this.users.findByIdentityId(identity.id).catch(() => {
+    const user = await this.users.findByEmail(email).catch(() => {
       throw new EmailVerificationUnavailableError();
     });
     if (!user || user.status !== 'PENDING_VERIFICATION') return;
@@ -58,11 +52,10 @@ export class EmailVerificationService {
     const expiresAt = new Date(
       now.getTime() + this.config.emailVerificationTtlSeconds * 1000,
     );
-    let created = false;
     try {
-      created = await this.transactions.execute(async () => {
+      await this.transactions.execute(async () => {
         const current = await this.users.findById(user.id);
-        if (!current || current.status !== 'PENDING_VERIFICATION') return false;
+        if (!current || current.status !== 'PENDING_VERIFICATION') return;
         await this.verifications.invalidateOpenForUser(user.id, now);
         await this.verifications.create({
           id: verificationId,
@@ -74,7 +67,7 @@ export class EmailVerificationService {
         await this.delivery.enqueue({
           verificationId,
           workspaceId: previous.workspaceId,
-          email: identity.normalizedEmail,
+          email: user.normalizedEmail,
           token: token.raw,
           expiresAt,
         });
@@ -85,7 +78,6 @@ export class EmailVerificationService {
           action: 'email.verification.requested',
           resourceId: verificationId,
         });
-        return true;
       });
     } catch (error) {
       this.logFailure(
@@ -95,7 +87,6 @@ export class EmailVerificationService {
       );
       throw new EmailVerificationUnavailableError();
     }
-    if (created) this.delivery.dispatch(verificationId);
   }
 
   /** Confirms one valid single-use email verification token. */

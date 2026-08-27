@@ -1,6 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { AuditService } from '../../audit/audit.service';
-import { PasswordCredentialsService } from '../../identity/password-credentials.service';
 import { MembershipsService } from '../../memberships/memberships.service';
 import { UsersService } from '../../users/users.service';
 import { AppConfig } from '../../../config/app-config';
@@ -16,7 +15,7 @@ import {
 } from '../errors/authentication.errors';
 import { AccessibleWorkspacesService } from '../services/accessible-workspaces.service';
 import { OpaqueTokenService } from '../../../common/security/opaque-token.service';
-import { SessionStoreService } from '../services/session-store.service';
+import { SessionsService } from '../../sessions/sessions.service';
 import type { CreateSessionCommand, CreatedSession } from './session.types';
 
 export type { CreateSessionCommand, CreatedSession } from './session.types';
@@ -27,11 +26,10 @@ export class SessionLoginService {
   private readonly logger = new Logger('CreateSession');
 
   constructor(
-    private readonly credentials: PasswordCredentialsService,
     private readonly users: UsersService,
     private readonly memberships: MembershipsService,
     private readonly accessibleWorkspaces: AccessibleWorkspacesService,
-    private readonly sessions: SessionStoreService,
+    private readonly sessions: SessionsService,
     private readonly audit: AuditService,
     @Inject(TRANSACTION_MANAGER)
     private readonly transactions: TransactionManager,
@@ -62,7 +60,7 @@ export class SessionLoginService {
           id: sessionId,
           tokenHash: session.hash,
           userId: context.user.id,
-          activeWorkspaceId: context.workspace.id,
+          workspaceId: context.workspace.id,
           expiresAt: sessionExpiresAt,
         });
         await this.audit.append({
@@ -77,11 +75,6 @@ export class SessionLoginService {
       this.logFailure('authentication.session_create_failed', error);
       throw new AuthenticationUnavailableError();
     }
-    await this.sessions.storeCacheBestEffort(
-      session.hash,
-      { userId: context.user.id, workspaceId: context.workspace.id },
-      sessionExpiresAt,
-    );
     return { ...context, sessionToken: session.raw, sessionExpiresAt };
   }
 
@@ -107,12 +100,10 @@ export class SessionLoginService {
   private async resolveAuthenticatedContext(
     command: CreateSessionCommand,
   ): Promise<Omit<CreatedSession, 'sessionToken' | 'sessionExpiresAt'>> {
-    const identity = await this.credentials.authenticate({
+    const user = await this.users.authenticate({
       email: command.email,
       password: command.password,
     });
-    if (!identity) throw new AuthenticationInvalidError();
-    const user = await this.users.findActiveByIdentityId(identity.identityId);
     if (!user) throw new AuthenticationInvalidError();
     const selected = command.workspaceId
       ? await this.accessibleWorkspaces.findForUser({
@@ -132,7 +123,6 @@ export class SessionLoginService {
     if (!resolved) throw new AuthenticationInvalidError();
     return {
       user,
-      organization: resolved.organization,
       workspace: resolved.workspace,
       membership: resolved.membership,
     };

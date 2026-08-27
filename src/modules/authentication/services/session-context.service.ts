@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { MembershipsService } from '../../memberships/memberships.service';
-import { OrganizationsService } from '../../organizations/organizations.service';
 import { UsersService } from '../../users/users.service';
 import { WorkspacesService } from '../../workspaces/workspaces.service';
 import {
@@ -9,7 +8,7 @@ import {
 } from '../errors/authentication.errors';
 import { createAuthenticatedRequestContext } from '../security/authenticated-request-context';
 import { OpaqueTokenService } from '../../../common/security/opaque-token.service';
-import { SessionStoreService } from '../services/session-store.service';
+import { SessionsService } from '../../sessions/sessions.service';
 import type {
   CurrentSession,
   ResolvedAuthenticatedRequest,
@@ -27,8 +26,7 @@ export class SessionContextService {
   constructor(
     private readonly users: UsersService,
     private readonly memberships: MembershipsService,
-    private readonly sessions: SessionStoreService,
-    private readonly organizations: OrganizationsService,
+    private readonly sessions: SessionsService,
     private readonly workspaces: WorkspacesService,
     private readonly sessionTokens: OpaqueTokenService,
   ) {}
@@ -51,7 +49,6 @@ export class SessionContextService {
       throw new AuthenticationUnavailableError();
     }
     if (!authenticated) {
-      await this.sessions.removeCacheBestEffort(tokenHash);
       throw new AuthenticationRequiredError();
     }
     return authenticated;
@@ -71,33 +68,22 @@ export class SessionContextService {
     }
     const [user, workspace, membership] = await Promise.all([
       this.users.findById(session.userId),
-      this.workspaces.findById(session.activeWorkspaceId),
+      this.workspaces.findById(session.workspaceId),
       this.memberships.find({
-        workspaceId: session.activeWorkspaceId,
+        workspaceId: session.workspaceId,
         userId: session.userId,
       }),
     ]);
     if (!user || !workspace || !membership) return undefined;
-    const organization = await this.organizations.findById(
-      workspace.organizationId,
-    );
-    if (!organization) return undefined;
-    await this.sessions.refreshCacheBestEffort(
-      tokenHash,
-      { userId: user.id, workspaceId: workspace.id },
-      session.expiresAt,
-    );
     return Object.freeze({
       context: createAuthenticatedRequestContext({
         sessionId: session.id,
         actorUserId: user.id,
         userStatus: user.status,
-        organizationId: organization.id,
         workspaceId: workspace.id,
       }),
       currentSession: Object.freeze({
         user: Object.freeze({ ...user }),
-        organization: Object.freeze({ ...organization }),
         workspace: Object.freeze({ id: workspace.id, name: workspace.name }),
         membership: Object.freeze({ role: membership.role }),
       }),

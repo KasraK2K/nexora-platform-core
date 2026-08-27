@@ -1,5 +1,8 @@
 import { ApplicationError } from '../../common/errors/application-error';
 
+/** Internal signal translated to the public duplicate-email error. */
+export class UserAlreadyExistsError extends Error {}
+
 /** Stable failure for a stale, revoked, missing, or inactive self-update. */
 export class UserLifecycleInvalidError extends ApplicationError {
   readonly code = 'USER_LIFECYCLE_INVALID';

@@ -1,53 +1,55 @@
 import { readSource } from './architecture-helpers';
 
 describe('workflow diagnostics', () => {
-  it('preserves stable logger contexts after service splitting', () => {
-    const expectedContexts = new Map<string, readonly string[]>([
+  it('keeps stable safe workflow event names in cohesive services', () => {
+    const expectedEvents = new Map<string, readonly string[]>([
       [
         'src/modules/authentication/services/session-login.service.ts',
-        ['CreateSession'],
+        ['authentication.session_create_failed'],
       ],
       [
         'src/modules/authentication/services/workspace-session.service.ts',
-        ['ListSessionWorkspaces', 'SwitchWorkspace'],
+        [
+          'authentication.workspace_list_failed',
+          'authentication.workspace_switch_failed',
+        ],
       ],
       [
         'src/modules/authentication/services/password-reset.service.ts',
-        ['RequestPasswordReset', 'ResetPassword'],
+        ['password_reset.request_failed', 'password_reset.confirmation_failed'],
       ],
       [
         'src/modules/authentication/services/password-change.service.ts',
-        ['ChangePassword'],
+        ['password_change.transaction_failed'],
       ],
       [
         'src/modules/authentication/services/email-verification.service.ts',
-        ['RequestEmailVerification', 'VerifyEmail'],
+        [
+          'email_verification.request_failed',
+          'email_verification.confirmation_failed',
+        ],
       ],
       [
-        'src/modules/memberships/membership-administration.service.ts',
+        'src/modules/memberships/memberships.service.ts',
         [
-          'ListWorkspaceMemberships',
-          'LeaveCurrentWorkspace',
-          'ChangeMembershipRole',
-          'RemoveMembership',
-          'TransferWorkspaceOwnership',
+          'membership.list_failed',
+          'membership.self_leave_failed',
+          'membership.remove_failed',
         ],
       ],
       [
         'src/modules/memberships/membership-invitations.service.ts',
         [
-          'CreateMembershipInvitation',
-          'AcceptMembershipInvitation',
-          'RevokeMembershipInvitation',
+          'membership.invitation_create_failed',
+          'membership.invitation_accept_failed',
+          'membership.invitation_revoke_failed',
         ],
       ],
     ]);
 
-    for (const [file, expected] of expectedContexts) {
-      const actual = [
-        ...readSource(file).matchAll(/new Logger\(\s*'([^']+)'/g),
-      ].map((match) => match[1]);
-      expect(actual).toEqual(expected);
+    for (const [file, expected] of expectedEvents) {
+      const source = readSource(file);
+      for (const event of expected) expect(source).toContain(event);
     }
   });
 });

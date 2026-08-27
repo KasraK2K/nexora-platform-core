@@ -79,16 +79,4 @@ export class EmailVerificationsRepository {
     });
     return result.count === 1;
   }
-
-  /** Records the latest immediate mail-delivery outcome. */
-  async markDelivery(
-    id: string,
-    status: 'SENT' | 'FAILED',
-    attemptedAt: Date,
-  ): Promise<void> {
-    await this.database.client.emailVerification.update({
-      where: { id },
-      data: { deliveryStatus: status, deliveryAttemptedAt: attemptedAt },
-    });
-  }
 }

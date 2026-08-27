@@ -1,6 +1,6 @@
 # ADR-0001: Screen new passwords against breached-password data
 
-- Status: Accepted
+- Status: Superseded by ADR-0016
 - Date: 2026-08-07
 - Owners: Nexora engineering
 - Supersedes: None

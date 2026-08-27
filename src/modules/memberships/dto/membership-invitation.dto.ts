@@ -1,14 +1,10 @@
 import { z } from 'zod';
-import { normalizeIdentityEmail } from '../../identity/identity.service';
+import { normalizeUserEmail } from '../../users/users.service';
 
-/** Validates and normalizes a request to invite an ADMIN or MEMBER. */
+/** Validates and normalizes a request to invite one workspace member. */
 export const createMembershipInvitationSchema = z
   .object({
-    email: z
-      .string()
-      .transform(normalizeIdentityEmail)
-      .pipe(z.email().max(254)),
-    role: z.enum(['ADMIN', 'MEMBER']),
+    email: z.string().transform(normalizeUserEmail).pipe(z.email().max(254)),
   })
   .strict();
 

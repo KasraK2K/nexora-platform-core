@@ -37,7 +37,6 @@
     "docs:check": "node scripts/check-source-documentation.mjs && compodoc -p tsconfig.doc.json -d documentation -n \"Nexora Platform Core code reference\" --disablePrivate --disableProtected --disableInternal --silent",
     "verify": "pnpm run format:check && pnpm run lint:check && pnpm run typecheck && pnpm run check:deprecated && pnpm run check:operations && pnpm run check:nest-cli && pnpm run test:architecture && pnpm run test --runInBand && pnpm run contract:check && pnpm run docs:check && pnpm run build && git diff --check",
     "verify:full": "pnpm run verify && pnpm run test:e2e",
-    "update:password-blocklist": "node scripts/update-common-password-blocklist.mjs",
     "db:generate": "dotenv -e .env.example -- prisma generate",
     "db:push": "dotenv -o -e .env.example -- ts-node --project tsconfig.json scripts/assert-local-mutation-target.ts development-schema && dotenv -o -e .env.example -- prisma db push",
     "db:push:test": "dotenv -o -e .env.test -- ts-node --project tsconfig.json scripts/assert-local-mutation-target.ts test-schema && dotenv -o -e .env.test -- prisma db push",

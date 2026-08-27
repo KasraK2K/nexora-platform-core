@@ -1,8 +1,7 @@
 import { Module } from '@nestjs/common';
 import { InfrastructureModule } from '../../infrastructure/infrastructure.module';
-import { SessionStateModule } from '../authentication/session-state/session-state.module';
+import { SessionsModule } from '../sessions/sessions.module';
 import { AuditModule } from '../audit/audit.module';
-import { AuthorizationPolicyModule } from '../authorization/policy/authorization-policy.module';
 import { MembershipsModule } from '../memberships/memberships.module';
 import { Clock } from '../../common/clock';
 import { IdentifierFactory } from '../../common/identifier-factory';
@@ -14,9 +13,8 @@ import { WorkspacesService } from './workspaces.service';
 @Module({
   imports: [
     InfrastructureModule,
-    SessionStateModule,
+    SessionsModule,
     AuditModule,
-    AuthorizationPolicyModule,
     MembershipsModule,
   ],
   controllers: [WorkspacesController],

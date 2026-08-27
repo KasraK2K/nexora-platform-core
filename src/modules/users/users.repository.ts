@@ -1,27 +1,33 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseContext } from '../../infrastructure/database/database-context';
+import { UserAlreadyExistsError } from './users.errors';
 import type {
-  UserAuthenticationReference,
+  UserAccount,
+  UserCredential,
   UserStatus,
   UserSummary,
 } from './users.types';
 
-/** Private Users persistence service backed by the active database context. */
+/** Private concrete repository for User account, profile, and password state. */
 @Injectable()
 export class UsersRepository {
   constructor(private readonly database: DatabaseContext) {}
 
-  /** Persists a user through the ambient caller-owned transaction. */
   async create(input: {
     id: string;
-    identityId: string;
+    normalizedEmail: string;
+    passwordHash: string;
     displayName: string;
     status: UserStatus;
   }): Promise<void> {
-    await this.database.client.user.create({ data: input });
+    try {
+      await this.database.client.user.create({ data: input });
+    } catch (error) {
+      if (isUniqueConstraintError(error)) throw new UserAlreadyExistsError();
+      throw error;
+    }
   }
 
-  /** Reads the minimal profile view, with `null` for an absent user. */
   findById(id: string): Promise<UserSummary | null> {
     return this.database.client.user.findUnique({
       where: { id },
@@ -29,33 +35,63 @@ export class UsersRepository {
     });
   }
 
-  /** Reads the user-to-identity link without exposing profile data. */
-  findAuthenticationReferenceById(
-    id: string,
-  ): Promise<UserAuthenticationReference | null> {
+  findAccountById(id: string): Promise<UserAccount | null> {
     return this.database.client.user.findUnique({
       where: { id },
-      select: { id: true, identityId: true, status: true },
+      select: accountSelect,
     });
   }
 
-  /** Reads a profile by its unique identity link, or returns `null`. */
-  findByIdentityId(identityId: string): Promise<UserSummary | null> {
+  findByNormalizedEmail(normalizedEmail: string): Promise<UserAccount | null> {
     return this.database.client.user.findUnique({
-      where: { identityId },
-      select: { id: true, displayName: true, status: true },
+      where: { normalizedEmail },
+      select: accountSelect,
     });
   }
 
-  /** Reads by identity only when the user is currently active. */
-  findActiveByIdentityId(identityId: string): Promise<UserSummary | null> {
-    return this.database.client.user.findFirst({
-      where: { identityId, status: 'ACTIVE' },
-      select: { id: true, displayName: true, status: true },
+  findCredentialByNormalizedEmail(
+    normalizedEmail: string,
+  ): Promise<UserCredential | null> {
+    return this.database.client.user.findUnique({
+      where: { normalizedEmail },
+      select: { id: true, passwordHash: true },
     });
   }
 
-  /** Transitions pending to active once; `false` means the precondition failed. */
+  findCredentialById(id: string): Promise<UserCredential | null> {
+    return this.database.client.user.findUnique({
+      where: { id },
+      select: { id: true, passwordHash: true },
+    });
+  }
+
+  async replacePasswordHash(
+    id: string,
+    passwordHash: string,
+  ): Promise<boolean> {
+    const result = await this.database.client.user.updateMany({
+      where: { id, status: 'ACTIVE' },
+      data: { passwordHash, passwordUpdatedAt: new Date() },
+    });
+    return result.count === 1;
+  }
+
+  async replacePasswordHashIfCurrent(input: {
+    id: string;
+    expectedPasswordHash: string;
+    passwordHash: string;
+  }): Promise<boolean> {
+    const result = await this.database.client.user.updateMany({
+      where: {
+        id: input.id,
+        passwordHash: input.expectedPasswordHash,
+        status: 'ACTIVE',
+      },
+      data: { passwordHash: input.passwordHash, passwordUpdatedAt: new Date() },
+    });
+    return result.count === 1;
+  }
+
   async activate(id: string): Promise<boolean> {
     const result = await this.database.client.user.updateMany({
       where: { id, status: 'PENDING_VERIFICATION' },
@@ -64,7 +100,6 @@ export class UsersRepository {
     return result.count === 1;
   }
 
-  /** Compare-and-set updates an active profile. */
   async updateDisplayName(input: {
     id: string;
     expectedDisplayName: string;
@@ -80,4 +115,20 @@ export class UsersRepository {
     });
     return result.count === 1;
   }
+}
+
+const accountSelect = {
+  id: true,
+  normalizedEmail: true,
+  displayName: true,
+  status: true,
+} as const;
+
+function isUniqueConstraintError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    error.code === 'P2002'
+  );
 }

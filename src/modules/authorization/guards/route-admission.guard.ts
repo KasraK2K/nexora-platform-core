@@ -14,11 +14,8 @@ import {
   EmailVerificationRequiredError,
   RouteAccessDeniedError,
 } from '../errors/route-admission.errors';
-import {
-  AuthorizationPolicyService,
-  isPermission,
-  AuthorizationDeniedError,
-} from '../policy/authorization-policy.service';
+import { isPermission, permits } from '../authorization.policy';
+import { AuthorizationDeniedError } from '../authorization.errors';
 import {
   RouteAdmission,
   type RouteAdmissionPolicy,
@@ -40,7 +37,6 @@ export class RouteAdmissionGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly trustedOrigin: TrustedOriginGuard,
     private readonly authenticatedRequest: AuthenticatedRequestContextGuard,
-    private readonly authorization: AuthorizationPolicyService,
   ) {}
 
   /**
@@ -101,10 +97,7 @@ export class RouteAdmissionGuard implements CanActivate {
 
     if (
       policy.permission &&
-      !this.authorization.permits(
-        authenticated.currentSession.membership.role,
-        policy.permission,
-      )
+      !permits(authenticated.currentSession.membership.role, policy.permission)
     ) {
       throw new AuthorizationDeniedError();
     }

@@ -45,7 +45,6 @@ export class PasswordResetController {
   @PublicRoute({ requireTrustedOrigin: true })
   @UseGuards(PasswordResetRequestGuard)
   @ApiOperation({
-    operationId: 'AuthenticationController_requestPasswordResetLink',
     summary: 'Request a password reset link',
   })
   @ApiBody({
@@ -77,7 +76,6 @@ export class PasswordResetController {
   @PublicRoute({ requireTrustedOrigin: true })
   @UseGuards(PasswordResetConfirmationGuard)
   @ApiOperation({
-    operationId: 'AuthenticationController_confirmPasswordReset',
     summary: 'Replace a password using a reset token',
   })
   @ApiBody({

@@ -10,7 +10,7 @@ import { Request, Response } from 'express';
 import { ApplicationError } from '../errors/application-error';
 import { RequestWithId } from './request-id.middleware';
 
-type SafeMembershipRole = 'OWNER' | 'ADMIN' | 'MEMBER';
+type SafeMembershipRole = 'OWNER' | 'MEMBER';
 
 type SafeErrorBody = {
   code: string;
@@ -122,12 +122,10 @@ function applicationErrorStatus(code: string): number {
     case 'PASSWORD_RESET_INVALID_PASSWORD':
     case 'PASSWORD_CHANGE_INVALID_PASSWORD':
     case 'MEMBERSHIP_PAGE_CURSOR_INVALID':
-    case 'MEMBERSHIP_OWNERSHIP_TRANSFER_INVALID':
       return HttpStatus.BAD_REQUEST;
     case 'EMAIL_ALREADY_REGISTERED':
     case 'WORKSPACE_SELECTION_REQUIRED':
     case 'MEMBERSHIP_OWNERSHIP_PROTECTED':
-    case 'MEMBERSHIP_LAST_WORKSPACE_PROTECTED':
       return HttpStatus.CONFLICT;
     case 'AUTHENTICATION_REQUIRED':
     case 'AUTHENTICATION_INVALID':
@@ -151,7 +149,7 @@ function applicationErrorStatus(code: string): number {
     case 'PASSWORD_CHANGE_UNAVAILABLE':
     case 'WORKSPACE_SWITCH_UNAVAILABLE':
     case 'MEMBERSHIP_INVITATION_UNAVAILABLE':
-    case 'MEMBERSHIP_ADMINISTRATION_UNAVAILABLE':
+    case 'MEMBERSHIPS_UNAVAILABLE':
     case 'USER_LIFECYCLE_UNAVAILABLE':
     case 'WORKSPACE_LIFECYCLE_UNAVAILABLE':
       return HttpStatus.SERVICE_UNAVAILABLE;
@@ -181,7 +179,6 @@ function readApplicationErrorDetails(
 function serializeWorkspaceSelectionDetails(value: unknown):
   | {
       availableWorkspaces: Array<{
-        organization: { id: string; name: string };
         workspace: { id: string; name: string };
         membership: { role: SafeMembershipRole };
       }>;
@@ -196,17 +193,14 @@ function serializeWorkspaceSelectionDetails(value: unknown):
   if (options.length > 100) return undefined;
 
   const availableWorkspaces: Array<{
-    organization: { id: string; name: string };
     workspace: { id: string; name: string };
     membership: { role: SafeMembershipRole };
   }> = [];
   for (const option of options) {
     if (!isUnknownRecord(option)) return undefined;
-    const organization = readIdAndName(option, 'organization');
     const workspace = readIdAndName(option, 'workspace');
     const membership: unknown = option.membership;
     if (
-      !organization ||
       !workspace ||
       !isUnknownRecord(membership) ||
       !isSafeMembershipRole(membership.role)
@@ -214,7 +208,6 @@ function serializeWorkspaceSelectionDetails(value: unknown):
       return undefined;
     }
     availableWorkspaces.push({
-      organization,
       workspace,
       membership: { role: membership.role },
     });
@@ -225,7 +218,7 @@ function serializeWorkspaceSelectionDetails(value: unknown):
 /** Reads a safe `{id, name}` pair from a known nested response field. */
 function readIdAndName(
   value: Record<string, unknown>,
-  key: 'organization' | 'workspace',
+  key: 'workspace',
 ): { id: string; name: string } | undefined {
   const nested: unknown = value[key];
   if (
@@ -243,7 +236,7 @@ function isUnknownRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-/** Allows only the three membership roles that may be returned publicly. */
+/** Allows only roles derived from permanent workspace ownership. */
 function isSafeMembershipRole(value: unknown): value is SafeMembershipRole {
-  return value === 'OWNER' || value === 'ADMIN' || value === 'MEMBER';
+  return value === 'OWNER' || value === 'MEMBER';
 }

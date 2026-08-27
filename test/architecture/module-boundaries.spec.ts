@@ -1,4 +1,4 @@
-import { SessionStateService } from '../../src/modules/authentication/session-state/session-state.service';
+import { SessionsService } from '../../src/modules/sessions/sessions.service';
 import {
   collectTypeScriptFiles,
   featureFor,
@@ -9,14 +9,11 @@ import {
 } from './architecture-helpers';
 
 const MODEL_OWNERS = new Map([
-  ['Identity', 'identity'],
-  ['PasswordCredential', 'identity'],
   ['User', 'users'],
-  ['Organization', 'organizations'],
   ['Workspace', 'workspaces'],
   ['Membership', 'memberships'],
   ['MembershipInvitation', 'memberships'],
-  ['Session', 'authentication'],
+  ['Session', 'sessions'],
   ['EmailVerification', 'authentication'],
   ['PasswordResetToken', 'authentication'],
   ['MailOutboxMessage', 'mail'],
@@ -33,6 +30,8 @@ const CROSS_FEATURE_PUBLIC_CONTRACTS = new Set([
   'src/modules/authentication/guards/authenticated-request-context.guard',
   'src/modules/authentication/guards/trusted-origin.guard',
   'src/modules/authorization/decorators/route-admission.decorator',
+  'src/modules/authorization/authorization.policy',
+  'src/modules/authorization/authorization.errors',
 ]);
 
 describe('feature ownership and module boundaries', () => {
@@ -138,16 +137,20 @@ describe('feature ownership and module boundaries', () => {
     expect(violations).toEqual([]);
   });
 
-  it('keeps the session-state cycle breaker narrow', () => {
+  it('keeps the conventional SessionsService narrow', () => {
     expect(
-      Object.getOwnPropertyNames(SessionStateService.prototype)
+      Object.getOwnPropertyNames(SessionsService.prototype)
         .filter((method) => method !== 'constructor')
         .sort(),
     ).toEqual(
       [
-        'clearCachesBestEffort',
+        'create',
+        'findByTokenHash',
+        'findLatestForUser',
         'hasActiveContext',
+        'revokeAllForUser',
         'revokeActiveForMembership',
+        'revokeByTokenHash',
       ].sort(),
     );
   });

@@ -1,6 +1,6 @@
 # ADR-0007: Base RBAC and email-bound membership invitations
 
-- Status: Accepted
+- Status: Superseded by ADR-0016
 - Date: 2026-08-10
 - Owners: Nexora Platform Core
 - Supersedes: None

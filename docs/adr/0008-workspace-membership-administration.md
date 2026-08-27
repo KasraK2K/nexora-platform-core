@@ -1,6 +1,6 @@
 # ADR-0008: Workspace membership administration and ownership safety
 
-- Status: Accepted
+- Status: Superseded by ADR-0016
 - Date: 2026-08-11
 - Owners: Nexora Platform Core
 - Supersedes: None

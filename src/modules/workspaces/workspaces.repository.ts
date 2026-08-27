@@ -10,7 +10,7 @@ export class WorkspacesRepository {
   /** Persists a workspace through the ambient caller-owned transaction. */
   async create(input: {
     id: string;
-    organizationId: string;
+    ownerUserId: string;
     name: string;
   }): Promise<void> {
     await this.database.client.workspace.create({ data: input });
@@ -20,7 +20,7 @@ export class WorkspacesRepository {
   findById(id: string): Promise<WorkspaceSummary | null> {
     return this.database.client.workspace.findUnique({
       where: { id },
-      select: { id: true, organizationId: true, name: true },
+      select: { id: true, ownerUserId: true, name: true },
     });
   }
 
@@ -28,21 +28,21 @@ export class WorkspacesRepository {
   findByIds(ids: readonly string[]): Promise<WorkspaceSummary[]> {
     return this.database.client.workspace.findMany({
       where: { id: { in: [...ids] } },
-      select: { id: true, organizationId: true, name: true },
+      select: { id: true, ownerUserId: true, name: true },
     });
   }
 
-  /** Compare-and-set renames one organization-scoped workspace. */
+  /** Compare-and-set renames one owner-scoped workspace. */
   async rename(input: {
     id: string;
-    organizationId: string;
+    ownerUserId: string;
     expectedName: string;
     name: string;
   }): Promise<boolean> {
     const result = await this.database.client.workspace.updateMany({
       where: {
         id: input.id,
-        organizationId: input.organizationId,
+        ownerUserId: input.ownerUserId,
         name: input.expectedName,
       },
       data: { name: input.name },

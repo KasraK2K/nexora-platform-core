@@ -39,7 +39,6 @@ export class SessionLoginController {
   @PublicRoute({ requireTrustedOrigin: true })
   @UseGuards(LoginRequestGuard)
   @ApiOperation({
-    operationId: 'AuthenticationController_login',
     summary: 'Authenticate and create a new session',
   })
   @ApiBody({
@@ -79,7 +78,6 @@ export class SessionLoginController {
     return {
       data: {
         user: session.user,
-        organization: session.organization,
         workspace: session.workspace,
         membership: session.membership,
       },

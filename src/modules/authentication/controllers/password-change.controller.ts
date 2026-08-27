@@ -44,7 +44,6 @@ export class PasswordChangeController {
   @UseGuards(PasswordChangeRequestGuard)
   @ApiCookieAuth()
   @ApiOperation({
-    operationId: 'AuthenticationController_changeAuthenticatedPassword',
     summary: 'Change the current user password',
   })
   @ApiBody({

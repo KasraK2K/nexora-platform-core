@@ -1,4 +1,4 @@
-import type { MembershipRole } from '../../memberships/memberships.service';
+import type { WorkspaceRole } from '../../memberships/memberships.service';
 import type { AuthenticatedRequestContext } from '../security/authenticated-request-context';
 
 /** Credentials and optional workspace selector supplied by a login request. */
@@ -11,9 +11,8 @@ export type CreateSessionCommand = {
 /** Login result containing a raw cookie secret and resolved tenant view. */
 export type CreatedSession = {
   user: { id: string; displayName: string };
-  organization: { id: string; name: string };
   workspace: { id: string; name: string };
-  membership: { role: MembershipRole };
+  membership: { role: WorkspaceRole };
   sessionToken: string;
   sessionExpiresAt: Date;
 };
@@ -25,9 +24,8 @@ export type CurrentSession = Readonly<{
     displayName: string;
     status: 'PENDING_VERIFICATION' | 'ACTIVE';
   }>;
-  organization: Readonly<{ id: string; name: string }>;
   workspace: Readonly<{ id: string; name: string }>;
-  membership: Readonly<{ role: MembershipRole }>;
+  membership: Readonly<{ role: WorkspaceRole }>;
 }>;
 
 /** Trusted authority plus its public current-session view. */

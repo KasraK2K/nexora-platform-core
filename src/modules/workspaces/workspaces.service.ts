@@ -1,16 +1,13 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { AuditService } from '../audit/audit.service';
-import { SessionStateService } from '../authentication/session-state/session-state.service';
-import {
-  AuthorizationDeniedError,
-  AuthorizationPolicyService,
-} from '../authorization/policy/authorization-policy.service';
-import { MembershipsService } from '../memberships/memberships.service';
 import { Clock } from '../../common/clock';
 import { IdentifierFactory } from '../../common/identifier-factory';
 import { TRANSACTION_MANAGER } from '../../common/transaction-manager';
 import type { TransactionManager } from '../../common/transaction-manager';
 import { isTransactionWriteConflict } from '../../common/transaction-write-conflict';
+import { AuditService } from '../audit/audit.service';
+import { AuthorizationDeniedError } from '../authorization/authorization.errors';
+import { MembershipsService } from '../memberships/memberships.service';
+import { SessionsService } from '../sessions/sessions.service';
 import {
   WorkspaceLifecycleInvalidError,
   WorkspaceLifecycleUnavailableError,
@@ -20,16 +17,15 @@ import type { WorkspaceSummary } from './workspaces.types';
 
 export type { WorkspaceSummary } from './workspaces.types';
 
-/** Public service for Workspace-owned tenant state and lifecycle behavior. */
+/** Public service for permanent ownership and workspace lifecycle behavior. */
 @Injectable()
 export class WorkspacesService {
-  private readonly logger = new Logger('RenameCurrentWorkspace');
+  private readonly logger = new Logger(WorkspacesService.name);
 
   constructor(
     private readonly repository: WorkspacesRepository,
     private readonly memberships: MembershipsService,
-    private readonly sessionAuthority: SessionStateService,
-    private readonly authorization: AuthorizationPolicyService,
+    private readonly sessions: SessionsService,
     private readonly audit: AuditService,
     private readonly identifiers: IdentifierFactory,
     private readonly clock: Clock,
@@ -37,30 +33,73 @@ export class WorkspacesService {
     private readonly transactions: TransactionManager,
   ) {}
 
-  /** Creates a workspace inside the caller-owned transaction. */
+  /** Creates a workspace inside a caller-owned transaction. */
   create(input: {
     id: string;
-    organizationId: string;
+    ownerUserId: string;
     name: string;
   }): Promise<void> {
     return this.repository.create(input);
   }
 
-  /** Finds a workspace by stable identifier. */
   findById(id: string): Promise<WorkspaceSummary | null> {
     return this.repository.findById(id);
   }
 
-  /** Resolves a bounded set of workspace summaries. */
   findByIds(ids: readonly string[]): Promise<WorkspaceSummary[]> {
     return this.repository.findByIds(ids);
   }
 
-  /** Revalidates and atomically renames the trusted active workspace. */
+  /** Creates another independently owned workspace without switching session. */
+  async createOwned(input: {
+    sessionId: string;
+    actorUserId: string;
+    currentWorkspaceId: string;
+    name: string;
+  }): Promise<WorkspaceSummary> {
+    const workspace: WorkspaceSummary = {
+      id: this.identifiers.create(),
+      ownerUserId: input.actorUserId,
+      name: input.name.trim(),
+    };
+    try {
+      await this.transactions.execute(async () => {
+        if (
+          !(await this.sessions.hasActiveContext({
+            sessionId: input.sessionId,
+            userId: input.actorUserId,
+            workspaceId: input.currentWorkspaceId,
+            now: this.clock.now(),
+          }))
+        ) {
+          throw new WorkspaceLifecycleInvalidError();
+        }
+        await this.repository.create(workspace);
+        await this.memberships.createOwner({
+          id: this.identifiers.create(),
+          workspaceId: workspace.id,
+          userId: input.actorUserId,
+        });
+        await this.audit.append({
+          id: this.identifiers.create(),
+          workspaceId: workspace.id,
+          actorUserId: input.actorUserId,
+          action: 'workspace.created',
+          resourceId: workspace.id,
+        });
+      });
+      return Object.freeze(workspace);
+    } catch (error) {
+      if (error instanceof WorkspaceLifecycleInvalidError) throw error;
+      this.log('workspace.create_failed', error);
+      throw new WorkspaceLifecycleUnavailableError();
+    }
+  }
+
+  /** Revalidates and atomically renames the owner-managed active workspace. */
   async renameCurrent(input: {
     sessionId: string;
     actorUserId: string;
-    organizationId: string;
     workspaceId: string;
     name: string;
   }): Promise<WorkspaceSummary> {
@@ -68,13 +107,12 @@ export class WorkspacesService {
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
         return await this.transactions.execute(async () => {
-          const now = this.clock.now();
           const [sessionIsActive, membership, workspace] = await Promise.all([
-            this.sessionAuthority.hasActiveContext({
+            this.sessions.hasActiveContext({
               sessionId: input.sessionId,
               userId: input.actorUserId,
               workspaceId: input.workspaceId,
-              now,
+              now: this.clock.now(),
             }),
             this.memberships.find({
               workspaceId: input.workspaceId,
@@ -86,22 +124,22 @@ export class WorkspacesService {
             throw new WorkspaceLifecycleInvalidError();
           }
           if (
-            workspace.organizationId !== input.organizationId ||
-            !membership ||
-            !this.authorization.permits(membership.role, 'workspace:update')
+            membership?.role !== 'OWNER' ||
+            workspace.ownerUserId !== input.actorUserId
           ) {
             throw new AuthorizationDeniedError();
           }
           if (workspace.name === name) return workspace;
-
-          const renamed = await this.repository.rename({
-            id: workspace.id,
-            organizationId: input.organizationId,
-            expectedName: workspace.name,
-            name,
-          });
-          if (!renamed) throw new WorkspaceWriteConflictError();
-
+          if (
+            !(await this.repository.rename({
+              id: workspace.id,
+              ownerUserId: input.actorUserId,
+              expectedName: workspace.name,
+              name,
+            }))
+          ) {
+            throw new WorkspaceWriteConflictError();
+          }
           await this.audit.append({
             id: this.identifiers.create(),
             workspaceId: input.workspaceId,
@@ -119,24 +157,26 @@ export class WorkspacesService {
         ) {
           throw error;
         }
-        this.logger.error(
-          JSON.stringify({
-            event: 'workspace.rename_failed',
-            errorType: error instanceof Error ? error.name : 'UnknownError',
-            errorCode: readSafeErrorCode(error),
-          }),
-        );
+        this.log('workspace.rename_failed', error);
         throw new WorkspaceLifecycleUnavailableError();
       }
     }
     throw new WorkspaceLifecycleUnavailableError();
   }
+
+  private log(event: string, error: unknown): void {
+    this.logger.error(
+      JSON.stringify({
+        event,
+        errorType: error instanceof Error ? error.name : 'UnknownError',
+        errorCode: readSafeErrorCode(error),
+      }),
+    );
+  }
 }
 
-/** Internal signal used to retry one compare-and-set race. */
 class WorkspaceWriteConflictError extends Error {}
 
-/** Recognizes local and transaction-manager write conflicts. */
 function isWriteConflict(error: unknown): boolean {
   return (
     error instanceof WorkspaceWriteConflictError ||
@@ -144,7 +184,6 @@ function isWriteConflict(error: unknown): boolean {
   );
 }
 
-/** Extracts only a non-sensitive string code for structured logs. */
 function readSafeErrorCode(error: unknown): string | undefined {
   if (typeof error !== 'object' || error === null || !('code' in error)) {
     return undefined;

@@ -38,7 +38,6 @@ export class SessionManagementController {
   @PublicRoute({ requireTrustedOrigin: true })
   @ApiCookieAuth()
   @ApiOperation({
-    operationId: 'AuthenticationController_logout',
     summary: 'Revoke the current session',
   })
   @ApiNoContentResponse({ description: 'Current session revoked.' })
@@ -59,7 +58,6 @@ export class SessionManagementController {
   @ApplicationAuthenticatedRoute({ requireTrustedOrigin: true })
   @ApiCookieAuth()
   @ApiOperation({
-    operationId: 'AuthenticationController_logoutEverywhere',
     summary: 'Revoke every session for the current user',
   })
   @ApiNoContentResponse({ description: 'All user sessions revoked.' })

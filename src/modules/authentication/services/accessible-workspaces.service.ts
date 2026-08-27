@@ -1,9 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { MembershipsService } from '../../memberships/memberships.service';
-import { OrganizationsService } from '../../organizations/organizations.service';
 import { WorkspacesService } from '../../workspaces/workspaces.service';
 import type { WorkspaceSelectionOption } from '../errors/authentication.errors';
-import type { MembershipRole } from '../../memberships/memberships.service';
+import type { WorkspaceRole } from '../../memberships/memberships.service';
 
 const MAX_ACCESSIBLE_WORKSPACES = 100;
 
@@ -13,7 +12,6 @@ export class AccessibleWorkspacesService {
   constructor(
     private readonly memberships: MembershipsService,
     private readonly workspaces: WorkspacesService,
-    private readonly organizations: OrganizationsService,
   ) {}
 
   /**
@@ -35,22 +33,12 @@ export class AccessibleWorkspacesService {
     const workspaceById = new Map(
       workspaces.map((workspace) => [workspace.id, workspace]),
     );
-    const organizations = await this.organizations.findByIds([
-      ...new Set(workspaces.map(({ organizationId }) => organizationId)),
-    ]);
-    const organizationById = new Map(
-      organizations.map((organization) => [organization.id, organization]),
-    );
-
     return memberships.map((membership) => {
       const workspace = workspaceById.get(membership.workspaceId);
-      const organization = workspace
-        ? organizationById.get(workspace.organizationId)
-        : undefined;
-      if (!workspace || !organization) {
+      if (!workspace) {
         throw new AccessibleWorkspaceStateError();
       }
-      return this.createOption(membership, workspace, organization);
+      return this.createOption(membership, workspace);
     });
   }
 
@@ -73,33 +61,25 @@ export class AccessibleWorkspacesService {
     return accessible;
   }
 
-  /** Resolves the workspace and its organization for an authoritative membership. */
+  /** Resolves the workspace for an authoritative membership. */
   private async resolveMembership(membership: {
     userId: string;
     workspaceId: string;
-    role: MembershipRole;
+    role: WorkspaceRole;
   }): Promise<WorkspaceSelectionOption | null> {
     const workspace = await this.workspaces.findById(membership.workspaceId);
     if (!workspace) {
       return null;
     }
-    const organization = await this.organizations.findById(
-      workspace.organizationId,
-    );
-    if (!organization) {
-      return null;
-    }
-    return this.createOption(membership, workspace, organization);
+    return this.createOption(membership, workspace);
   }
 
   /** Freezes the bounded public summary so callers cannot mutate authority data. */
   private createOption(
-    membership: { role: MembershipRole },
+    membership: { role: WorkspaceRole },
     workspace: { id: string; name: string },
-    organization: { id: string; name: string },
   ): WorkspaceSelectionOption {
     return Object.freeze({
-      organization: Object.freeze({ ...organization }),
       workspace: Object.freeze({ id: workspace.id, name: workspace.name }),
       membership: Object.freeze({ role: membership.role }),
     });

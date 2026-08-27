@@ -110,11 +110,18 @@ describe('conventional NestJS structure', () => {
     ).toEqual([]);
   });
 
-  it('keeps the password blocklist updater on the current security path', () => {
-    const updater = readSource('scripts/update-common-password-blocklist.mjs');
-    expect(updater).toContain(
-      'src/modules/authentication/security/common-password-hashes.generated.ts',
-    );
-    expect(updater).not.toContain('src/modules/authentication/infrastructure/');
+  it('does not retain removed speculative architecture', () => {
+    for (const removed of [
+      'src/modules/identity',
+      'src/modules/organizations',
+      'src/modules/authentication/session-state',
+      'src/modules/authentication/cache',
+      'scripts/update-common-password-blocklist.mjs',
+    ]) {
+      expect(existsSync(path.join(repositoryRoot, removed))).toBe(false);
+    }
+    expect(
+      productionFiles.some((file) => /\bADMIN\b/.test(readSource(file))),
+    ).toBe(false);
   });
 });

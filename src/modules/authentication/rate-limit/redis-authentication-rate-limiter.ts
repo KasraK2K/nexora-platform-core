@@ -1,24 +1,11 @@
-import { createHmac } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
-import { AppConfig } from '../../../config/app-config';
-import { RedisService } from '../../../infrastructure/cache/redis.service';
+import { RedisFixedWindowRateLimiter } from '../../../infrastructure/cache/redis-fixed-window-rate-limiter';
 import type { RateLimitDecision } from './authentication-rate-limiter';
-
-const WINDOW_SECONDS = 15 * 60;
-const SCRIPT = `
-local current = redis.call('INCR', KEYS[1])
-if current == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end
-local ttl = redis.call('TTL', KEYS[1])
-return {current, ttl}
-`; // Atomic fixed-window counter rate-limiter
 
 /** Redis fixed-window limiter with HMAC-pseudonymous IP, email, and session keys. */
 @Injectable()
 export class AuthenticationRateLimiter {
-  constructor(
-    private readonly redis: RedisService,
-    private readonly config: AppConfig,
-  ) {}
+  constructor(private readonly windows: RedisFixedWindowRateLimiter) {}
 
   /** Applies registration limits by IP and, when available, normalized email. */
   async checkRegistration(
@@ -155,24 +142,11 @@ export class AuthenticationRateLimiter {
     key: string,
     limit: number,
   ): Promise<RateLimitDecision> {
-    const result = await this.redis.client.eval(SCRIPT, {
-      keys: [key],
-      arguments: [WINDOW_SECONDS.toString()],
-    });
-
-    if (!Array.isArray(result) || result.length !== 2) {
-      return { allowed: false, retryAfterSeconds: WINDOW_SECONDS };
-    }
-
-    const count = Number(result[0]);
-    const ttl = Math.max(1, Number(result[1]));
-    return { allowed: count <= limit, retryAfterSeconds: ttl };
+    return this.windows.increment(key, limit);
   }
 
   /** Pseudonymizes sensitive limiter dimensions with a deployment secret. */
   private digest(value: string): string {
-    return createHmac('sha256', this.config.rateLimitKeySecret)
-      .update(value, 'utf8')
-      .digest('hex');
+    return this.windows.digest(value);
   }
 }

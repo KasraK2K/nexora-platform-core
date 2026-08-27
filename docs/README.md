@@ -1,96 +1,16 @@
-# Nexora Platform Core documentation
+# Documentation map
 
-This is the starting point for understanding and changing Nexora Platform Core.
-The documentation separates four different needs so generated reference pages
-do not get confused with architectural explanations.
+Read the smallest document that answers the current question:
 
-## Start here
+1. [Project tour](getting-started/project-tour.md) — five concepts and one real request.
+2. [Architecture overview](concepts/architecture-overview.md) — module, data, transaction, and security boundaries.
+3. [Module catalog](modules/README.md) — which module owns each concept and table.
+4. [Registration flow](flows/registration.md) — account creation and queued mail.
+5. [Protected request flow](flows/protected-request-admission.md) — cookie to trusted workspace context.
+6. [Create a module](how-to/create-a-module.md) — normal Nest CLI commands.
+7. [Tenant isolation matrices](architecture/tenant-isolation-matrices.md) — required positive and tenant A/B evidence.
+8. [OpenAPI guide](reference/openapi.md) and [contract](reference/openapi.json).
+9. [ADRs](adr/) — why accepted architecture decisions exist.
 
-1. Read the [project tour](getting-started/project-tour.md) to learn the source
-   layout and follow one HTTP request through the application.
-2. Use [Create a module and add an endpoint](how-to/create-a-module.md) for the
-   standard Nest CLI workflow and protected-operation checklist.
-3. Read the [architecture overview](concepts/architecture-overview.md) for the
-   module, layer, transaction, and product-boundary rules.
-4. Use the [glossary](concepts/glossary.md) when identity, user, organization,
-   workspace, membership, or session terms are unclear.
-5. Open the [module catalog](modules/README.md), then read the
-   [Authentication module guide](modules/authentication.md).
-6. Trace the [registration](flows/registration.md) and
-   [protected-request admission](flows/protected-request-admission.md) flows.
-
-## Documentation map
-
-| Need              | Documentation                                                                         | Purpose                                                  |
-| ----------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| Learn the system  | [`getting-started/`](getting-started/project-tour.md)                                 | Guided reading paths and project orientation             |
-| Understand why    | [`concepts/`](concepts/architecture-overview.md)                                      | Architecture, boundaries, invariants, and terminology    |
-| Complete a task   | [`how-to/`](how-to/change-a-core-capability.md)                                       | Safe, goal-oriented change procedures                    |
-| Look something up | [`modules/`](modules/README.md), [`reference/`](reference/openapi.md), [`adr/`](adr/) | Ownership, contracts, API shapes, and accepted decisions |
-
-The [Platform Core baseline](architecture/platform-core-baseline.md) includes
-both implemented and target architecture. It is not proof that a planned
-component exists. The [downstream product guide](architecture/downstream-product-guide.md)
-defines where customer-facing product behavior belongs.
-
-## Sources of truth
-
-Use these sources for different questions:
-
-- **What exists now:** source code, tests, `prisma/schema.prisma`, active
-  configuration, and the committed OpenAPI document.
-- **Why a decision was accepted:** the relevant ADR under `docs/adr/`.
-- **How the current system works:** the human-written guides under `docs/`.
-- **What the platform is intended to become:** the architecture baseline,
-  clearly separated from its current-state sections.
-- **Where a symbol is declared or injected:** the generated Compodoc reference.
-
-When documentation and executable behavior disagree, treat the disagreement as
-a defect. Verify the code and tests, then update the stale documentation in the
-same change.
-
-## Generated references
-
-### HTTP contract
-
-The application serves Swagger UI at `/docs` outside production when
-`API_DOCS_ENABLED` is enabled. The deterministic, committed contract is
-[`reference/openapi.json`](reference/openapi.json). See the
-[OpenAPI workflow](reference/openapi.md).
-
-### NestJS code navigation
-
-Compodoc generates an untracked, searchable view of modules, controllers,
-injectables, interfaces, dependency graphs, and source links:
-
-```bash
-pnpm run docs:code
-pnpm run docs:code:serve
-```
-
-The output is written to `documentation/`. Run `pnpm run docs:check` to verify
-that production declarations retain plain-language JSDoc and that the code
-reference still generates. Compodoc is navigation, not the authority for
-business meaning or security policy.
-
-## Writing and maintenance rules
-
-- Document **why**, ownership, invariants, and failure behavior. Do not restate
-  obvious TypeScript.
-- Put public HTTP shapes in OpenAPI decorators and contract schemas.
-- Put accepted architecture changes in an ADR before implementation.
-- Add short, plain-language TSDoc to production classes, public methods,
-  application contracts, and named functions so IDE help and Compodoc explain
-  what each symbol contributes. Give extra detail to non-obvious security,
-  transaction, tenancy, and failure behavior.
-- Do not document generated source files or restate obvious TypeScript fields.
-  Generated source is excluded from the Compodoc input.
-- Every module guide should name its data owner, public contracts, consumers,
-  transaction boundaries, tenant/security invariants, and behavioral tests.
-- Every flow guide should link the controller, guards, service, repositories,
-  side effects, and tests, and should distinguish work inside and after commit.
-- Update the nearest guide whenever a change invalidates it. Do not create empty
-  documentation sections for planned capabilities.
-
-Adopting this documentation workflow does not change runtime architecture or
-the Core/downstream product boundary, so it does not require a new ADR.
+The generated Compodoc output is for navigation. These Markdown documents are
+the source of truth for purpose, ownership, invariants, and failure behavior.

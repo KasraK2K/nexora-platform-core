@@ -18,7 +18,6 @@ export class SessionContextController {
   @AuthenticatedRoute({ allowPendingVerification: true })
   @ApiCookieAuth()
   @ApiOperation({
-    operationId: 'AuthenticationController_currentSession',
     summary: 'Resolve the current user and trusted active workspace',
   })
   @ApiOkResponse({ description: 'Current authenticated session.' })

@@ -39,7 +39,6 @@ export class EmailVerificationController {
   @PublicRoute({ requireTrustedOrigin: true })
   @UseGuards(EmailVerificationRequestGuard)
   @ApiOperation({
-    operationId: 'AuthenticationController_requestVerification',
     summary: 'Request a replacement email verification link',
   })
   @ApiAcceptedResponse({
@@ -61,7 +60,6 @@ export class EmailVerificationController {
   @PublicRoute({ requireTrustedOrigin: true })
   @UseGuards(EmailVerificationConfirmationGuard)
   @ApiOperation({
-    operationId: 'AuthenticationController_confirmVerification',
     summary: 'Confirm ownership of an email address',
   })
   @ApiNoContentResponse({ description: 'Email address verified.' })

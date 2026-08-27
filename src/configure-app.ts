@@ -54,27 +54,5 @@ export function createOpenApiDocument(app: INestApplication): OpenAPIObject {
     .setVersion('1')
     .addCookieAuth(config.sessionCookieName)
     .build();
-  return SwaggerModule.createDocument(app, openApiConfig, {
-    operationIdFactory: stableOperationId,
-  });
-}
-
-/** Keeps operation IDs stable while large HTTP adapters are split by workflow. */
-function stableOperationId(controller: string, method: string): string {
-  const legacyController =
-    controller === 'MembershipAdministrationController'
-      ? 'MembershipsController'
-      : [
-            'EmailVerificationController',
-            'PasswordChangeController',
-            'PasswordResetController',
-            'RegistrationController',
-            'SessionContextController',
-            'SessionLoginController',
-            'SessionManagementController',
-            'WorkspaceSessionController',
-          ].includes(controller)
-        ? 'AuthenticationController'
-        : controller;
-  return `${legacyController}_${method}`;
+  return SwaggerModule.createDocument(app, openApiConfig);
 }

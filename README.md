@@ -1,157 +1,82 @@
 # Nexora Platform Core
 
-Nexora Platform Core is a reusable, product-neutral NestJS SaaS foundation.
-Create a separate downstream repository from this base for each customer-facing
-product. Product modules, provider integrations, prompts, evaluation data, and
-product UI do not belong in this repository.
+Nexora is a product-neutral NestJS modular monolith for a small multi-workspace
+team application. Its business model is intentionally limited to five concepts:
 
-The target architecture is documented in
-`docs/architecture/platform-core-baseline.md`. ADR-0010 retains the current
-single-package NestJS modular monolith until explicit package and task-graph
-triggers justify pnpm workspaces and Turborepo.
+- **User**: account, email, password, profile, and verification state.
+- **Workspace**: an independent tenant with one permanent owner.
+- **Membership**: one user's access to one workspace.
+- **Invitation**: one email invitation to one workspace.
+- **Session**: one authenticated user working in one active workspace.
 
-See `docs/architecture/downstream-product-guide.md` before creating a product
-repository or changing runtime identifiers inherited from this base.
+A user may own several workspaces, join other workspaces, and switch the active
+workspace. `OWNER` and `MEMBER` are derived from `Workspace.ownerUserId`; they
+are not stored roles. There is no Organization, ADMIN role, ownership transfer,
+session cache, or compromised-password provider.
 
-## Implemented
+## Code shape
 
-- `POST /v1/auth/registrations` creates a password identity, user,
-  organization, initial workspace, OWNER membership, opaque session, and audit
-  entries in one PostgreSQL transaction. New users remain
-  `PENDING_VERIFICATION` until they prove mailbox ownership.
-- `POST /v1/auth/email-verification-requests` returns the same accepted
-  response for missing, active, and pending accounts. For pending accounts it
-  invalidates older links and sends a replacement.
-- `POST /v1/auth/email-verifications` atomically consumes a hashed,
-  expiring, single-use token and activates the user.
-- `POST /v1/auth/password-reset-requests` returns the same accepted response
-  regardless of account existence and replaces older reset links for active
-  accounts. `POST /v1/auth/password-resets` consumes the hashed token,
-  replaces the Argon2id credential, revokes every session, and audits the
-  completed reset in one PostgreSQL transaction.
-- `PUT /v1/auth/password` verifies the current password, screens and replaces
-  the credential, invalidates open reset links, revokes every existing
-  session, and creates one rotated current session atomically. The replacement
-  token preserves the previous session's absolute expiry.
-- `GET /v1/auth/session` resolves the authenticated user and server-trusted
-  active workspace from the opaque session cookie. The exported authentication
-  guard attaches minimal server-resolved IDs and user status as an immutable
-  actor/workspace context for protected Platform Core and downstream routes;
-  client identity, workspace, and role headers are ignored.
-- The Authorization module denies every Nest route until it explicitly
-  declares public, context-authenticated, or application-authenticated
-  admission. Context-authenticated routes require an active user by default;
-  account and session operations must explicitly opt in when pending
-  verification users are allowed. Exact-origin checks execute before session
-  resolution on protected browser mutations.
-- `POST /v1/auth/sessions` verifies a returning user's password and issues a
-  fresh opaque session. Multi-workspace users may provide a workspace selector;
-  otherwise valid credentials receive a bounded `409` choice response without
-  creating a session.
-- `GET /v1/auth/session/workspaces` lists the current actor's server-resolved
-  workspace memberships. `PUT /v1/auth/session/workspace` revalidates source
-  and target membership, atomically rotates that session into the selected
-  workspace without extending its expiry, and audits both tenant scopes.
-- Base RBAC supports OWNER, ADMIN, and MEMBER memberships. OWNER may invite
-  ADMIN or MEMBER; ADMIN may invite MEMBER; MEMBER cannot manage invitations.
-  `POST /v1/membership-invitations` creates a hashed, expiring, email-delivered
-  invitation for the active workspace,
-  `POST /v1/membership-invitations/acceptances` accepts it for the matching
-  active identity, and `DELETE /v1/membership-invitations/:invitationId`
-  revokes it without exposing foreign-tenant invitation existence. Redis limits
-  invitation creation by IP, actor/workspace, and target email, and acceptance
-  by IP and authenticated session.
-- `GET /v1/memberships` lists a bounded, active-workspace membership page.
-  OWNER may change ADMIN/MEMBER roles; OWNER or ADMIN may remove only lower
-  roles. Removal is retained as lifecycle state, revokes only sessions active
-  in that workspace, and supports safe later re-invitation. Workspace OWNER is
-  protected from generic mutation/removal; `PUT /v1/memberships/owner`
-  requires current-password confirmation and atomically promotes a successor
-  while demoting the former owner to ADMIN. Commercial organization ownership
-  remains separate.
-- `PATCH /v1/users/me` updates the authenticated user's display name.
-  `PATCH /v1/workspaces/current` lets OWNER or ADMIN rename only the active
-  workspace. `DELETE /v1/memberships/me` lets ADMIN or MEMBER leave the active
-  workspace after proving another active membership remains; it revokes only
-  that workspace's sessions and clears the presented cookie.
-- `DELETE /v1/auth/session` idempotently revokes the presented session;
-  `DELETE /v1/auth/sessions` revokes every session for the current user.
-- The current tenant-owned HTTP and repository surfaces have executable
-  positive and tenant A/B negative coverage documented in
-  `docs/architecture/tenant-isolation-matrices.md`. Forged tenant headers and
-  foreign resource identifiers cannot redirect reads, writes, audits, or
-  workspace-scoped session revocation.
-- Passwords use Argon2id. Only a SHA-256 session-token digest is stored;
-  PostgreSQL is authoritative and Redis is a disposable lookup cache.
-- New passwords are screened against a bundled common-password fallback and
-  the free Pwned Passwords range API without transmitting plaintext passwords
-  or complete password hashes.
-- Session-creating and session-revoking requests validate the exact browser
-  Origin. Registration and login use separate Redis-backed IP and
-  normalized-email rate limits before expensive password work. Workspace
-  switching uses a separate IP and keyed-session rate limit. Verification
-  request, confirmation, and authenticated password-change routes have
-  separate limits.
-- Email delivery uses a provider-neutral port backed by the Resend API; raw
-  verification tokens are delivered by email and are never logged,
-  returned by the API, or stored in PostgreSQL.
-- OpenAPI UI is served at `/docs` while the application is running.
-- Repository foundation gates now cover full-project strict TypeScript,
-  deterministic OpenAPI drift, module/table ownership, Core/product dependency
-  direction, non-mutating CI checks, and isolated Docker E2E tests.
+Every small feature starts with the normal Nest files:
 
-Organization commercial ownership transfer, user deactivation/deletion,
-workspace archive/delete/create, invite-first registration, and their recovery
-policies are not implemented.
-The session issued at registration remains restricted to routes that explicitly
-permit pending-verification users.
-
-## Product extension model
-
-A downstream product repository should:
-
-1. start from a reviewed Platform Core release;
-2. rename its package and define its own product mission and roadmap;
-3. add product capabilities under `src/products/<capability>` until a future
-   monorepo layout is explicitly adopted;
-4. consume Core modules only through public application contracts;
-5. keep product schemas, provider adapters, prompts, evaluations, usage policy,
-   and UI in the downstream repository;
-6. record ADRs for new external-provider categories or changes to Core
-   architecture decisions.
-
-Platform Core must never import a downstream product module. Promote a product
-capability into Core only after a second proven consumer or an explicit platform
-requirement.
-
-## Documentation
-
-Start with [`docs/README.md`](docs/README.md). It links the project tour,
-architecture concepts, module ownership, end-to-end flows, how-to guides,
-OpenAPI reference, and accepted decisions.
-
-Generate the NestJS code-navigation reference locally with:
-
-```bash
-pnpm run docs:code
-pnpm run docs:code:serve
+```text
+src/modules/users/
+  users.module.ts
+  users.controller.ts
+  users.service.ts
+  users.repository.ts
+  dto/
 ```
 
-The generated `documentation/` directory is intentionally untracked. It is a
-searchable view of modules, controllers, injectables, dependencies, and source;
-the Markdown documents remain the canonical explanation of behavior and
-rationale. The committed HTTP contract is `docs/reference/openapi.json` and is
-checked with `pnpm run contract:check`.
+The normal dependency flow is:
 
-## Prerequisites
+```text
+controller -> service -> private concrete repository -> DatabaseContext -> Prisma
+```
 
-- Node.js 24
-- pnpm 11.20.0 through Corepack
-- Docker with Docker Compose
+Controllers validate and map HTTP. Services own workflows, authorization
+rechecks, transactions, audit writes, and durable side-effect handoffs.
+Repositories contain private Prisma queries and are never exported. Interfaces
+exist only for genuine external boundaries such as outbound mail.
+
+Start with the [project tour](docs/getting-started/project-tour.md), then read
+the [module catalog](docs/modules/README.md) and
+[create-a-module guide](docs/how-to/create-a-module.md).
+
+## Security retained by the lean design
+
+- opaque, hashed, rotatable sessions in Secure/HttpOnly/SameSite cookies;
+- PostgreSQL-authoritative session, membership, and tenant checks;
+- deny-by-default route admission and exact trusted-origin checks;
+- Argon2id password hashing, NFC normalization, and bounded password input;
+- Redis-backed distributed rate limits, with one shared fixed-window engine;
+- hashed single-use verification, reset, and invitation tokens;
+- encrypted durable mail outbox with retries, fencing, and payload erasure;
+- serializable transactions and workspace-scoped audit records;
+- tenant A versus tenant B rejection coverage.
+
+Mail HTTP workflows only enqueue. The mail worker is the sole delivery
+authority; API metadata therefore says `*EmailQueued`, not `*EmailSent`.
+
+## Main HTTP workflows
+
+- Registration, verification, login, current session, logout, revoke-all,
+  password reset, and authenticated password change remain under `/v1/auth`.
+- `POST /v1/workspaces` creates another permanently owned workspace without
+  changing the current session.
+- `GET /v1/auth/session/workspaces` lists accessible workspaces and
+  `PUT /v1/auth/session/workspace` explicitly switches the session.
+- Invitations accept only `{ "email": "..." }` and always grant MEMBER access.
+- Owners may invite, list, remove members, and rename their workspace. Owners
+  cannot leave or be removed. Members may leave.
+
+The intentionally breaking contract is committed at
+`docs/reference/openapi.json`.
 
 ## Local development
 
-```bash
+Requirements: Node.js 24, pnpm 11.20.0, and Docker Compose.
+
+```powershell
 copy .env.example .env
 pnpm install
 pnpm run db:dev:up
@@ -160,88 +85,45 @@ pnpm run db:seed
 pnpm run start:dev
 ```
 
-`db:seed` is optional and repeatable. It creates one non-authenticating,
-product-neutral local tenant fixture with fixed IDs and `example.invalid` data.
-It contains no password, token, session, provider credential, real PII, or
-product policy. Seed, schema-push, and E2E commands fail closed unless their
-database and Redis targets match the committed loopback development/test
-services.
+Development PostgreSQL uses `localhost:55432/nexora`; Redis uses
+`localhost:56379`. The isolated test services use ports `55433` and `56380`.
+Schema work remains development-only and uses guarded `prisma db push`; no
+migration history is created until an explicit production transition.
 
-The local PostgreSQL port is `55432`; Redis uses `56379`. Set a rotated Resend
-credential in the ignored `.env` file before exercising email delivery.
-`TRUST_PROXY` is empty locally. Set it to the exact trusted proxy address or
-subnet in a proxied deployment; never use an unrestricted proxy setting.
-`PWNED_PASSWORDS_TIMEOUT_MS` bounds the optional remote breach lookup and must
-remain between 100 and 5000 milliseconds. The local fallback remains active
-when remote lookup is disabled or unavailable.
-`RESEND_TIMEOUT_MS` bounds each Resend API delivery attempt; a
-failure leaves the durable intent marked `FAILED` so the user can request a
-replacement link.
-`PASSWORD_RESET_TTL_SECONDS` bounds reset-link lifetime. Reset tokens are
-single-use SHA-256 digests at rest, and successful reset requires a fresh login.
-`MEMBERSHIP_INVITATION_TTL_SECONDS` bounds invitation lifetime, and
-`MEMBERSHIP_INVITATION_URL` supplies the email link base URL.
+Example registration:
 
-Example registration request:
-
-```bash
-curl -i http://localhost:3000/v1/auth/registrations \
-  -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:3000" \
-  -d '{"email":"owner@example.com","password":"A secure passphrase 123","displayName":"Owner","organizationName":"Example","workspaceName":"Main"}'
+```powershell
+curl.exe -i http://localhost:3000/v1/auth/registrations `
+  -H "Content-Type: application/json" `
+  -H "Origin: http://localhost:3000" `
+  -d '{"email":"owner@example.com","password":"A secure passphrase 123","displayName":"Owner","workspaceName":"Main"}'
 ```
 
-Open the delivered message in the recipient mailbox, then submit its token:
-
-```bash
-curl -i http://localhost:3000/v1/auth/email-verifications \
-  -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:3000" \
-  -d '{"token":"the-43-character-token-from-the-email"}'
-```
+Swagger UI is available at `http://localhost:3000/docs` when enabled.
 
 ## Verification
 
-```bash
-pnpm run lint
+```powershell
 pnpm run format:check
 pnpm run lint:check
 pnpm run typecheck
-pnpm run contract:check
+pnpm run check:deprecated
+pnpm run check:operations
+pnpm run check:production
+pnpm run check:nest-cli
 pnpm run test:architecture
 pnpm run test --runInBand
 pnpm run test:e2e
+pnpm run contract:check
+pnpm run docs:check
 pnpm run build
-pnpm run check:deprecated
+git diff --check
 ```
 
-Regenerate `docs/reference/openapi.json` with `pnpm run contract:generate`,
-then review the public-contract diff before accepting it.
+## Product boundary
 
-Refresh the generated local password fallback from its documented free source
-with `pnpm run update:password-blocklist`, then review the source checksum,
-generated diff, and `THIRD_PARTY_NOTICES.md` before committing it.
-
-`test:e2e` starts isolated PostgreSQL and Redis services on ports `55433` and
-`56380`, synchronizes the database from `prisma/schema.prisma` with
-`prisma db push`, and runs the API suite. Stop them with:
-
-```bash
-pnpm run db:test:down
-```
-
-## Production-readiness controls
-
-The repository enforces a product-neutral runtime baseline, but it does not
-claim an actual production launch is approved. Stable operational endpoints are
-`GET /health/live`, `GET /health/ready`, and optionally bearer-protected
-`GET /metrics`. Production disables Swagger, requires exact HTTPS origins,
-validated proxies, secure cookies, TLS PostgreSQL/Redis, Resend configuration,
-and an encrypted durable mail outbox.
-
-Build the immutable non-root image with `docker build -t nexora-platform-core .`.
-Review `.env.production.example`,
-`docs/operations/production-runbook.md`, ADR-0011, and ADR-0012. A named
-operator must complete an uncommitted approval file and run
-`pnpm run check:production`. The development database policy remains
-`prisma db push`; no production migration transition has been announced.
+This repository owns reusable platform capabilities only. A downstream product
+owns its product schema, workflow, providers, prompts, evaluation data, pricing,
+and UI. Core never imports downstream product modules. See the
+[baseline](docs/architecture/platform-core-baseline.md) and
+[downstream product guide](docs/architecture/downstream-product-guide.md).

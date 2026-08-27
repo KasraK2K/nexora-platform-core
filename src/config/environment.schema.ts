@@ -17,13 +17,6 @@ export const environmentSchema = z.object({
   API_DOCS_ENABLED: z.enum(['true', 'false']).default('true'),
   METRICS_ENABLED: z.enum(['true', 'false']).default('false'),
   METRICS_BEARER_TOKEN: z.string().default(''),
-  PWNED_PASSWORDS_ENABLED: z.enum(['true', 'false']).default('true'),
-  PWNED_PASSWORDS_TIMEOUT_MS: z.coerce
-    .number()
-    .int()
-    .min(100)
-    .max(5_000)
-    .default(1_500),
   SESSION_TTL_SECONDS: z.coerce
     .number()
     .int()

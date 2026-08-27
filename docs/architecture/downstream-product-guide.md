@@ -30,7 +30,7 @@ Change these deliberately, not through blind search-and-replace:
 - OpenAPI title and public documentation;
 - application Origin/CORS configuration and deployment hostnames;
 - HTTP user-agent strings used with external services;
-- product-specific password-denylist additions;
+- product-specific password policy, when it differs from Core;
 - test identities, fixtures, and example payloads.
 
 Preserve or migrate these with compatibility planning:

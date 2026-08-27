@@ -43,7 +43,6 @@ export class WorkspaceSessionController {
   @AuthenticatedRoute()
   @ApiCookieAuth()
   @ApiOperation({
-    operationId: 'AuthenticationController_availableWorkspaces',
     summary: 'List workspaces available to the current user',
   })
   @ApiOkResponse({ description: 'Current workspace memberships.' })
@@ -52,7 +51,7 @@ export class WorkspaceSessionController {
   ): Promise<unknown> {
     return {
       data: await this.workspaceSessions.listWorkspaces(context.actorUserId),
-      meta: { activeWorkspaceId: context.workspaceId },
+      meta: { workspaceId: context.workspaceId },
     };
   }
 
@@ -62,7 +61,6 @@ export class WorkspaceSessionController {
   @UseGuards(WorkspaceSwitchRequestGuard)
   @ApiCookieAuth()
   @ApiOperation({
-    operationId: 'AuthenticationController_selectWorkspace',
     summary: 'Switch the active workspace for this session',
   })
   @ApiBody({

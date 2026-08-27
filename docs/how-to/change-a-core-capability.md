@@ -31,8 +31,9 @@ Work inward from the boundary:
 2. route admission, authentication context, permission, and resource policy;
 3. one focused application service method that owns orchestration and transaction scope;
 4. framework-independent domain rule where a real invariant exists;
-5. narrow application port for an external or persistence boundary;
-6. owning infrastructure adapter and Nest composition;
+5. private concrete repository, or a narrow port only for a genuine external
+   boundary;
+6. owning module composition;
 7. behavior-focused unit, architecture, and E2E coverage.
 
 Do not introduce internal HTTP, a generic manager, direct cross-module Prisma

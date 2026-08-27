@@ -5,6 +5,7 @@ import { DatabaseContext } from './database/database-context';
 import { PrismaService } from './database/prisma.service';
 import { PrismaTransactionManager } from './database/prisma-transaction-manager';
 import { RedisService } from './cache/redis.service';
+import { RedisFixedWindowRateLimiter } from './cache/redis-fixed-window-rate-limiter';
 
 /**
  * Wires configuration, PostgreSQL, Redis, transactions, and security policy for
@@ -18,6 +19,7 @@ import { RedisService } from './cache/redis.service';
     DatabaseContext,
     PrismaTransactionManager,
     RedisService,
+    RedisFixedWindowRateLimiter,
     { provide: TRANSACTION_MANAGER, useExisting: PrismaTransactionManager },
   ],
   exports: [
@@ -25,6 +27,7 @@ import { RedisService } from './cache/redis.service';
     PrismaService,
     DatabaseContext,
     RedisService,
+    RedisFixedWindowRateLimiter,
     TRANSACTION_MANAGER,
   ],
 })

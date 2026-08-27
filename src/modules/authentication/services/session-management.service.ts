@@ -10,14 +10,13 @@ import {
   AuthenticationUnavailableError,
 } from '../errors/authentication.errors';
 import { OpaqueTokenService } from '../../../common/security/opaque-token.service';
-import type { RevokedSession } from '../repositories/authentication-sessions.repository';
-import { SessionStoreService } from '../services/session-store.service';
+import { SessionsService } from '../../sessions/sessions.service';
 
 /** Owns idempotent current-session and authenticated all-session revocation. */
 @Injectable()
 export class SessionManagementService {
   constructor(
-    private readonly sessions: SessionStoreService,
+    private readonly sessions: SessionsService,
     private readonly audit: AuditService,
     @Inject(TRANSACTION_MANAGER)
     private readonly transactions: TransactionManager,
@@ -40,7 +39,7 @@ export class SessionManagementService {
           if (!revoked) return;
           await this.audit.append({
             id: this.identifiers.create(),
-            workspaceId: revoked.activeWorkspaceId,
+            workspaceId: revoked.workspaceId,
             actorUserId: revoked.userId,
             action: 'auth.session.revoked',
             resourceId: revoked.id,
@@ -52,16 +51,14 @@ export class SessionManagementService {
         throw new AuthenticationUnavailableError();
       }
     }
-    await this.sessions.removeCacheBestEffort(tokenHash);
   }
 
   /** Revokes every durable session owned by the authenticated user. */
   async revokeAll(rawToken: string | undefined): Promise<void> {
     const tokenHash = this.sessionTokens.hashIfValid(rawToken);
     if (!tokenHash) throw new AuthenticationRequiredError();
-    let revokedSessions: RevokedSession[];
     try {
-      revokedSessions = await this.transactions.execute(async () => {
+      await this.transactions.execute(async () => {
         const now = this.clock.now();
         const current = await this.sessions.findByTokenHash(tokenHash);
         if (
@@ -76,7 +73,7 @@ export class SessionManagementService {
           now,
         );
         const workspaceIds = new Set(
-          revoked.map((session) => session.activeWorkspaceId),
+          revoked.map((session) => session.workspaceId),
         );
         for (const workspaceId of workspaceIds) {
           await this.audit.append({
@@ -87,16 +84,10 @@ export class SessionManagementService {
             resourceId: current.userId,
           });
         }
-        return revoked;
       });
     } catch (error) {
       if (error instanceof AuthenticationRequiredError) throw error;
       throw new AuthenticationUnavailableError();
     }
-    await Promise.all(
-      revokedSessions.map((session) =>
-        this.sessions.removeCacheBestEffort(session.tokenHash),
-      ),
-    );
   }
 }

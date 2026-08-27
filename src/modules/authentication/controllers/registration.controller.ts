@@ -41,20 +41,13 @@ export class RegistrationController {
   @PublicRoute({ requireTrustedOrigin: true })
   @UseGuards(RegistrationRequestGuard)
   @ApiOperation({
-    operationId: 'AuthenticationController_register',
-    summary: 'Create an account and its initial organization and workspace',
+    summary: 'Create an account and its initial workspace',
   })
   @ApiBody({
     schema: {
       type: 'object',
       additionalProperties: false,
-      required: [
-        'email',
-        'password',
-        'displayName',
-        'organizationName',
-        'workspaceName',
-      ],
+      required: ['email', 'password', 'displayName', 'workspaceName'],
       properties: {
         email: { type: 'string', format: 'email', maxLength: 254 },
         password: {
@@ -64,7 +57,6 @@ export class RegistrationController {
           writeOnly: true,
         },
         displayName: { type: 'string', minLength: 1, maxLength: 100 },
-        organizationName: { type: 'string', minLength: 1, maxLength: 120 },
         workspaceName: { type: 'string', minLength: 1, maxLength: 120 },
       },
     },
@@ -93,16 +85,12 @@ export class RegistrationController {
           displayName: account.displayName,
           status: account.status,
         },
-        organization: {
-          id: account.organizationId,
-          name: account.organizationName,
-        },
         workspace: { id: account.workspaceId, name: account.workspaceName },
         membership: { role: 'OWNER' },
       },
       meta: {
         verificationRequired: true,
-        verificationEmailSent: account.verificationEmailSent,
+        verificationEmailQueued: account.verificationEmailQueued,
       },
     };
   }

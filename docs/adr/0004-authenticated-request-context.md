@@ -1,6 +1,6 @@
 # ADR-0004: Propagate a trusted authenticated request context
 
-- Status: Accepted
+- Status: Superseded by ADR-0016
 - Date: 2026-08-09
 - Owners: Nexora Platform Core
 - Supersedes: None

@@ -8,9 +8,13 @@ export type UserSummary = {
   status: UserStatus;
 };
 
-/** Identity link and status view used by authentication flows. */
-export type UserAuthenticationReference = {
+/** Account data used by authentication workflows without exposing a hash. */
+export type UserAccount = UserSummary & {
+  normalizedEmail: string;
+};
+
+/** Private credential projection used only inside the Users module. */
+export type UserCredential = {
   id: string;
-  identityId: string;
-  status: UserStatus;
+  passwordHash: string;
 };

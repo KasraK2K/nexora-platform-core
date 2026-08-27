@@ -1,96 +1,43 @@
-# Protected-request admission flow
+# Protected request admission
 
-Every Nest route is denied until its handler declares an admission policy. This
-flow explains how a browser request becomes a trusted actor/workspace context
-before business code runs.
-
-## Sequence
+Every controller handler must declare admission metadata. Missing or malformed
+metadata is denied by the one global `RouteAdmissionGuard`.
 
 ```mermaid
 sequenceDiagram
     actor Client
-    participant Middleware as HTTP middleware
     participant Admission as RouteAdmissionGuard
     participant Origin as TrustedOriginGuard
-    participant Auth as AuthenticatedRequestContextGuard
-    participant Session as GetCurrentSession
-    participant DB as PostgreSQL repositories
-    participant Redis as Session cache
-    participant Policy as AuthorizationPolicyService
+    participant Context as AuthenticatedRequestContextGuard
+    participant Sessions as SessionsService
+    participant Features as User/Workspace/Membership services
     participant Controller
-    participant UseCase
 
-    Client->>Middleware: Request, cookie, optional correlation headers
-    Middleware->>Middleware: Security headers, request context, telemetry
-    Middleware->>Admission: Global guard
-    Admission->>Admission: Read explicit route policy
-    alt Missing or invalid policy
-        Admission-->>Client: Stable access-denied response
+    Client->>Admission: request and opaque cookie
+    Admission->>Admission: validate explicit route policy
+    opt trusted origin required
+        Admission->>Origin: compare exact Origin
     end
-    opt Trusted origin required
-        Admission->>Origin: Validate exact Origin
-        Origin-->>Admission: Allowed or denied
+    opt authenticated route
+        Admission->>Context: resolve cookie
+        Context->>Sessions: load durable session by token hash
+        Context->>Features: load active user, workspace, membership
+        Features-->>Context: derived OWNER or MEMBER view
+        Context-->>Admission: immutable trusted context
+        Admission->>Admission: evaluate pure permission policy
     end
-    opt Context-authenticated route
-        Admission->>Auth: Resolve authenticated request
-        Auth->>Session: Hash and validate opaque cookie token
-        Session->>DB: Load session, user, workspace, membership, organization
-        Session->>Redis: Best-effort refresh only
-        Session-->>Auth: Immutable context and current session
-        Auth-->>Admission: Attach server-resolved context
-        Admission->>Policy: Check named permission against membership role
-    end
-    Admission->>Controller: Permit request
-    Controller->>UseCase: Validated input plus trusted context
-    UseCase-->>Controller: Result
-    Controller-->>Client: Versioned response
+    Admission->>Controller: allow
 ```
 
-## The three policy types
+The trusted context contains only session ID, actor user ID/status, and
+workspace ID. It is created from PostgreSQL records, never from client tenant or
+role headers. Redis does not participate in session authority.
 
-- **Public** routes do not require a tenant context. They can still require an
-  exact trusted origin for browser mutation protection.
-- **Authenticated** routes require the complete server-resolved context. Active
-  status is the default; a route must explicitly allow pending-verification
-  users. It may also require a named permission.
-- **Application-authenticated** routes reserve session validation for a
-  credential self-service use case that cannot require a complete tenant
-  context, such as authenticated password change. This category is intentionally
-  narrow.
+Admission is a coarse check. Sensitive services revalidate the exact durable
+session, active membership, workspace ownership, and resource scope inside the
+transaction. This protects against stale request snapshots and tenant A/B
+identifier substitution.
 
-## Why PostgreSQL is read on authenticated requests
-
-Redis never grants authority. `GetCurrentSession` verifies durable session
-state, expiry, revocation, user, active workspace, membership, and organization.
-Redis is refreshed only after authoritative resolution and may be unavailable
-without changing the result.
-
-## Trusted context
-
-The attached context contains session ID, actor user ID, user status,
-organization ID, and workspace ID. It is immutable and created from server-side
-records. Route identifiers and client headers cannot replace it.
-
-The admission permission check is necessary but not always sufficient. Use
-cases still enforce resource-specific rules such as role hierarchy,
-active-workspace scope, foreign-resource concealment, and last-owner safety.
-
-## Invariants to preserve
-
-- A new controller method without an admission decorator fails closed.
-- Origin validation happens before expensive session resolution when required.
-- Pending-verification access is explicit and cannot carry a permission.
-- Unknown user status, missing membership, expired/revoked session, or missing
-  tenant records deny access.
-- Foreign resource IDs cannot redirect a request into another workspace.
-- Private responses retain the configured no-store and security headers.
-
-## Code and tests
-
-- Policy decorators: `src/modules/authorization/decorators/route-admission.decorator.ts`
-- Global guard: `src/modules/authorization/guards/route-admission.guard.ts`
-- Context guard: `src/modules/authentication/guards/authenticated-request-context.guard.ts`
-- Session resolver: `src/modules/authentication/services/session-context.service.ts`
-- Permission policy: `src/modules/authorization/policy/authorization-policy.service.ts`
-- Unit tests: route-admission and authenticated-context specifications
-- E2E evidence: `test/e2e/` capability specifications and the tenant-isolation matrices
+Code: route decorators, `RouteAdmissionGuard`,
+`AuthenticatedRequestContextGuard`, `SessionContextService`, and the pure
+`authorization.policy.ts` functions.

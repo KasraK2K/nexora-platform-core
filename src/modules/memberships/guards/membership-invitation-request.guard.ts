@@ -6,7 +6,7 @@ import {
   Injectable,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { normalizeIdentityEmail } from '../../identity/identity.service';
+import { normalizeUserEmail } from '../../users/users.service';
 import { readAuthenticatedRequestContext } from '../../authentication/decorators/authenticated-request-context.decorator';
 import type { MembershipInvitationRateLimitDecision } from '../rate-limit/membership-invitation-rate-limiter';
 import { MembershipInvitationRateLimiter } from '../rate-limit/redis-membership-invitation-rate-limiter';
@@ -94,5 +94,5 @@ function readNormalizedEmail(body: unknown): string | undefined {
   ) {
     return undefined;
   }
-  return normalizeIdentityEmail(body.email);
+  return normalizeUserEmail(body.email);
 }
