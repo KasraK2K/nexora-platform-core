@@ -4,10 +4,10 @@ import { MembershipsService } from '../../memberships/memberships.service';
 import { UsersService } from '../../users/users.service';
 import { Clock } from '../../../common/clock';
 import { IdentifierFactory } from '../../../common/identifier-factory';
-import { readSafeErrorCode } from '../../../common/errors/safe-error-code';
+import { logSafeFailure } from '../../../common/logging/log-safe-failure';
+import { retryOnceOnWriteConflict } from '../../../common/transaction-retry';
 import { TRANSACTION_MANAGER } from '../../../common/transaction-manager';
 import type { TransactionManager } from '../../../common/transaction-manager';
-import { isTransactionWriteConflict } from '../../../common/transaction-write-conflict';
 import {
   AuthenticationRequiredError,
   AuthenticationUnavailableError,
@@ -52,7 +52,7 @@ export class WorkspaceSessionService {
     try {
       return await this.accessibleWorkspaces.listForUser(actorUserId);
     } catch (error) {
-      this.logFailure(
+      logSafeFailure(
         this.listLogger,
         'authentication.workspace_list_failed',
         error,
@@ -74,9 +74,9 @@ export class WorkspaceSessionService {
     const replacement = this.sessionTokens.create();
     const replacementSessionId = this.identifiers.create();
     let result: SwitchedWorkspaceSession | undefined;
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      try {
-        result = await this.transactions.execute(async () => {
+    try {
+      result = await retryOnceOnWriteConflict(() =>
+        this.transactions.execute(async () => {
           const now = this.clock.now();
           const session = this.requireCurrentContext(
             await this.sessions.findByTokenHash(tokenHash),
@@ -137,23 +137,21 @@ export class WorkspaceSessionService {
             sessionExpiresAt: session.expiresAt,
             rotated: true,
           });
-        });
-        break;
-      } catch (error) {
-        if (attempt === 0 && isTransactionWriteConflict(error)) continue;
-        if (
-          error instanceof AuthenticationRequiredError ||
-          error instanceof WorkspaceAccessDeniedError
-        ) {
-          throw error;
-        }
-        this.logFailure(
-          this.switchLogger,
-          'authentication.workspace_switch_failed',
-          error,
-        );
-        throw new WorkspaceSwitchUnavailableError();
+        }),
+      );
+    } catch (error) {
+      if (
+        error instanceof AuthenticationRequiredError ||
+        error instanceof WorkspaceAccessDeniedError
+      ) {
+        throw error;
       }
+      logSafeFailure(
+        this.switchLogger,
+        'authentication.workspace_switch_failed',
+        error,
+      );
+      throw new WorkspaceSwitchUnavailableError();
     }
     if (!result) throw new WorkspaceSwitchUnavailableError();
     return result;
@@ -176,16 +174,5 @@ export class WorkspaceSessionService {
       throw new AuthenticationRequiredError();
     }
     return session;
-  }
-
-  /** Writes only a safe failure classification to structured logs. */
-  private logFailure(logger: Logger, event: string, error: unknown): void {
-    logger.error(
-      JSON.stringify({
-        event,
-        errorType: error instanceof Error ? error.name : 'UnknownError',
-        errorCode: readSafeErrorCode(error),
-      }),
-    );
   }
 }

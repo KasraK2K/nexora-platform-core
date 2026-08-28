@@ -15,7 +15,7 @@ import type { AuthenticatedRequestContext } from '../../src/modules/authenticati
 import {
   AuthenticatedRoute,
   PublicRoute,
-} from '../../src/modules/authorization/decorators/route-admission.decorator';
+} from '../../src/modules/authorization/route-admission.decorator';
 import { MailService } from '../../src/modules/mail/mail.service';
 import {
   OUTBOUND_MAIL,

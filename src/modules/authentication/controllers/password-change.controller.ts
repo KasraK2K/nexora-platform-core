@@ -19,7 +19,7 @@ import type { Request, Response } from 'express';
 import { setPrivateResponseHeaders } from '../../../common/http/private-response-headers';
 import { ZodValidationPipe } from '../../../common/http/zod-validation.pipe';
 import { AppConfig } from '../../../config/app-config';
-import { ApplicationAuthenticatedRoute } from '../../authorization/decorators/route-admission.decorator';
+import { ApplicationAuthenticatedRoute } from '../../authorization/route-admission.decorator';
 import {
   passwordChangeSchema,
   type PasswordChangeDto,

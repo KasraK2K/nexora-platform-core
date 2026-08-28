@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { timingSafeEqual } from 'node:crypto';
 import type { Request, Response } from 'express';
-import { PublicRoute } from '../authorization/decorators/route-admission.decorator';
+import { PublicRoute } from '../authorization/route-admission.decorator';
 import { AppConfig } from '../../config/app-config';
 import { ObservabilityService } from './observability.service';
 

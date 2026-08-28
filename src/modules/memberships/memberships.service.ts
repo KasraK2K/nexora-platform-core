@@ -1,7 +1,8 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Clock } from '../../common/clock';
-import { readSafeErrorCode } from '../../common/errors/safe-error-code';
 import { IdentifierFactory } from '../../common/identifier-factory';
+import { logSafeFailure } from '../../common/logging/log-safe-failure';
+import { retryOnceOnWriteConflict } from '../../common/transaction-retry';
 import { TRANSACTION_MANAGER } from '../../common/transaction-manager';
 import type { TransactionManager } from '../../common/transaction-manager';
 import { isTransactionWriteConflict } from '../../common/transaction-write-conflict';
@@ -129,7 +130,7 @@ export class MembershipsService {
       ) {
         throw error;
       }
-      this.log('membership.list_failed', error);
+      logSafeFailure(this.logger, 'membership.list_failed', error);
       throw new MembershipsUnavailableError();
     }
   }
@@ -232,38 +233,23 @@ export class MembershipsService {
     event: string,
     operation: () => Promise<void>,
   ): Promise<void> {
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      try {
-        await this.transactions.execute(operation);
-        return;
-      } catch (error) {
-        if (
-          attempt === 0 &&
-          (error instanceof MembershipWriteConflictError ||
-            isTransactionWriteConflict(error))
-        ) {
-          continue;
-        }
-        if (
-          error instanceof AuthorizationDeniedError ||
-          error instanceof MembershipOwnershipProtectedError
-        ) {
-          throw error;
-        }
-        this.log(event, error);
-        throw new MembershipsUnavailableError();
+    try {
+      await retryOnceOnWriteConflict(
+        () => this.transactions.execute(operation),
+        (error) =>
+          error instanceof MembershipWriteConflictError ||
+          isTransactionWriteConflict(error),
+      );
+    } catch (error) {
+      if (
+        error instanceof AuthorizationDeniedError ||
+        error instanceof MembershipOwnershipProtectedError
+      ) {
+        throw error;
       }
+      logSafeFailure(this.logger, event, error);
+      throw new MembershipsUnavailableError();
     }
-  }
-
-  private log(event: string, error: unknown): void {
-    this.logger.error(
-      JSON.stringify({
-        event,
-        errorType: error instanceof Error ? error.name : 'UnknownError',
-        errorCode: readSafeErrorCode(error),
-      }),
-    );
   }
 }
 

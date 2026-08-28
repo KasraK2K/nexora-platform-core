@@ -1,6 +1,6 @@
 import { Controller, Get, HttpStatus, Res } from '@nestjs/common';
 import type { Response } from 'express';
-import { PublicRoute } from '../authorization/decorators/route-admission.decorator';
+import { PublicRoute } from '../authorization/route-admission.decorator';
 import { HealthService } from './health.service';
 
 /** Exposes minimal public probes for process and dependency health. */

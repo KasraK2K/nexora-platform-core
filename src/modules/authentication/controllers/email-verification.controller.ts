@@ -15,7 +15,7 @@ import {
 } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { ZodValidationPipe } from '../../../common/http/zod-validation.pipe';
-import { PublicRoute } from '../../authorization/decorators/route-admission.decorator';
+import { PublicRoute } from '../../authorization/route-admission.decorator';
 import {
   emailVerificationConfirmationSchema,
   emailVerificationRequestSchema,

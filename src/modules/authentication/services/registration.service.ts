@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { AppConfig } from '../../../config/app-config';
 import { Clock } from '../../../common/clock';
 import { IdentifierFactory } from '../../../common/identifier-factory';
+import { logSafeFailure } from '../../../common/logging/log-safe-failure';
 import { OpaqueTokenService } from '../../../common/security/opaque-token.service';
 import { TRANSACTION_MANAGER } from '../../../common/transaction-manager';
 import type { TransactionManager } from '../../../common/transaction-manager';
@@ -145,13 +146,7 @@ export class RegistrationService {
       if (error instanceof UserAlreadyExistsError) {
         throw new EmailAlreadyRegisteredError();
       }
-      this.logger.error(
-        JSON.stringify({
-          event: 'registration.transaction_failed',
-          errorType: error instanceof Error ? error.name : 'UnknownError',
-          errorCode: readSafeErrorCode(error),
-        }),
-      );
+      logSafeFailure(this.logger, 'registration.transaction_failed', error);
       throw new RegistrationUnavailableError();
     }
     return {
@@ -165,11 +160,4 @@ export class RegistrationService {
       verificationEmailQueued: true,
     };
   }
-}
-
-function readSafeErrorCode(error: unknown): string | undefined {
-  if (typeof error !== 'object' || error === null || !('code' in error)) {
-    return undefined;
-  }
-  return typeof error.code === 'string' ? error.code : undefined;
 }

@@ -28,9 +28,9 @@ this repository.
 - This repository is Nexora Platform Core. It contains no customer-facing
   product module, provider SDK, prompt, retrieval pipeline, evaluation set, or
   product UI.
-- Treat the target monorepo, authorization catalog, billing, jobs, files,
-  frontend, provider gateways, and observability stack as planned until they
-  exist and are configured.
+- Treat the target monorepo, expanded role/permission catalog, billing, jobs,
+  files, frontend, provider gateways, and external observability stack as
+  planned until they exist and are configured.
 - Use current verified scripts and test tooling. Do not invent commands or
   claim planned gates passed.
 - Verify changed third-party APIs against installed versions, declarations,
@@ -44,9 +44,9 @@ this repository.
 
 A capability belongs here when it is a stable cross-product concern, an
 unavoidable platform boundary, or has at least two proven product consumers.
-Examples include identity, authentication, users, organizations, workspaces,
-memberships, tenant context, base authorization, audit, configuration, and
-stable transaction/error primitives.
+Examples include users, authentication, workspaces, memberships, sessions,
+tenant context, base authorization, audit, configuration, and stable
+transaction/error primitives.
 
 Generic commercial or operational capabilities such as billing, credits,
 usage, jobs, files, notifications, API keys, and webhooks require an explicit
@@ -125,10 +125,11 @@ When creating a downstream product from Platform Core:
    downstream;
 8. document how compatible Core updates are incorporated and rolled back.
 
-The current registration flow is a default onboarding policy that creates an
-identity, user, organization, workspace, OWNER membership, session, and audit
-record atomically. Preserve it for compatibility unless a downstream product
-explicitly replaces that policy through a separately designed change.
+The current registration flow is a default onboarding policy that atomically
+creates a user, owner workspace, membership, verification token, session,
+audit records, and an encrypted mail-outbox message. Preserve it for
+compatibility unless a downstream product explicitly replaces that policy
+through a separately designed change.
 
 ## Verify in proportion to risk
 
@@ -146,9 +147,9 @@ explicitly replaces that policy through a separately designed change.
 
 ## Architecture debt guards
 
-- Do not expand the current direct import of an Identity domain error from
-  Authentication; replace it with a public application contract in a dedicated
-  future boundary-hardening slice.
+- Do not let one feature import another feature's repository or persistence
+  implementation; consume the exported service or an intentional public
+  contract.
 - Do not give downstream products direct access to `PrismaService` or
   `DatabaseContext`; add an architecture dependency test before product modules
   are introduced.

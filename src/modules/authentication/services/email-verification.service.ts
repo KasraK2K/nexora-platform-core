@@ -4,6 +4,7 @@ import { UsersService } from '../../users/users.service';
 import { AppConfig } from '../../../config/app-config';
 import { Clock } from '../../../common/clock';
 import { IdentifierFactory } from '../../../common/identifier-factory';
+import { logSafeFailure } from '../../../common/logging/log-safe-failure';
 import { TRANSACTION_MANAGER } from '../../../common/transaction-manager';
 import type { TransactionManager } from '../../../common/transaction-manager';
 import {
@@ -80,10 +81,11 @@ export class EmailVerificationService {
         });
       });
     } catch (error) {
-      this.logFailure(
+      logSafeFailure(
         this.requestLogger,
         'email_verification.request_failed',
         error,
+        { includeErrorCode: false },
       );
       throw new EmailVerificationUnavailableError();
     }
@@ -116,21 +118,13 @@ export class EmailVerificationService {
       });
     } catch (error) {
       if (error instanceof EmailVerificationInvalidError) throw error;
-      this.logFailure(
+      logSafeFailure(
         this.confirmationLogger,
         'email_verification.confirmation_failed',
         error,
+        { includeErrorCode: false },
       );
       throw new EmailVerificationUnavailableError();
     }
-  }
-
-  private logFailure(logger: Logger, event: string, error: unknown): void {
-    logger.error(
-      JSON.stringify({
-        event,
-        errorType: error instanceof Error ? error.name : 'UnknownError',
-      }),
-    );
   }
 }

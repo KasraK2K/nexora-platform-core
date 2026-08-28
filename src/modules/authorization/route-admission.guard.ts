@@ -6,20 +6,20 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Request, Response } from 'express';
-import { readAuthenticatedRequestContext } from '../../authentication/decorators/authenticated-request-context.decorator';
-import { AuthenticatedRequestContextGuard } from '../../authentication/guards/authenticated-request-context.guard';
-import { setPrivateResponseHeaders } from '../../../common/http/private-response-headers';
-import { TrustedOriginGuard } from '../../authentication/guards/trusted-origin.guard';
-import {
-  EmailVerificationRequiredError,
-  RouteAccessDeniedError,
-} from '../errors/route-admission.errors';
-import { isPermission, permits } from '../authorization.policy';
-import { AuthorizationDeniedError } from '../authorization.errors';
+import { setPrivateResponseHeaders } from '../../common/http/private-response-headers';
+import { readAuthenticatedRequestContext } from '../authentication/decorators/authenticated-request-context.decorator';
+import { AuthenticatedRequestContextGuard } from '../authentication/guards/authenticated-request-context.guard';
+import { TrustedOriginGuard } from '../authentication/guards/trusted-origin.guard';
+import { AuthorizationDeniedError } from './authorization.errors';
+import { isPermission, permits } from './authorization.policy';
 import {
   RouteAdmission,
   type RouteAdmissionPolicy,
-} from '../decorators/route-admission.decorator';
+} from './route-admission.decorator';
+import {
+  EmailVerificationRequiredError,
+  RouteAccessDeniedError,
+} from './route-admission.errors';
 
 /**
  * Global deny-by-default guard for every Nest handler.

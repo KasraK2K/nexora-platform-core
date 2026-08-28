@@ -1,4 +1,4 @@
-import { ApplicationError } from '../../../common/errors/application-error';
+import { ApplicationError } from '../../common/errors/application-error';
 
 /** Stable fail-closed response for missing, malformed, or failed admission. */
 export class RouteAccessDeniedError extends ApplicationError {

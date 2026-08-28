@@ -5,7 +5,7 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import { AuthenticatedRoute } from '../../authorization/decorators/route-admission.decorator';
+import { AuthenticatedRoute } from '../../authorization/route-admission.decorator';
 import { CurrentAuthenticatedSession } from '../decorators/authenticated-request-context.decorator';
 import type { CurrentSession } from '../services/session-context.service';
 

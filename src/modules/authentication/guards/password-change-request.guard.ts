@@ -1,11 +1,8 @@
+import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import {
-  CanActivate,
-  ExecutionContext,
-  HttpException,
-  HttpStatus,
-  Injectable,
-} from '@nestjs/common';
-import type { Request, Response } from 'express';
+  enforceRequestRateLimit,
+  readClientIp,
+} from '../../../common/http/request-rate-limit';
 import { AppConfig } from '../../../config/app-config';
 import { AuthenticationRateLimiter } from '../rate-limit/redis-authentication-rate-limiter';
 import { PasswordChangeUnavailableError } from '../errors/authentication.errors';
@@ -21,30 +18,18 @@ export class PasswordChangeRequestGuard implements CanActivate {
 
   /** Returns true when allowed; limiter failures map to a safe availability error. */
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const http = context.switchToHttp();
-    const request = http.getRequest<Request>();
-    const response = http.getResponse<Response>();
-
-    let decision;
-    try {
-      decision = await this.rateLimiter.checkPasswordChange(
-        request.ip || request.socket.remoteAddress || 'unknown',
-        readCookie(request.header('cookie'), this.config.sessionCookieName),
-      );
-    } catch {
-      throw new PasswordChangeUnavailableError();
-    }
-    if (!decision.allowed) {
-      response.setHeader('retry-after', decision.retryAfterSeconds.toString());
-      throw new HttpException(
-        {
-          code: 'PASSWORD_CHANGE_RATE_LIMITED',
-          message: 'Too many password change attempts.',
-          retryable: true,
-        },
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
-    return true;
+    return enforceRequestRateLimit({
+      context,
+      check: (request) =>
+        this.rateLimiter.checkPasswordChange(
+          readClientIp(request),
+          readCookie(request.header('cookie'), this.config.sessionCookieName),
+        ),
+      unavailableError: () => new PasswordChangeUnavailableError(),
+      denial: {
+        code: 'PASSWORD_CHANGE_RATE_LIMITED',
+        message: 'Too many password change attempts.',
+      },
+    });
   }
 }

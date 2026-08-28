@@ -18,7 +18,7 @@ import {
 import type { Request, Response } from 'express';
 import { ZodValidationPipe } from '../../../common/http/zod-validation.pipe';
 import { AppConfig } from '../../../config/app-config';
-import { AuthenticatedRoute } from '../../authorization/decorators/route-admission.decorator';
+import { AuthenticatedRoute } from '../../authorization/route-admission.decorator';
 import type { AuthenticatedRequestContext } from '../security/authenticated-request-context';
 import { CurrentAuthenticatedContext } from '../decorators/authenticated-request-context.decorator';
 import {

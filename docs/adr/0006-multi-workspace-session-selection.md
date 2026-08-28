@@ -5,6 +5,13 @@
 - Owners: Nexora Platform Core
 - Supersedes: None
 - Related issues/changes: Multi-workspace selection and switching
+- Amended by: ADR-0016, which renamed `activeWorkspaceId` to `workspaceId`,
+  removed Organization, and removed the Redis session cache without changing
+  server-authoritative workspace selection or token rotation
+
+> Current-model note: the historical design discussion below retains the names
+> that existed when this decision was accepted. Follow ADR-0016 and the
+> Platform Core baseline for current source and schema names.
 
 ## Context
 

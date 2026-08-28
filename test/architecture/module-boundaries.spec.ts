@@ -29,7 +29,7 @@ const CROSS_FEATURE_PUBLIC_CONTRACTS = new Set([
   'src/modules/authentication/decorators/authenticated-request-context.decorator',
   'src/modules/authentication/guards/authenticated-request-context.guard',
   'src/modules/authentication/guards/trusted-origin.guard',
-  'src/modules/authorization/decorators/route-admission.decorator',
+  'src/modules/authorization/route-admission.decorator',
   'src/modules/authorization/authorization.policy',
   'src/modules/authorization/authorization.errors',
 ]);

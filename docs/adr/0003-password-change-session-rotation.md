@@ -5,6 +5,12 @@
 - Owners: Nexora Platform Core
 - Supersedes: None
 - Related issues/changes: Authenticated password-change vertical slice
+- Amended by: ADR-0016, which moved password state into `User` and made
+  `SessionsModule` the session-table owner without changing rotation behavior
+
+> Current-model note: references below to Identity, PasswordCredential, or the
+> old ownership split describe the historical design reviewed by this ADR.
+> Follow ADR-0016 and the Platform Core baseline for current source navigation.
 
 ## Context
 

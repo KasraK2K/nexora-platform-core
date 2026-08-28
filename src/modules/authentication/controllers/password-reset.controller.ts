@@ -19,7 +19,7 @@ import { clearSessionCookie } from '../../../common/http/clear-session-cookie';
 import { setPrivateResponseHeaders } from '../../../common/http/private-response-headers';
 import { ZodValidationPipe } from '../../../common/http/zod-validation.pipe';
 import { AppConfig } from '../../../config/app-config';
-import { PublicRoute } from '../../authorization/decorators/route-admission.decorator';
+import { PublicRoute } from '../../authorization/route-admission.decorator';
 import {
   passwordResetConfirmationSchema,
   passwordResetRequestSchema,

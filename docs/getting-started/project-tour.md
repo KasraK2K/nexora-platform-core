@@ -79,6 +79,10 @@ Authentication and Mail are larger because they contain several workflows, but
 each still has one obvious root module. `src/modules` has no parent module file,
 so Nest CLI generation targets `AppModule` correctly.
 
+For authentication, use the local
+[`src/modules/authentication/README.md`](../../src/modules/authentication/README.md)
+route-to-service map instead of reading every workflow at once.
+
 ## Contribution rules
 
 - Controllers validate, map, and call one service method.

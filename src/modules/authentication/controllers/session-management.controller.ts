@@ -19,7 +19,7 @@ import { AppConfig } from '../../../config/app-config';
 import {
   ApplicationAuthenticatedRoute,
   PublicRoute,
-} from '../../authorization/decorators/route-admission.decorator';
+} from '../../authorization/route-admission.decorator';
 import { readCookie } from '../http/session-cookie';
 import { SessionManagementService } from '../services/session-management.service';
 

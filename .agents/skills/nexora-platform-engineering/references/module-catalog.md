@@ -17,55 +17,58 @@ the repository before assuming a module or table exists.
 
 ## Foundation modules
 
-### Identity
-
-- Owns stable principals and authentication methods: `identities`,
-  `password_credentials`, and future identity links.
-- Controls normalized uniqueness, Argon2id, reauthentication, and
-  last-login-method protection.
-
-### Authentication
-
-- Owns registration, verification/reset, login/logout, and opaque sessions:
-  `sessions`, `email_verifications`, and `password_reset_tokens`.
-- Depends on public Identity, Users, Memberships, the Mail `MailOutbox`
-  application contract, and Redis cache.
-- Controls secure cookies, rotation, revocation, origin checks, throttling,
-  timing-safe failures, and hashed tokens.
-
-The implemented registration flow is a compatible default onboarding policy:
-it atomically creates identity, user, organization, workspace, OWNER
-membership, session, and audit. A downstream product may replace that policy
-only through a separately reviewed contract change.
+The implemented business model has five concepts: User, Workspace,
+Membership, Invitation, and Session. Email verification, password reset,
+audit, and durable mail are supporting security and operations records rather
+than extra account concepts.
 
 ### Users
 
-- Owns `users`, profile, status, and lifecycle.
-- Controls self/admin scope, PII minimization, and deactivation effects.
-
-### Organizations
-
-- Owns `organizations` and the commercial ownership boundary.
-- Controls ownership transfer, archive constraints, and commercial-operation
-  authorization.
+- Owns `users`, including normalized email, Argon2id password state, profile,
+  verification status, and optimistic password replacement.
+- Exposes a focused `UsersService`; its concrete repository remains private.
 
 ### Workspaces
 
-- Owns `workspaces` and the operational tenant boundary.
-- Controls trusted tenant context, switching, limits, and archive policy.
+- Owns `workspaces`, the operational tenant boundary, and permanent
+  `ownerUserId`.
+- Controls creation and owner-authorized rename. Public OWNER/MEMBER labels are
+  derived rather than persisted.
 
-### Memberships
+### Memberships and invitations
 
 - Owns `memberships` and `membership_invitations`.
-- Controls hashed invitation tokens, expiry, duplicate prevention,
-  cross-tenant denial, and last-owner protection.
+- Controls active access, soft removal/reactivation, hashed invitation tokens,
+  expiry, duplicate prevention, owner protection, and cross-workspace denial.
+- Every invitation grants MEMBER access to exactly one workspace.
 
-### Authorization and roles
+### Sessions
 
-- Governs role, permission, and role-permission catalogs.
-- Depends on immutable tenant context and Memberships.
-- Controls deny-by-default policy, resource ownership, base roles, and tenant
-  isolation tests.
+- Owns PostgreSQL-authoritative opaque `sessions` scoped to one user and one
+  active `workspaceId`.
+- Exposes a narrow `SessionsService` for creation, lookup, rotation support,
+  and revocation. Only token hashes persist; there is no Redis session cache.
+
+### Authentication
+
+- Owns HTTP workflows for registration, verification, password reset/change,
+  login/logout, current-session context, and workspace selection/switching.
+- Owns `email_verifications` and `password_reset_tokens`; it consumes public
+  Users, Workspaces, Memberships, Sessions, Audit, and Mail services.
+- Controls secure cookies, token rotation, origin checks, distributed Redis
+  throttling, timing-safe failures, and hashed single-use tokens.
+
+The default registration policy atomically creates User, Workspace, owner
+Membership, verification token, Session, Audit records, and encrypted
+MailOutboxMessage. A downstream product may replace it only through a
+separately reviewed contract change.
+
+### Authorization
+
+- Owns the dependency-free permission policy and the one global
+  deny-by-default route-admission guard.
+- Resolves actor and workspace from trusted session context and derives OWNER
+  or MEMBER from workspace ownership; there is no stored role catalog.
 
 ### Audit
 
@@ -75,11 +78,11 @@ only through a separately reviewed contract change.
 
 ### Mail
 
-- Owns `mail_outbox_messages` and the provider-neutral `MailOutbox` application
-  contract for durable Core email handoff.
+- Owns `mail_outbox_messages` and the provider-neutral `MailService`
+  application contract for durable Core email handoff.
 - Controls encrypted recipient/subject/body persistence, idempotent enqueue,
   compare-and-set leases and recovery, bounded retry, terminal payload erasure,
-  and the SMTP adapter boundary.
+  and the Resend adapter boundary.
 - Authentication and Memberships consume this contract; Mail does not query
   their tables or own verification, reset, or invitation validity. This narrow
   email foundation is not a generic jobs or notifications framework.

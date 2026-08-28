@@ -16,7 +16,7 @@ import {
 import type { Response } from 'express';
 import { ZodValidationPipe } from '../../../common/http/zod-validation.pipe';
 import { AppConfig } from '../../../config/app-config';
-import { PublicRoute } from '../../authorization/decorators/route-admission.decorator';
+import { PublicRoute } from '../../authorization/route-admission.decorator';
 import {
   registrationRequestSchema,
   type RegistrationDto,

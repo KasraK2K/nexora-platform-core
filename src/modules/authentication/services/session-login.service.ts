@@ -5,7 +5,7 @@ import { UsersService } from '../../users/users.service';
 import { AppConfig } from '../../../config/app-config';
 import { Clock } from '../../../common/clock';
 import { IdentifierFactory } from '../../../common/identifier-factory';
-import { readSafeErrorCode } from '../../../common/errors/safe-error-code';
+import { logSafeFailure } from '../../../common/logging/log-safe-failure';
 import { TRANSACTION_MANAGER } from '../../../common/transaction-manager';
 import type { TransactionManager } from '../../../common/transaction-manager';
 import {
@@ -72,7 +72,11 @@ export class SessionLoginService {
         });
       });
     } catch (error) {
-      this.logFailure('authentication.session_create_failed', error);
+      logSafeFailure(
+        this.logger,
+        'authentication.session_create_failed',
+        error,
+      );
       throw new AuthenticationUnavailableError();
     }
     return { ...context, sessionToken: session.raw, sessionExpiresAt };
@@ -91,7 +95,11 @@ export class SessionLoginService {
       ) {
         throw error;
       }
-      this.logFailure('authentication.credential_check_failed', error);
+      logSafeFailure(
+        this.logger,
+        'authentication.credential_check_failed',
+        error,
+      );
       throw new AuthenticationUnavailableError();
     }
   }
@@ -126,17 +134,6 @@ export class SessionLoginService {
       workspace: resolved.workspace,
       membership: resolved.membership,
     };
-  }
-
-  /** Writes only a safe failure classification to structured logs. */
-  private logFailure(event: string, error: unknown): void {
-    this.logger.error(
-      JSON.stringify({
-        event,
-        errorType: error instanceof Error ? error.name : 'UnknownError',
-        errorCode: readSafeErrorCode(error),
-      }),
-    );
   }
 }
 

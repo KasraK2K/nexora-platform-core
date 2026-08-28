@@ -58,6 +58,38 @@ describe('conventional NestJS structure', () => {
     expect(genericDirectories).toEqual([]);
   });
 
+  it('keeps the small authorization feature flat', () => {
+    const authorizationRoot = path.join(modulesRoot, 'authorization');
+    expect(
+      ['decorators', 'errors', 'guards'].filter((directory) =>
+        existsSync(path.join(authorizationRoot, directory)),
+      ),
+    ).toEqual([]);
+  });
+
+  it('keeps contributor guidance on the implemented five-concept model', () => {
+    const catalog = readSource(
+      '.agents/skills/nexora-platform-engineering/references/module-catalog.md',
+    );
+    for (const stale of [
+      '### Identity',
+      '### Organizations',
+      'identity, user, organization',
+      'Redis cache',
+      'SMTP adapter',
+    ]) {
+      expect(catalog).not.toContain(stale);
+    }
+    for (const current of [
+      'five concepts',
+      '### Sessions',
+      'ownerUserId',
+      'MailOutboxMessage',
+    ]) {
+      expect(catalog).toContain(current);
+    }
+  });
+
   it('keeps controllers away from persistence and provider internals', () => {
     const violations = productionFiles
       .filter((file) => file.endsWith('.controller.ts'))

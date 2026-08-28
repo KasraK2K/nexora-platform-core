@@ -4,10 +4,10 @@ import { UsersService } from '../../users/users.service';
 import { AppConfig } from '../../../config/app-config';
 import { Clock } from '../../../common/clock';
 import { IdentifierFactory } from '../../../common/identifier-factory';
-import { readSafeErrorCode } from '../../../common/errors/safe-error-code';
+import { logSafeFailure } from '../../../common/logging/log-safe-failure';
+import { retryOnceOnWriteConflict } from '../../../common/transaction-retry';
 import { TRANSACTION_MANAGER } from '../../../common/transaction-manager';
 import type { TransactionManager } from '../../../common/transaction-manager';
-import { isTransactionWriteConflict } from '../../../common/transaction-write-conflict';
 import { PasswordPolicy } from '../security/password-policy';
 import {
   PasswordResetInvalidError,
@@ -84,7 +84,7 @@ export class PasswordResetService {
         });
       });
     } catch (error) {
-      this.logFailure(
+      logSafeFailure(
         this.requestLogger,
         'password_reset.request_failed',
         error,
@@ -120,9 +120,9 @@ export class PasswordResetService {
       throw new PasswordResetUnavailableError();
     }
 
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      try {
-        await this.transactions.execute(async () => {
+    try {
+      await retryOnceOnWriteConflict(() =>
+        this.transactions.execute(async () => {
           const transactionTime = this.clock.now();
           const reset = await this.resetTokens.findUsableByTokenHash(
             tokenHash,
@@ -164,29 +164,16 @@ export class PasswordResetService {
               resourceId: reset.userId,
             });
           }
-        });
-        break;
-      } catch (error) {
-        if (attempt === 0 && isTransactionWriteConflict(error)) continue;
-        if (error instanceof PasswordResetInvalidError) throw error;
-        this.logFailure(
-          this.resetLogger,
-          'password_reset.confirmation_failed',
-          error,
-        );
-        throw new PasswordResetUnavailableError();
-      }
+        }),
+      );
+    } catch (error) {
+      if (error instanceof PasswordResetInvalidError) throw error;
+      logSafeFailure(
+        this.resetLogger,
+        'password_reset.confirmation_failed',
+        error,
+      );
+      throw new PasswordResetUnavailableError();
     }
-  }
-
-  /** Writes only a safe failure classification to structured logs. */
-  private logFailure(logger: Logger, event: string, error: unknown): void {
-    logger.error(
-      JSON.stringify({
-        event,
-        errorType: error instanceof Error ? error.name : 'UnknownError',
-        errorCode: readSafeErrorCode(error),
-      }),
-    );
   }
 }

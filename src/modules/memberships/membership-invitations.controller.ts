@@ -23,7 +23,7 @@ import {
   CurrentAuthenticatedContext,
   type AuthenticatedRequestContext,
 } from '../authentication/decorators/authenticated-request-context.decorator';
-import { AuthenticatedRoute } from '../authorization/decorators/route-admission.decorator';
+import { AuthenticatedRoute } from '../authorization/route-admission.decorator';
 import { ZodValidationPipe } from '../../common/http/zod-validation.pipe';
 import { MembershipInvitationsService } from './membership-invitations.service';
 import {

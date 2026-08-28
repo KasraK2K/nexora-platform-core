@@ -1,8 +1,11 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { AppConfig } from '../../config/app-config';
 import { Clock } from '../../common/clock';
+import { readSafeErrorCode } from '../../common/errors/safe-error-code';
 import { IdentifierFactory } from '../../common/identifier-factory';
+import { logSafeFailure } from '../../common/logging/log-safe-failure';
 import { OpaqueTokenService } from '../../common/security/opaque-token.service';
+import { retryOnceOnWriteConflict } from '../../common/transaction-retry';
 import { TRANSACTION_MANAGER } from '../../common/transaction-manager';
 import type { TransactionManager } from '../../common/transaction-manager';
 import { isTransactionWriteConflict } from '../../common/transaction-write-conflict';
@@ -127,7 +130,7 @@ export class MembershipInvitationsService {
       if (isTransactionWriteConflict(error) || isUniqueConflict(error)) {
         throw new MembershipInvitationConflictError();
       }
-      this.log('membership.invitation_create_failed', error);
+      logSafeFailure(this.logger, 'membership.invitation_create_failed', error);
       throw new MembershipInvitationUnavailableError();
     }
     return Object.freeze({
@@ -144,9 +147,9 @@ export class MembershipInvitationsService {
   async accept(input: { actorUserId: string; token: string }): Promise<void> {
     const tokenHash = this.tokens.hashIfValid(input.token);
     if (!tokenHash) throw new MembershipInvitationInvalidError();
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      try {
-        await this.transactions.execute(async () => {
+    try {
+      await retryOnceOnWriteConflict(() =>
+        this.transactions.execute(async () => {
           const now = this.clock.now();
           const [invitation, user] = await Promise.all([
             this.invitations.findUsableByTokenHash(tokenHash, now),
@@ -195,19 +198,17 @@ export class MembershipInvitationsService {
             action: 'membership.invitation.accepted',
             resourceId: invitation.id,
           });
-        });
-        return;
-      } catch (error) {
-        if (attempt === 0 && isTransactionWriteConflict(error)) continue;
-        if (
-          error instanceof MembershipInvitationInvalidError ||
-          isUniqueConflict(error)
-        ) {
-          throw new MembershipInvitationInvalidError();
-        }
-        this.log('membership.invitation_accept_failed', error);
-        throw new MembershipInvitationUnavailableError();
+        }),
+      );
+    } catch (error) {
+      if (
+        error instanceof MembershipInvitationInvalidError ||
+        isUniqueConflict(error)
+      ) {
+        throw new MembershipInvitationInvalidError();
       }
+      logSafeFailure(this.logger, 'membership.invitation_accept_failed', error);
+      throw new MembershipInvitationUnavailableError();
     }
   }
 
@@ -250,29 +251,12 @@ export class MembershipInvitationsService {
       });
     } catch (error) {
       if (error instanceof AuthorizationDeniedError) throw error;
-      this.log('membership.invitation_revoke_failed', error);
+      logSafeFailure(this.logger, 'membership.invitation_revoke_failed', error);
       throw new MembershipInvitationUnavailableError();
     }
-  }
-
-  private log(event: string, error: unknown): void {
-    this.logger.error(
-      JSON.stringify({
-        event,
-        errorType: error instanceof Error ? error.name : 'UnknownError',
-        errorCode: readSafeErrorCode(error),
-      }),
-    );
   }
 }
 
 function isUniqueConflict(error: unknown): boolean {
   return readSafeErrorCode(error) === 'P2002';
-}
-
-function readSafeErrorCode(error: unknown): string | undefined {
-  if (typeof error !== 'object' || error === null || !('code' in error)) {
-    return undefined;
-  }
-  return typeof error.code === 'string' ? error.code : undefined;
 }

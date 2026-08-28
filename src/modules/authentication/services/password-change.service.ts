@@ -4,10 +4,10 @@ import { MembershipsService } from '../../memberships/memberships.service';
 import { UsersService } from '../../users/users.service';
 import { Clock } from '../../../common/clock';
 import { IdentifierFactory } from '../../../common/identifier-factory';
-import { readSafeErrorCode } from '../../../common/errors/safe-error-code';
+import { logSafeFailure } from '../../../common/logging/log-safe-failure';
+import { retryOnceOnWriteConflict } from '../../../common/transaction-retry';
 import { TRANSACTION_MANAGER } from '../../../common/transaction-manager';
 import type { TransactionManager } from '../../../common/transaction-manager';
-import { isTransactionWriteConflict } from '../../../common/transaction-write-conflict';
 import { PasswordPolicy } from '../security/password-policy';
 import {
   AuthenticationRequiredError,
@@ -78,9 +78,9 @@ export class PasswordChangeService {
     const replacementSessionId = this.identifiers.create();
 
     let sessionExpiresAt: Date | undefined;
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      try {
-        sessionExpiresAt = await this.transactions.execute(async () => {
+    try {
+      sessionExpiresAt = await retryOnceOnWriteConflict(() =>
+        this.transactions.execute(async () => {
           const now = this.clock.now();
           const current = await this.sessions.findByTokenHash(tokenHash);
           const currentSession = await this.requireCurrentContext(
@@ -123,19 +123,17 @@ export class PasswordChangeService {
             });
           }
           return sessionExpiresAt;
-        });
-        break;
-      } catch (error) {
-        if (attempt === 0 && isTransactionWriteConflict(error)) continue;
-        if (
-          error instanceof AuthenticationRequiredError ||
-          error instanceof PasswordChangeInvalidCurrentPasswordError
-        ) {
-          throw error;
-        }
-        this.logFailure('password_change.transaction_failed', error);
-        throw new PasswordChangeUnavailableError();
+        }),
+      );
+    } catch (error) {
+      if (
+        error instanceof AuthenticationRequiredError ||
+        error instanceof PasswordChangeInvalidCurrentPasswordError
+      ) {
+        throw error;
       }
+      logSafeFailure(this.logger, 'password_change.transaction_failed', error);
+      throw new PasswordChangeUnavailableError();
     }
     if (!sessionExpiresAt) throw new PasswordChangeUnavailableError();
     return {
@@ -155,7 +153,11 @@ export class PasswordChangeService {
       failure = error;
     }
     if (failure instanceof AuthenticationRequiredError) throw failure;
-    this.logFailure('password_change.context_resolution_failed', failure);
+    logSafeFailure(
+      this.logger,
+      'password_change.context_resolution_failed',
+      failure,
+    );
     throw new PasswordChangeUnavailableError();
   }
 
@@ -201,7 +203,11 @@ export class PasswordChangeService {
       if (error instanceof PasswordChangeInvalidCurrentPasswordError) {
         throw error;
       }
-      this.logFailure('password_change.credential_check_failed', error);
+      logSafeFailure(
+        this.logger,
+        'password_change.credential_check_failed',
+        error,
+      );
       throw new PasswordChangeUnavailableError();
     }
   }
@@ -211,7 +217,7 @@ export class PasswordChangeService {
     try {
       return await this.users.hashPassword(password);
     } catch (error) {
-      this.logFailure('password_change.hash_failed', error);
+      logSafeFailure(this.logger, 'password_change.hash_failed', error);
       throw new PasswordChangeUnavailableError();
     }
   }
@@ -243,16 +249,5 @@ export class PasswordChangeService {
       throw new AuthenticationRequiredError();
     }
     return current;
-  }
-
-  /** Writes only a safe failure classification to structured logs. */
-  private logFailure(event: string, error: unknown): void {
-    this.logger.error(
-      JSON.stringify({
-        event,
-        errorType: error instanceof Error ? error.name : 'UnknownError',
-        errorCode: readSafeErrorCode(error),
-      }),
-    );
   }
 }

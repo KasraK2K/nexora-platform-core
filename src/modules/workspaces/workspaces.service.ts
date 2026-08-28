@@ -1,6 +1,8 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Clock } from '../../common/clock';
 import { IdentifierFactory } from '../../common/identifier-factory';
+import { logSafeFailure } from '../../common/logging/log-safe-failure';
+import { retryOnceOnWriteConflict } from '../../common/transaction-retry';
 import { TRANSACTION_MANAGER } from '../../common/transaction-manager';
 import type { TransactionManager } from '../../common/transaction-manager';
 import { isTransactionWriteConflict } from '../../common/transaction-write-conflict';
@@ -91,7 +93,7 @@ export class WorkspacesService {
       return Object.freeze(workspace);
     } catch (error) {
       if (error instanceof WorkspaceLifecycleInvalidError) throw error;
-      this.log('workspace.create_failed', error);
+      logSafeFailure(this.logger, 'workspace.create_failed', error);
       throw new WorkspaceLifecycleUnavailableError();
     }
   }
@@ -104,74 +106,64 @@ export class WorkspacesService {
     name: string;
   }): Promise<WorkspaceSummary> {
     const name = input.name.trim();
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      try {
-        return await this.transactions.execute(async () => {
-          const [sessionIsActive, membership, workspace] = await Promise.all([
-            this.sessions.hasActiveContext({
-              sessionId: input.sessionId,
-              userId: input.actorUserId,
+    try {
+      return await retryOnceOnWriteConflict(
+        () =>
+          this.transactions.execute(async () => {
+            const [sessionIsActive, membership, workspace] = await Promise.all([
+              this.sessions.hasActiveContext({
+                sessionId: input.sessionId,
+                userId: input.actorUserId,
+                workspaceId: input.workspaceId,
+                now: this.clock.now(),
+              }),
+              this.memberships.find({
+                workspaceId: input.workspaceId,
+                userId: input.actorUserId,
+              }),
+              this.repository.findById(input.workspaceId),
+            ]);
+            if (!sessionIsActive || !workspace) {
+              throw new WorkspaceLifecycleInvalidError();
+            }
+            if (
+              membership?.role !== 'OWNER' ||
+              workspace.ownerUserId !== input.actorUserId
+            ) {
+              throw new AuthorizationDeniedError();
+            }
+            if (workspace.name === name) return workspace;
+            if (
+              !(await this.repository.rename({
+                id: workspace.id,
+                ownerUserId: input.actorUserId,
+                expectedName: workspace.name,
+                name,
+              }))
+            ) {
+              throw new WorkspaceWriteConflictError();
+            }
+            await this.audit.append({
+              id: this.identifiers.create(),
               workspaceId: input.workspaceId,
-              now: this.clock.now(),
-            }),
-            this.memberships.find({
-              workspaceId: input.workspaceId,
-              userId: input.actorUserId,
-            }),
-            this.repository.findById(input.workspaceId),
-          ]);
-          if (!sessionIsActive || !workspace) {
-            throw new WorkspaceLifecycleInvalidError();
-          }
-          if (
-            membership?.role !== 'OWNER' ||
-            workspace.ownerUserId !== input.actorUserId
-          ) {
-            throw new AuthorizationDeniedError();
-          }
-          if (workspace.name === name) return workspace;
-          if (
-            !(await this.repository.rename({
-              id: workspace.id,
-              ownerUserId: input.actorUserId,
-              expectedName: workspace.name,
-              name,
-            }))
-          ) {
-            throw new WorkspaceWriteConflictError();
-          }
-          await this.audit.append({
-            id: this.identifiers.create(),
-            workspaceId: input.workspaceId,
-            actorUserId: input.actorUserId,
-            action: 'workspace.renamed',
-            resourceId: input.workspaceId,
-          });
-          return Object.freeze({ ...workspace, name });
-        });
-      } catch (error) {
-        if (attempt === 0 && isWriteConflict(error)) continue;
-        if (
-          error instanceof AuthorizationDeniedError ||
-          error instanceof WorkspaceLifecycleInvalidError
-        ) {
-          throw error;
-        }
-        this.log('workspace.rename_failed', error);
-        throw new WorkspaceLifecycleUnavailableError();
+              actorUserId: input.actorUserId,
+              action: 'workspace.renamed',
+              resourceId: input.workspaceId,
+            });
+            return Object.freeze({ ...workspace, name });
+          }),
+        isWriteConflict,
+      );
+    } catch (error) {
+      if (
+        error instanceof AuthorizationDeniedError ||
+        error instanceof WorkspaceLifecycleInvalidError
+      ) {
+        throw error;
       }
+      logSafeFailure(this.logger, 'workspace.rename_failed', error);
+      throw new WorkspaceLifecycleUnavailableError();
     }
-    throw new WorkspaceLifecycleUnavailableError();
-  }
-
-  private log(event: string, error: unknown): void {
-    this.logger.error(
-      JSON.stringify({
-        event,
-        errorType: error instanceof Error ? error.name : 'UnknownError',
-        errorCode: readSafeErrorCode(error),
-      }),
-    );
   }
 }
 
@@ -182,11 +174,4 @@ function isWriteConflict(error: unknown): boolean {
     error instanceof WorkspaceWriteConflictError ||
     isTransactionWriteConflict(error)
   );
-}
-
-function readSafeErrorCode(error: unknown): string | undefined {
-  if (typeof error !== 'object' || error === null || !('code' in error)) {
-    return undefined;
-  }
-  return typeof error.code === 'string' ? error.code : undefined;
 }

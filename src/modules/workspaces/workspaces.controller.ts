@@ -13,7 +13,7 @@ import {
   CurrentAuthenticatedContext,
   type AuthenticatedRequestContext,
 } from '../authentication/decorators/authenticated-request-context.decorator';
-import { AuthenticatedRoute } from '../authorization/decorators/route-admission.decorator';
+import { AuthenticatedRoute } from '../authorization/route-admission.decorator';
 import {
   createWorkspaceSchema,
   type CreateWorkspaceDto,

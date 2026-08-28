@@ -2,9 +2,9 @@ import { Inject, Injectable } from '@nestjs/common';
 import { AuditService } from '../../audit/audit.service';
 import { Clock } from '../../../common/clock';
 import { IdentifierFactory } from '../../../common/identifier-factory';
+import { retryOnceOnWriteConflict } from '../../../common/transaction-retry';
 import { TRANSACTION_MANAGER } from '../../../common/transaction-manager';
 import type { TransactionManager } from '../../../common/transaction-manager';
-import { isTransactionWriteConflict } from '../../../common/transaction-write-conflict';
 import {
   AuthenticationRequiredError,
   AuthenticationUnavailableError,
@@ -29,9 +29,9 @@ export class SessionManagementService {
   async revokeCurrent(rawToken: string | undefined): Promise<void> {
     const tokenHash = this.sessionTokens.hashIfValid(rawToken);
     if (!tokenHash) return;
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      try {
-        await this.transactions.execute(async () => {
+    try {
+      await retryOnceOnWriteConflict(() =>
+        this.transactions.execute(async () => {
           const revoked = await this.sessions.revokeByTokenHash(
             tokenHash,
             this.clock.now(),
@@ -44,12 +44,10 @@ export class SessionManagementService {
             action: 'auth.session.revoked',
             resourceId: revoked.id,
           });
-        });
-        break;
-      } catch (error) {
-        if (attempt === 0 && isTransactionWriteConflict(error)) continue;
-        throw new AuthenticationUnavailableError();
-      }
+        }),
+      );
+    } catch {
+      throw new AuthenticationUnavailableError();
     }
   }
 

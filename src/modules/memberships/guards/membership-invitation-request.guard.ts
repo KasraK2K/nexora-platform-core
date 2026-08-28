@@ -1,14 +1,10 @@
+import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import {
-  CanActivate,
-  ExecutionContext,
-  HttpException,
-  HttpStatus,
-  Injectable,
-} from '@nestjs/common';
-import type { Request, Response } from 'express';
+  enforceRequestRateLimit,
+  readClientIp,
+} from '../../../common/http/request-rate-limit';
 import { normalizeUserEmail } from '../../users/users.service';
 import { readAuthenticatedRequestContext } from '../../authentication/decorators/authenticated-request-context.decorator';
-import type { MembershipInvitationRateLimitDecision } from '../rate-limit/membership-invitation-rate-limiter';
 import { MembershipInvitationRateLimiter } from '../rate-limit/redis-membership-invitation-rate-limiter';
 import { MembershipInvitationUnavailableError } from '../errors/membership-invitation.errors';
 
@@ -19,24 +15,24 @@ export class MembershipInvitationCreateRequestGuard implements CanActivate {
 
   /** Checks client, actor, workspace, and normalized target buckets before writes. */
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const http = context.switchToHttp();
-    const request = http.getRequest<Request>();
-    const authenticated = readAuthenticatedRequestContext(request);
-    if (!authenticated) throw new MembershipInvitationUnavailableError();
-
-    let decision: MembershipInvitationRateLimitDecision;
-    try {
-      decision = await this.rateLimiter.checkCreate({
-        clientIp: request.ip || request.socket.remoteAddress || 'unknown',
-        actorUserId: authenticated.context.actorUserId,
-        workspaceId: authenticated.context.workspaceId,
-        normalizedEmail: readNormalizedEmail(request.body),
-      });
-    } catch {
-      throw new MembershipInvitationUnavailableError();
-    }
-    enforceDecision(http.getResponse<Response>(), decision, 'create');
-    return true;
+    return enforceRequestRateLimit({
+      context,
+      check: (request) => {
+        const authenticated = readAuthenticatedRequestContext(request);
+        if (!authenticated) throw new MembershipInvitationUnavailableError();
+        return this.rateLimiter.checkCreate({
+          clientIp: readClientIp(request),
+          actorUserId: authenticated.context.actorUserId,
+          workspaceId: authenticated.context.workspaceId,
+          normalizedEmail: readNormalizedEmail(request.body),
+        });
+      },
+      unavailableError: () => new MembershipInvitationUnavailableError(),
+      denial: {
+        code: 'MEMBERSHIP_INVITATION_RATE_LIMITED',
+        message: 'Too many membership invitation create attempts.',
+      },
+    });
   }
 }
 
@@ -47,41 +43,23 @@ export class MembershipInvitationAcceptRequestGuard implements CanActivate {
 
   /** Checks client and authenticated-session buckets before token processing. */
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const http = context.switchToHttp();
-    const request = http.getRequest<Request>();
-    const authenticated = readAuthenticatedRequestContext(request);
-    if (!authenticated) throw new MembershipInvitationUnavailableError();
-
-    let decision: MembershipInvitationRateLimitDecision;
-    try {
-      decision = await this.rateLimiter.checkAccept({
-        clientIp: request.ip || request.socket.remoteAddress || 'unknown',
-        sessionId: authenticated.context.sessionId,
-      });
-    } catch {
-      throw new MembershipInvitationUnavailableError();
-    }
-    enforceDecision(http.getResponse<Response>(), decision, 'accept');
-    return true;
+    return enforceRequestRateLimit({
+      context,
+      check: (request) => {
+        const authenticated = readAuthenticatedRequestContext(request);
+        if (!authenticated) throw new MembershipInvitationUnavailableError();
+        return this.rateLimiter.checkAccept({
+          clientIp: readClientIp(request),
+          sessionId: authenticated.context.sessionId,
+        });
+      },
+      unavailableError: () => new MembershipInvitationUnavailableError(),
+      denial: {
+        code: 'MEMBERSHIP_INVITATION_RATE_LIMITED',
+        message: 'Too many membership invitation accept attempts.',
+      },
+    });
   }
-}
-
-/** Maps a denied limiter decision to a stable 429 response and Retry-After. */
-function enforceDecision(
-  response: Response,
-  decision: MembershipInvitationRateLimitDecision,
-  operation: 'create' | 'accept',
-): void {
-  if (decision.allowed) return;
-  response.setHeader('retry-after', decision.retryAfterSeconds.toString());
-  throw new HttpException(
-    {
-      code: 'MEMBERSHIP_INVITATION_RATE_LIMITED',
-      message: `Too many membership invitation ${operation} attempts.`,
-      retryable: true,
-    },
-    HttpStatus.TOO_MANY_REQUESTS,
-  );
 }
 
 /** Safely extracts and normalizes an optional email from the untrusted body. */

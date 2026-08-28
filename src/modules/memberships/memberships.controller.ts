@@ -27,7 +27,7 @@ import {
   CurrentAuthenticatedContext,
   type AuthenticatedRequestContext,
 } from '../authentication/decorators/authenticated-request-context.decorator';
-import { AuthenticatedRoute } from '../authorization/decorators/route-admission.decorator';
+import { AuthenticatedRoute } from '../authorization/route-admission.decorator';
 import { clearSessionCookie } from '../../common/http/clear-session-cookie';
 import { ZodValidationPipe } from '../../common/http/zod-validation.pipe';
 import { MembershipsService } from './memberships.service';

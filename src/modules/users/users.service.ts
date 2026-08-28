@@ -2,6 +2,8 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { argon2id, hash, verify } from 'argon2';
 import { Clock } from '../../common/clock';
 import { IdentifierFactory } from '../../common/identifier-factory';
+import { logSafeFailure } from '../../common/logging/log-safe-failure';
+import { retryOnceOnWriteConflict } from '../../common/transaction-retry';
 import { TRANSACTION_MANAGER } from '../../common/transaction-manager';
 import type { TransactionManager } from '../../common/transaction-manager';
 import { isTransactionWriteConflict } from '../../common/transaction-write-conflict';
@@ -137,55 +139,49 @@ export class UsersService {
     displayName: string;
   }): Promise<UserSummary> {
     const displayName = input.displayName.trim();
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      try {
-        return await this.transactions.execute(async () => {
-          const now = this.clock.now();
-          const [sessionIsActive, user] = await Promise.all([
-            this.sessions.hasActiveContext({
-              sessionId: input.sessionId,
-              userId: input.actorUserId,
+    try {
+      return await retryOnceOnWriteConflict(
+        () =>
+          this.transactions.execute(async () => {
+            const now = this.clock.now();
+            const [sessionIsActive, user] = await Promise.all([
+              this.sessions.hasActiveContext({
+                sessionId: input.sessionId,
+                userId: input.actorUserId,
+                workspaceId: input.workspaceId,
+                now,
+              }),
+              this.repository.findById(input.actorUserId),
+            ]);
+            if (!sessionIsActive || !user || user.status !== 'ACTIVE') {
+              throw new UserLifecycleInvalidError();
+            }
+            if (user.displayName === displayName) return user;
+            if (
+              !(await this.repository.updateDisplayName({
+                id: user.id,
+                expectedDisplayName: user.displayName,
+                displayName,
+              }))
+            ) {
+              throw new UserWriteConflictError();
+            }
+            await this.audit.append({
+              id: this.identifiers.create(),
               workspaceId: input.workspaceId,
-              now,
-            }),
-            this.repository.findById(input.actorUserId),
-          ]);
-          if (!sessionIsActive || !user || user.status !== 'ACTIVE') {
-            throw new UserLifecycleInvalidError();
-          }
-          if (user.displayName === displayName) return user;
-          if (
-            !(await this.repository.updateDisplayName({
-              id: user.id,
-              expectedDisplayName: user.displayName,
-              displayName,
-            }))
-          ) {
-            throw new UserWriteConflictError();
-          }
-          await this.audit.append({
-            id: this.identifiers.create(),
-            workspaceId: input.workspaceId,
-            actorUserId: input.actorUserId,
-            action: 'user.profile.updated',
-            resourceId: input.actorUserId,
-          });
-          return Object.freeze({ ...user, displayName });
-        });
-      } catch (error) {
-        if (attempt === 0 && isWriteConflict(error)) continue;
-        if (error instanceof UserLifecycleInvalidError) throw error;
-        this.logger.error(
-          JSON.stringify({
-            event: 'user.profile_update_failed',
-            errorType: error instanceof Error ? error.name : 'UnknownError',
-            errorCode: readSafeErrorCode(error),
+              actorUserId: input.actorUserId,
+              action: 'user.profile.updated',
+              resourceId: input.actorUserId,
+            });
+            return Object.freeze({ ...user, displayName });
           }),
-        );
-        throw new UserLifecycleUnavailableError();
-      }
+        isWriteConflict,
+      );
+    } catch (error) {
+      if (error instanceof UserLifecycleInvalidError) throw error;
+      logSafeFailure(this.logger, 'user.profile_update_failed', error);
+      throw new UserLifecycleUnavailableError();
     }
-    throw new UserLifecycleUnavailableError();
   }
 }
 
@@ -195,11 +191,4 @@ function isWriteConflict(error: unknown): boolean {
   return (
     error instanceof UserWriteConflictError || isTransactionWriteConflict(error)
   );
-}
-
-function readSafeErrorCode(error: unknown): string | undefined {
-  if (typeof error !== 'object' || error === null || !('code' in error)) {
-    return undefined;
-  }
-  return typeof error.code === 'string' ? error.code : undefined;
 }
