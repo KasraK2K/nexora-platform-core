@@ -1,12 +1,16 @@
 import { Injectable } from '@nestjs/common';
+import { SessionsRepository } from './sessions.repository';
 import {
   type RevokedSession,
   type SessionContext,
   type SessionRecord,
-  SessionsRepository,
-} from './sessions.repository';
+} from './sessions.types';
 
-export type { RevokedSession, SessionContext, SessionRecord };
+export type {
+  RevokedSession,
+  SessionContext,
+  SessionRecord,
+} from './sessions.types';
 
 /** Public session capability shared by authentication and tenant workflows. */
 @Injectable()

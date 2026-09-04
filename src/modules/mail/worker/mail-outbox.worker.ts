@@ -6,7 +6,7 @@ import {
   type OnApplicationShutdown,
 } from '@nestjs/common';
 import { AppConfig } from '../../../config/app-config';
-import { MailService } from '../mail.service';
+import { MailDeliveryService } from '../mail-delivery.service';
 
 /**
  * Polls the durable mail outbox without overlapping drain runs and makes a
@@ -24,7 +24,7 @@ export class MailOutboxWorker
   private running?: Promise<void>;
 
   constructor(
-    private readonly outbox: MailService,
+    private readonly delivery: MailDeliveryService,
     private readonly config: AppConfig,
   ) {}
 
@@ -66,7 +66,7 @@ export class MailOutboxWorker
   /** Starts one drain only when no previous drain is still running. */
   private runOnce(): void {
     if (this.running) return;
-    this.running = this.outbox
+    this.running = this.delivery
       .drainDue()
       .catch((error: unknown) => {
         this.logger.error(

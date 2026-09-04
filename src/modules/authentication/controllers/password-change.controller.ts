@@ -17,6 +17,10 @@ import {
 } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { setPrivateResponseHeaders } from '../../../common/http/private-response-headers';
+import {
+  readCookie,
+  setSessionCookie,
+} from '../../../common/http/session-cookie';
 import { ZodValidationPipe } from '../../../common/http/zod-validation.pipe';
 import { AppConfig } from '../../../config/app-config';
 import { ApplicationAuthenticatedRoute } from '../../authorization/route-admission.decorator';
@@ -25,7 +29,6 @@ import {
   type PasswordChangeDto,
 } from '../dto/password-change.dto';
 import { PasswordChangeRequestGuard } from '../guards/password-change-request.guard';
-import { readCookie, setSessionCookie } from '../http/session-cookie';
 import { PasswordChangeService } from '../services/password-change.service';
 
 /** HTTP adapter for authenticated password replacement. */

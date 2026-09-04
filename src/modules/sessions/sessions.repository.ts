@@ -1,24 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseContext } from '../../infrastructure/database/database-context';
-
-/** PostgreSQL session state addressed by a hash of the opaque cookie secret. */
-export type SessionRecord = Readonly<{
-  id: string;
-  tokenHash: string;
-  userId: string;
-  workspaceId: string;
-  expiresAt: Date;
-  revokedAt: Date | null;
-}>;
-
-/** Session fields returned after atomic revocation. */
-export type RevokedSession = Pick<
+import type {
+  RevokedSession,
+  SessionContext,
   SessionRecord,
-  'id' | 'tokenHash' | 'userId' | 'workspaceId'
->;
-
-/** Minimal workspace attribution recovered from a membership-backed session. */
-export type SessionContext = Pick<SessionRecord, 'userId' | 'workspaceId'>;
+} from './sessions.types';
 
 /** Private concrete repository for the Session table. */
 @Injectable()

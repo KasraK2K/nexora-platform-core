@@ -68,6 +68,15 @@ architecture-layer folders are not used inside features.
   second proven implementation.
 - Core never imports downstream product code.
 
+Cross-feature workflows use imported modules and their exported focused
+services. ADR-0017 permits only a narrow presentation/security exception:
+Authentication's authenticated-context decorator and context/origin guards,
+plus Authorization's route metadata, pure policy, and stable errors. Those
+feature-owned contracts cannot expose or directly depend on repositories,
+infrastructure, providers, workers, caches, rate-limit implementations, or
+downstream products. Public result types live in feature-level `*.types.ts`
+files and remain available through their owning service's type re-exports.
+
 ## Security baseline
 
 - Argon2id password hashes with NFC and bounded input.

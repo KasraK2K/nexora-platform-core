@@ -12,7 +12,7 @@
   "scripts": {
     "build": "dotenv -e .env.example -- prisma generate && nest build",
     "check:deprecated": "node scripts/check-deprecated-apis.mjs",
-    "check:operations": "node scripts/check-operations-docs.mjs",
+    "check:operations": "ts-node --project tsconfig.json scripts/check-operations-docs.ts",
     "check:production": "ts-node --project tsconfig.json scripts/check-production-readiness.ts",
     "check:nest-cli": "node scripts/check-nest-cli-conventions.mjs",
     "format": "prettier --write \"{src,test,prisma,scripts}/**/*.{ts,mjs,json}\" \".github/**/*.yml\" \"package.json\" \"tsconfig*.json\" \"nest-cli.json\" \"prisma.config.ts\" \"eslint.config.mjs\" \"compose*.yaml\" \"pnpm-workspace.yaml\"",
@@ -65,7 +65,6 @@
   },
   "devDependencies": {
     "@compodoc/compodoc": "2.0.0",
-    "@eslint/eslintrc": "^3.2.0",
     "@eslint/js": "^9.18.0",
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
@@ -82,10 +81,8 @@
     "jest": "^30.0.0",
     "prettier": "^3.4.2",
     "prisma": "7.9.0",
-    "source-map-support": "^0.5.21",
     "supertest": "^7.0.0",
     "ts-jest": "^29.2.5",
-    "ts-loader": "^9.5.2",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.7.3",

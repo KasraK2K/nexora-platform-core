@@ -4,6 +4,7 @@ import {
   featureFor,
   findGraphCycles,
   readDependencies,
+  readNestModuleExportTargets,
   readSource,
   sourceRoot,
 } from './architecture-helpers';
@@ -33,12 +34,38 @@ const CROSS_FEATURE_PUBLIC_CONTRACTS = new Set([
   'src/modules/authorization/authorization.policy',
   'src/modules/authorization/authorization.errors',
 ]);
+const ALLOWED_CONTRACT_PACKAGES = new Set([
+  '@nestjs/common',
+  '@nestjs/core',
+  'express',
+]);
+const PUBLIC_TYPE_CONTRACTS = [
+  {
+    repository: 'src/modules/sessions/sessions.repository.ts',
+    service: 'src/modules/sessions/sessions.service.ts',
+    types: './sessions.types',
+    names: ['SessionRecord', 'SessionContext', 'RevokedSession'],
+  },
+  {
+    repository: 'src/modules/memberships/memberships.repository.ts',
+    service: 'src/modules/memberships/memberships.service.ts',
+    types: './memberships.types',
+    names: ['MembershipSummary'],
+    privateNames: ['MembershipRecord'],
+  },
+] as const;
 
 describe('feature ownership and module boundaries', () => {
   const productionFiles = collectTypeScriptFiles(sourceRoot).filter(
     (file) => !file.endsWith('.spec.ts') && !file.includes('/generated/'),
   );
   const dependencies = productionFiles.flatMap(readDependencies);
+  const exportedServiceTargets = new Set(
+    productionFiles
+      .filter((file) => file.endsWith('.module.ts'))
+      .flatMap(readNestModuleExportTargets)
+      .filter((target) => target.endsWith('.service')),
+  );
 
   it('keeps every Prisma delegate in an owning feature repository', () => {
     const violations: string[] = [];
@@ -104,13 +131,109 @@ describe('feature ownership and module boundaries', () => {
       if (
         target &&
         !target.endsWith('.module') &&
-        !target.endsWith('.service') &&
+        !exportedServiceTargets.has(target) &&
         !CROSS_FEATURE_PUBLIC_CONTRACTS.has(target)
       ) {
         return [`${source} -> non-public cross-feature file ${target}`];
       }
       return [];
     });
+    expect(violations).toEqual([]);
+  });
+
+  it('allows exactly the documented exceptional cross-feature contracts', () => {
+    const actualContracts = new Set(
+      dependencies.flatMap(({ source, target }) => {
+        const sourceFeature = featureFor(source);
+        const targetFeature = target ? featureFor(target) : undefined;
+        if (
+          !target ||
+          !sourceFeature ||
+          !targetFeature ||
+          sourceFeature === targetFeature ||
+          target.endsWith('.module') ||
+          exportedServiceTargets.has(target)
+        ) {
+          return [];
+        }
+        return [target];
+      }),
+    );
+
+    expect([...actualContracts].sort()).toEqual(
+      [...CROSS_FEATURE_PUBLIC_CONTRACTS].sort(),
+    );
+  });
+
+  it('keeps exceptional cross-feature contracts dependency-safe', () => {
+    const contractFiles = [...CROSS_FEATURE_PUBLIC_CONTRACTS].map(
+      (contract) => `${contract}.ts`,
+    );
+    const inspectedSources = new Set<string>();
+    const contractDependencies = contractFiles.flatMap((file) => {
+      inspectedSources.add(file);
+      return readDependencies(file);
+    });
+    const violations = contractDependencies.flatMap(
+      ({ source, specifier, target }) => {
+        if (
+          (!target && !ALLOWED_CONTRACT_PACKAGES.has(specifier)) ||
+          specifier.startsWith('@prisma/') ||
+          target?.startsWith('src/infrastructure/') ||
+          target?.startsWith('src/products/') ||
+          target?.includes('/repositories/') ||
+          target?.endsWith('.repository') ||
+          target?.includes('/cache/') ||
+          target?.includes('/rate-limit/') ||
+          target?.includes('/providers/') ||
+          target?.includes('/worker/')
+        ) {
+          return [
+            `${source} -> unsafe contract dependency ${target ?? specifier}`,
+          ];
+        }
+        return [];
+      },
+    );
+
+    expect([...inspectedSources].sort()).toEqual([...contractFiles].sort());
+    expect(violations).toEqual([]);
+  });
+
+  it('keeps public result types outside private repositories', () => {
+    const violations = PUBLIC_TYPE_CONTRACTS.flatMap((contract) => {
+      const repositorySource = readSource(contract.repository);
+      const serviceSource = readSource(contract.service);
+      const exportedTypes = new Set(
+        [
+          ...serviceSource.matchAll(
+            /export\s+type\s*\{([\s\S]*?)\}\s+from\s+['"]([^'"]+)['"]/g,
+          ),
+        ]
+          .filter((match) => match[2] === contract.types)
+          .flatMap((match) => match[1]?.split(',') ?? [])
+          .map((name) => name.trim()),
+      );
+      const names = [
+        ...contract.names,
+        ...('privateNames' in contract ? contract.privateNames : []),
+      ];
+      return [
+        ...contract.names.flatMap((name) =>
+          exportedTypes.has(name)
+            ? []
+            : [`${contract.service}: does not re-export ${name}`],
+        ),
+        ...names.flatMap((name) =>
+          new RegExp(`\\bexport\\s+(?:interface|type)\\s+${name}\\b`).test(
+            repositorySource,
+          )
+            ? [`${contract.repository}: exports ${name}`]
+            : [],
+        ),
+      ];
+    });
+
     expect(violations).toEqual([]);
   });
 

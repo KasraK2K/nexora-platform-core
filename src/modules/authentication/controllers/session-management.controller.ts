@@ -13,14 +13,16 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
-import { clearSessionCookie } from '../../../common/http/clear-session-cookie';
 import { setPrivateResponseHeaders } from '../../../common/http/private-response-headers';
+import {
+  clearSessionCookie,
+  readCookie,
+} from '../../../common/http/session-cookie';
 import { AppConfig } from '../../../config/app-config';
 import {
   ApplicationAuthenticatedRoute,
   PublicRoute,
 } from '../../authorization/route-admission.decorator';
-import { readCookie } from '../http/session-cookie';
 import { SessionManagementService } from '../services/session-management.service';
 
 /** HTTP adapter for current and all-session revocation. */
@@ -74,11 +76,6 @@ export class SessionManagementController {
 
   /** Expires the configured session cookie without changing server state. */
   private clearCookie(response: Response): void {
-    clearSessionCookie(
-      response,
-      this.config.sessionCookieName,
-      this.config.cookieSecure,
-      this.config.cookieSameSite,
-    );
+    clearSessionCookie(response, this.config);
   }
 }

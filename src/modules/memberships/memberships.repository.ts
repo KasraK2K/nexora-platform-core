@@ -1,17 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseContext } from '../../infrastructure/database/database-context';
 import type { WorkspaceRole } from '../authorization/authorization.policy';
-
-/** Minimal active membership data shared with other Core services. */
-export type MembershipSummary = {
-  id: string;
-  userId: string;
-  workspaceId: string;
-  role: WorkspaceRole;
-};
+import type { MembershipSummary } from './memberships.types';
 
 /** Active membership state used for authorization and guarded writes. */
-export type MembershipRecord = Readonly<{
+type MembershipRecord = Readonly<{
   id: string;
   workspaceId: string;
   userId: string;

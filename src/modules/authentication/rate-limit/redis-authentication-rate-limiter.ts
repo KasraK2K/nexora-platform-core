@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import type { RateLimitDecision } from '../../../common/http/request-rate-limit';
 import { RedisFixedWindowRateLimiter } from '../../../infrastructure/cache/redis-fixed-window-rate-limiter';
-import type { RateLimitDecision } from './authentication-rate-limiter';
 
 /** Redis fixed-window limiter with HMAC-pseudonymous IP, email, and session keys. */
 @Injectable()
@@ -82,16 +82,16 @@ export class AuthenticationRateLimiter {
     clientIp: string,
     sessionToken?: string,
   ): Promise<RateLimitDecision> {
-    const ipDecision = await this.increment(
-      `auth:password-change:ip:${this.digest(clientIp)}`,
+    const ipDecision = await this.windows.increment(
+      `auth:password-change:ip:${this.windows.digest(clientIp)}`,
       10,
     );
     if (!ipDecision.allowed || !sessionToken) {
       return ipDecision;
     }
 
-    return this.increment(
-      `auth:password-change:session:${this.digest(sessionToken)}`,
+    return this.windows.increment(
+      `auth:password-change:session:${this.windows.digest(sessionToken)}`,
       5,
     );
   }
@@ -101,16 +101,16 @@ export class AuthenticationRateLimiter {
     clientIp: string,
     sessionToken?: string,
   ): Promise<RateLimitDecision> {
-    const ipDecision = await this.increment(
-      `auth:workspace-switch:ip:${this.digest(clientIp)}`,
+    const ipDecision = await this.windows.increment(
+      `auth:workspace-switch:ip:${this.windows.digest(clientIp)}`,
       30,
     );
     if (!ipDecision.allowed || !sessionToken) {
       return ipDecision;
     }
 
-    return this.increment(
-      `auth:workspace-switch:session:${this.digest(sessionToken)}`,
+    return this.windows.increment(
+      `auth:workspace-switch:session:${this.windows.digest(sessionToken)}`,
       10,
     );
   }
@@ -123,30 +123,17 @@ export class AuthenticationRateLimiter {
     ipLimit: number,
     emailLimit: number,
   ): Promise<RateLimitDecision> {
-    const ipDecision = await this.increment(
-      `auth:${scope}:ip:${this.digest(clientIp)}`,
+    const ipDecision = await this.windows.increment(
+      `auth:${scope}:ip:${this.windows.digest(clientIp)}`,
       ipLimit,
     );
     if (!ipDecision.allowed || !normalizedEmail) {
       return ipDecision;
     }
 
-    return this.increment(
-      `auth:${scope}:email:${this.digest(normalizedEmail)}`,
+    return this.windows.increment(
+      `auth:${scope}:email:${this.windows.digest(normalizedEmail)}`,
       emailLimit,
     );
-  }
-
-  /** Executes the increment-and-expiry Lua script atomically and fails closed on bad output. */
-  private async increment(
-    key: string,
-    limit: number,
-  ): Promise<RateLimitDecision> {
-    return this.windows.increment(key, limit);
-  }
-
-  /** Pseudonymizes sensitive limiter dimensions with a deployment secret. */
-  private digest(value: string): string {
-    return this.windows.digest(value);
   }
 }

@@ -1,7 +1,8 @@
 import { ExecutionContext, HttpException, HttpStatus } from '@nestjs/common';
 import type { Request, Response } from 'express';
 
-type RateLimitDecision = Readonly<{
+/** Stable decision shared by transport enforcement and feature policies. */
+export type RateLimitDecision = Readonly<{
   allowed: boolean;
   retryAfterSeconds: number;
 }>;

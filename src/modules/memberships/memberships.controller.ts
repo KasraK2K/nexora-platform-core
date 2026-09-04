@@ -22,13 +22,13 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { Response } from 'express';
+import { clearSessionCookie } from '../../common/http/session-cookie';
 import { AppConfig } from '../../config/app-config';
 import {
   CurrentAuthenticatedContext,
   type AuthenticatedRequestContext,
 } from '../authentication/decorators/authenticated-request-context.decorator';
 import { AuthenticatedRoute } from '../authorization/route-admission.decorator';
-import { clearSessionCookie } from '../../common/http/clear-session-cookie';
 import { ZodValidationPipe } from '../../common/http/zod-validation.pipe';
 import { MembershipsService } from './memberships.service';
 import {
@@ -105,12 +105,7 @@ export class MembershipsController {
       actorUserId: context.actorUserId,
       workspaceId: context.workspaceId,
     });
-    clearSessionCookie(
-      response,
-      this.config.sessionCookieName,
-      this.config.cookieSecure,
-      this.config.cookieSameSite,
-    );
+    clearSessionCookie(response, this.config);
   }
 
   /** Removes a member from the active workspace as its permanent owner. */

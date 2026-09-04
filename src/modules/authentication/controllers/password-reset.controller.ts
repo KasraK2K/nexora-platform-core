@@ -15,8 +15,8 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { Response } from 'express';
-import { clearSessionCookie } from '../../../common/http/clear-session-cookie';
 import { setPrivateResponseHeaders } from '../../../common/http/private-response-headers';
+import { clearSessionCookie } from '../../../common/http/session-cookie';
 import { ZodValidationPipe } from '../../../common/http/zod-validation.pipe';
 import { AppConfig } from '../../../config/app-config';
 import { PublicRoute } from '../../authorization/route-admission.decorator';
@@ -112,11 +112,6 @@ export class PasswordResetController {
       token: body.token,
       newPassword: body.newPassword,
     });
-    clearSessionCookie(
-      response,
-      this.config.sessionCookieName,
-      this.config.cookieSecure,
-      this.config.cookieSameSite,
-    );
+    clearSessionCookie(response, this.config);
   }
 }

@@ -1,9 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseContext } from '../../../infrastructure/database/database-context';
-
-/** Core workflow that created a durable email. */
-export type MailPurpose =
-  'EMAIL_VERIFICATION' | 'PASSWORD_RESET' | 'MEMBERSHIP_INVITATION';
+import type { MailPurpose } from '../mail.types';
 
 /** Encrypted message and retry state leased to one delivery attempt. */
 export type ClaimedMail = Readonly<{

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { InfrastructureModule } from '../../infrastructure/infrastructure.module';
 import { OUTBOUND_MAIL } from './providers/outbound-mail';
 import { MailOutboxRepository } from './repositories/mail-outbox.repository';
+import { MailDeliveryService } from './mail-delivery.service';
 import { MailService } from './mail.service';
 import { MAIL_PAYLOAD_PROTECTOR } from './security/mail-payload-protector';
 import { ObservabilityModule } from '../observability/observability.module';
@@ -17,6 +18,7 @@ import { ResendOutboundMail } from './providers/resend-outbound-mail';
   imports: [InfrastructureModule, ObservabilityModule],
   providers: [
     ResendOutboundMail,
+    MailDeliveryService,
     MailService,
     MailOutboxWorker,
     AesGcmMailPayloadProtector,

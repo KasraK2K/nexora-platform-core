@@ -1,4 +1,10 @@
-import { Controller, Get, Module } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  HttpException,
+  HttpStatus,
+  Module,
+} from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import request, {
@@ -16,7 +22,7 @@ import {
   AuthenticatedRoute,
   PublicRoute,
 } from '../../src/modules/authorization/route-admission.decorator';
-import { MailService } from '../../src/modules/mail/mail.service';
+import { MailDeliveryService } from '../../src/modules/mail/mail-delivery.service';
 import {
   OUTBOUND_MAIL,
   type OutboundMail,
@@ -95,13 +101,17 @@ class RouteAdmissionProbeController {
 @Module({ controllers: [RouteAdmissionProbeController] })
 class RouteAdmissionProbeModule {}
 
-class UnsafeDetailsError extends ApplicationError {
-  readonly code = 'UNSAFE_DETAILS_TEST';
-  readonly retryable = false;
-  readonly details = { secret: 'must-not-leak', sql: 'select sensitive' };
-
+class UnsafeDetailsError extends HttpException {
   constructor() {
-    super('Safe public message.');
+    super(
+      {
+        code: 'DEPENDENCY_FAILED',
+        message: 'Safe public message.',
+        retryable: true,
+        details: { secret: 'must-not-leak', sql: 'select sensitive' },
+      },
+      HttpStatus.INTERNAL_SERVER_ERROR,
+    );
   }
 }
 
@@ -137,7 +147,7 @@ export async function createE2eHarness() {
   await app.init();
   const prisma = app.get(PrismaService);
   const redis = app.get(RedisService);
-  const mail = app.get(MailService);
+  const mailDelivery = app.get(MailDeliveryService);
 
   async function reset(): Promise<void> {
     await prisma.mailOutboxMessage.deleteMany();
@@ -168,7 +178,9 @@ export async function createE2eHarness() {
         select: { id: true },
       });
       if (pending.length === 0) return;
-      for (const message of pending) await mail.deliverNow(message.id);
+      for (const message of pending) {
+        await mailDelivery.deliverNow(message.id);
+      }
     }
     throw new Error('Mail outbox did not drain.');
   }
@@ -314,7 +326,6 @@ export async function createE2eHarness() {
     app,
     prisma,
     redis,
-    mail,
     request,
     allowedOrigin: ALLOWED_ORIGIN,
     defaultPassword: DEFAULT_PASSWORD,

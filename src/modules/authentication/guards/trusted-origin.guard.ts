@@ -6,6 +6,7 @@ import {
   Injectable,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import { setPrivateResponseHeaders } from '../../../common/http/private-response-headers';
 import { AppConfig } from '../../../config/app-config';
 
 /** Enforces exact configured browser origins before protected authentication work. */
@@ -22,8 +23,7 @@ export class TrustedOriginGuard implements CanActivate {
     const http = context.switchToHttp();
     const request = http.getRequest<Request>();
     const response = http.getResponse<Response>();
-    response.setHeader('cache-control', 'no-store');
-    response.setHeader('pragma', 'no-cache');
+    setPrivateResponseHeaders(response);
     const origin = request.header('origin');
 
     if (!origin || !this.config.allowedOrigins.has(origin)) {

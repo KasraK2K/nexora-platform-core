@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import type { RateLimitDecision } from '../../../common/http/request-rate-limit';
 import { RedisFixedWindowRateLimiter } from '../../../infrastructure/cache/redis-fixed-window-rate-limiter';
-import type { MembershipInvitationRateLimitDecision } from './membership-invitation-rate-limiter';
 
 /** Redis-backed, privacy-preserving limiter for invitation endpoints. */
 @Injectable()
@@ -13,15 +13,15 @@ export class MembershipInvitationRateLimiter {
     actorUserId: string;
     workspaceId: string;
     normalizedEmail?: string;
-  }): Promise<MembershipInvitationRateLimitDecision> {
-    const ipDecision = await this.increment(
-      `membership-invitation:create:ip:${this.digest(input.clientIp)}`,
+  }): Promise<RateLimitDecision> {
+    const ipDecision = await this.windows.increment(
+      `membership-invitation:create:ip:${this.windows.digest(input.clientIp)}`,
       50,
     );
     if (!ipDecision.allowed) return ipDecision;
 
-    const actorDecision = await this.increment(
-      `membership-invitation:create:actor-workspace:${this.digest(
+    const actorDecision = await this.windows.increment(
+      `membership-invitation:create:actor-workspace:${this.windows.digest(
         `${input.actorUserId}\0${input.workspaceId}`,
       )}`,
       20,
@@ -30,8 +30,8 @@ export class MembershipInvitationRateLimiter {
       return actorDecision;
     }
 
-    return this.increment(
-      `membership-invitation:create:target:${this.digest(
+    return this.windows.increment(
+      `membership-invitation:create:target:${this.windows.digest(
         `${input.workspaceId}\0${input.normalizedEmail}`,
       )}`,
       5,
@@ -42,29 +42,16 @@ export class MembershipInvitationRateLimiter {
   async checkAccept(input: {
     clientIp: string;
     sessionId: string;
-  }): Promise<MembershipInvitationRateLimitDecision> {
-    const ipDecision = await this.increment(
-      `membership-invitation:accept:ip:${this.digest(input.clientIp)}`,
+  }): Promise<RateLimitDecision> {
+    const ipDecision = await this.windows.increment(
+      `membership-invitation:accept:ip:${this.windows.digest(input.clientIp)}`,
       30,
     );
     if (!ipDecision.allowed) return ipDecision;
 
-    return this.increment(
-      `membership-invitation:accept:session:${this.digest(input.sessionId)}`,
+    return this.windows.increment(
+      `membership-invitation:accept:session:${this.windows.digest(input.sessionId)}`,
       20,
     );
-  }
-
-  /** Fails closed when Redis returns an unexpected script result. */
-  private async increment(
-    key: string,
-    limit: number,
-  ): Promise<MembershipInvitationRateLimitDecision> {
-    return this.windows.increment(key, limit);
-  }
-
-  /** HMACs identifying bucket material before it becomes a Redis key. */
-  private digest(value: string): string {
-    return this.windows.digest(value);
   }
 }

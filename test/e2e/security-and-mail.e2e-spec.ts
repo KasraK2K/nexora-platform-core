@@ -74,21 +74,23 @@ describe('Nexora lean authentication and mail security (e2e)', () => {
     const secondLogin = await h.login('owner@example.test').expect(201);
     const secondCookie = h.readCookieHeader(secondLogin);
 
-    await h
+    const logout = await h
       .request(h.app.getHttpServer())
       .delete('/v1/auth/session')
       .set('Origin', h.allowedOrigin)
       .set('Cookie', firstCookie)
       .expect(204);
+    expect(h.readSetCookie(logout)).toContain('Max-Age=0');
     await h.currentSession(firstCookie).expect(401);
     await h.currentSession(secondCookie).expect(200);
 
-    await h
+    const logoutEverywhere = await h
       .request(h.app.getHttpServer())
       .delete('/v1/auth/sessions')
       .set('Origin', h.allowedOrigin)
       .set('Cookie', secondCookie)
       .expect(204);
+    expect(h.readSetCookie(logoutEverywhere)).toContain('Max-Age=0');
     await h.currentSession(secondCookie).expect(401);
   });
 
@@ -122,7 +124,8 @@ describe('Nexora lean authentication and mail security (e2e)', () => {
     await h.drainMail();
     const token = h.readDeliveryToken(h.resetDeliveries, 'owner@example.test');
     const newPassword = 'A reset passphrase 789';
-    await h.resetPassword(token, newPassword).expect(204);
+    const reset = await h.resetPassword(token, newPassword).expect(204);
+    expect(h.readSetCookie(reset)).toContain('Max-Age=0');
     await h.currentSession(cookie).expect(401);
     await h.resetPassword(token, newPassword).expect(400);
     await h.login('owner@example.test', newPassword).expect(201);

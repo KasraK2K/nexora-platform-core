@@ -7,7 +7,10 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
-import { ApplicationError } from '../errors/application-error';
+import {
+  ApplicationError,
+  type ApplicationErrorCode,
+} from '../errors/application-error';
 import { RequestWithId } from './request-id.middleware';
 
 type SafeMembershipRole = 'OWNER' | 'MEMBER';
@@ -23,8 +26,9 @@ type SafeErrorBody = {
  * Converts thrown values into the API's stable error envelope and prevents
  * framework, database, stack, or unexpected error details from leaking.
  *
- * Known application messages and already safe-shaped HTTP errors remain a
- * producer responsibility; this filter does not scan arbitrary text for PII.
+ * Known application messages remain a producer responsibility. HTTP error
+ * bodies are reconstructed at this final boundary so unapproved fields cannot
+ * leak even when a producer accidentally includes them.
  */
 @Catch()
 export class ApiExceptionFilter implements ExceptionFilter {
@@ -75,7 +79,15 @@ export class ApiExceptionFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       const response = exception.getResponse();
       if (isSafeErrorBody(response)) {
-        return { status: exception.getStatus(), body: response };
+        return {
+          status: exception.getStatus(),
+          body: {
+            code: response.code,
+            message: response.message,
+            retryable: response.retryable,
+            ...readHttpErrorDetails(response),
+          },
+        };
       }
 
       return {
@@ -113,49 +125,72 @@ function isSafeErrorBody(value: unknown): value is SafeErrorBody {
   );
 }
 
+/** Canonical exhaustive transport status for each stable application error. */
+export const APPLICATION_ERROR_HTTP_STATUS = {
+  REGISTRATION_INVALID: HttpStatus.BAD_REQUEST,
+  EMAIL_ALREADY_REGISTERED: HttpStatus.CONFLICT,
+  REGISTRATION_UNAVAILABLE: HttpStatus.SERVICE_UNAVAILABLE,
+  AUTHENTICATION_REQUIRED: HttpStatus.UNAUTHORIZED,
+  AUTHENTICATION_UNAVAILABLE: HttpStatus.SERVICE_UNAVAILABLE,
+  AUTHENTICATION_INVALID: HttpStatus.UNAUTHORIZED,
+  WORKSPACE_SELECTION_REQUIRED: HttpStatus.CONFLICT,
+  WORKSPACE_ACCESS_DENIED: HttpStatus.FORBIDDEN,
+  WORKSPACE_SWITCH_UNAVAILABLE: HttpStatus.SERVICE_UNAVAILABLE,
+  EMAIL_VERIFICATION_INVALID: HttpStatus.BAD_REQUEST,
+  EMAIL_VERIFICATION_UNAVAILABLE: HttpStatus.SERVICE_UNAVAILABLE,
+  PASSWORD_RESET_INVALID: HttpStatus.BAD_REQUEST,
+  PASSWORD_RESET_INVALID_PASSWORD: HttpStatus.BAD_REQUEST,
+  PASSWORD_RESET_UNAVAILABLE: HttpStatus.SERVICE_UNAVAILABLE,
+  PASSWORD_CHANGE_INVALID_CURRENT_PASSWORD: HttpStatus.UNAUTHORIZED,
+  PASSWORD_CHANGE_INVALID_PASSWORD: HttpStatus.BAD_REQUEST,
+  PASSWORD_CHANGE_UNAVAILABLE: HttpStatus.SERVICE_UNAVAILABLE,
+  ROUTE_ACCESS_DENIED: HttpStatus.FORBIDDEN,
+  EMAIL_VERIFICATION_REQUIRED: HttpStatus.FORBIDDEN,
+  AUTHORIZATION_DENIED: HttpStatus.FORBIDDEN,
+  MEMBERSHIP_INVITATION_INVALID: HttpStatus.BAD_REQUEST,
+  MEMBERSHIP_INVITATION_CONFLICT: HttpStatus.CONFLICT,
+  MEMBERSHIP_INVITATION_UNAVAILABLE: HttpStatus.SERVICE_UNAVAILABLE,
+  MEMBERSHIP_PAGE_CURSOR_INVALID: HttpStatus.BAD_REQUEST,
+  MEMBERSHIP_OWNERSHIP_PROTECTED: HttpStatus.CONFLICT,
+  MEMBERSHIPS_UNAVAILABLE: HttpStatus.SERVICE_UNAVAILABLE,
+  USER_LIFECYCLE_INVALID: HttpStatus.UNAUTHORIZED,
+  USER_LIFECYCLE_UNAVAILABLE: HttpStatus.SERVICE_UNAVAILABLE,
+  WORKSPACE_LIFECYCLE_INVALID: HttpStatus.UNAUTHORIZED,
+  WORKSPACE_LIFECYCLE_UNAVAILABLE: HttpStatus.SERVICE_UNAVAILABLE,
+} as const satisfies Readonly<Record<ApplicationErrorCode, HttpStatus>>;
+
 /** Maps stable application error codes to their public HTTP status. */
-function applicationErrorStatus(code: string): number {
-  switch (code) {
-    case 'REGISTRATION_INVALID':
-    case 'EMAIL_VERIFICATION_INVALID':
-    case 'PASSWORD_RESET_INVALID':
-    case 'PASSWORD_RESET_INVALID_PASSWORD':
-    case 'PASSWORD_CHANGE_INVALID_PASSWORD':
-    case 'MEMBERSHIP_PAGE_CURSOR_INVALID':
-      return HttpStatus.BAD_REQUEST;
-    case 'EMAIL_ALREADY_REGISTERED':
-    case 'WORKSPACE_SELECTION_REQUIRED':
-    case 'MEMBERSHIP_OWNERSHIP_PROTECTED':
-      return HttpStatus.CONFLICT;
-    case 'AUTHENTICATION_REQUIRED':
-    case 'AUTHENTICATION_INVALID':
-    case 'USER_LIFECYCLE_INVALID':
-    case 'WORKSPACE_LIFECYCLE_INVALID':
-    case 'PASSWORD_CHANGE_INVALID_CURRENT_PASSWORD':
-      return HttpStatus.UNAUTHORIZED;
-    case 'ROUTE_ACCESS_DENIED':
-    case 'EMAIL_VERIFICATION_REQUIRED':
-    case 'WORKSPACE_ACCESS_DENIED':
-    case 'AUTHORIZATION_DENIED':
-      return HttpStatus.FORBIDDEN;
-    case 'MEMBERSHIP_INVITATION_INVALID':
-      return HttpStatus.BAD_REQUEST;
-    case 'MEMBERSHIP_INVITATION_CONFLICT':
-      return HttpStatus.CONFLICT;
-    case 'REGISTRATION_UNAVAILABLE':
-    case 'AUTHENTICATION_UNAVAILABLE':
-    case 'EMAIL_VERIFICATION_UNAVAILABLE':
-    case 'PASSWORD_RESET_UNAVAILABLE':
-    case 'PASSWORD_CHANGE_UNAVAILABLE':
-    case 'WORKSPACE_SWITCH_UNAVAILABLE':
-    case 'MEMBERSHIP_INVITATION_UNAVAILABLE':
-    case 'MEMBERSHIPS_UNAVAILABLE':
-    case 'USER_LIFECYCLE_UNAVAILABLE':
-    case 'WORKSPACE_LIFECYCLE_UNAVAILABLE':
-      return HttpStatus.SERVICE_UNAVAILABLE;
-    default:
-      return HttpStatus.INTERNAL_SERVER_ERROR;
+function applicationErrorStatus(code: ApplicationErrorCode): HttpStatus {
+  return APPLICATION_ERROR_HTTP_STATUS[code];
+}
+
+/** Allows only the bounded validation-detail contract for HTTP errors. */
+function readHttpErrorDetails(
+  body: SafeErrorBody,
+): Pick<SafeErrorBody, 'details'> | Record<string, never> {
+  if (body.code !== 'VALIDATION_FAILED') return {};
+  const details = serializeValidationDetails(body.details);
+  return details ? { details } : {};
+}
+
+/** Reconstructs validation issues from string paths and machine codes only. */
+function serializeValidationDetails(
+  value: unknown,
+): Array<{ path: string; code: string }> | undefined {
+  if (!Array.isArray(value) || value.length > 100) return undefined;
+
+  const details: Array<{ path: string; code: string }> = [];
+  for (const issue of value) {
+    if (
+      !isUnknownRecord(issue) ||
+      typeof issue.path !== 'string' ||
+      typeof issue.code !== 'string'
+    ) {
+      return undefined;
+    }
+    details.push({ path: issue.path, code: issue.code });
   }
+  return details;
 }
 
 /**

@@ -312,12 +312,13 @@ describe('Nexora lean multi-workspace core (e2e)', () => {
       .switchWorkspace(memberCookie, workspaceId)
       .expect(200);
     const workspaceCookie = h.readCookieHeader(switched);
-    await h
+    const leave = await h
       .request(h.app.getHttpServer())
       .delete('/v1/memberships/me')
       .set('Origin', h.allowedOrigin)
       .set('Cookie', workspaceCookie)
       .expect(204);
+    expect(h.readSetCookie(leave)).toContain('Max-Age=0');
     await h.currentSession(workspaceCookie).expect(401);
     await h.currentSession(independentCookie).expect(200);
     const removedMembership = await h.prisma.membership.findUniqueOrThrow({

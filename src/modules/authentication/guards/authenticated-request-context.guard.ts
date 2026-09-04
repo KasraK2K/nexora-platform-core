@@ -4,7 +4,7 @@ import { AppConfig } from '../../../config/app-config';
 import { SessionContextService } from '../services/session-context.service';
 import { attachAuthenticatedRequestContext } from '../decorators/authenticated-request-context.decorator';
 import { setPrivateResponseHeaders } from '../../../common/http/private-response-headers';
-import { readCookie } from '../http/session-cookie';
+import { readCookie } from '../../../common/http/session-cookie';
 
 /** Resolves the opaque cookie into immutable server-authoritative request context. */
 @Injectable()

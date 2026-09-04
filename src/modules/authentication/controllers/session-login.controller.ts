@@ -16,12 +16,12 @@ import {
 } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { setPrivateResponseHeaders } from '../../../common/http/private-response-headers';
+import { setSessionCookie } from '../../../common/http/session-cookie';
 import { ZodValidationPipe } from '../../../common/http/zod-validation.pipe';
 import { AppConfig } from '../../../config/app-config';
 import { PublicRoute } from '../../authorization/route-admission.decorator';
 import { loginRequestSchema, type LoginDto } from '../dto/login.dto';
 import { LoginRequestGuard } from '../guards/login-request.guard';
-import { setSessionCookie } from '../http/session-cookie';
 import { SessionLoginService } from '../services/session-login.service';
 
 /** HTTP adapter for credential login and session creation. */

@@ -6,7 +6,7 @@ import {
 import { AppConfig } from '../../../config/app-config';
 import { AuthenticationRateLimiter } from '../rate-limit/redis-authentication-rate-limiter';
 import { PasswordChangeUnavailableError } from '../errors/authentication.errors';
-import { readCookie } from '../http/session-cookie';
+import { readCookie } from '../../../common/http/session-cookie';
 
 /** Throttles password changes by pseudonymous IP and opaque-session buckets. */
 @Injectable()

@@ -63,6 +63,140 @@ export function readDependencies(relativeFile: string): Dependency[] {
   return dependencies;
 }
 
+/** Resolves imported identifiers listed in one Nest module's `exports` array. */
+export function readNestModuleExportTargets(relativeFile: string): string[] {
+  const source = ts.createSourceFile(
+    relativeFile,
+    readSource(relativeFile),
+    ts.ScriptTarget.Latest,
+    true,
+  );
+  const importedTargets = new Map<string, string>();
+  source.forEachChild((node) => {
+    if (
+      !ts.isImportDeclaration(node) ||
+      !ts.isStringLiteral(node.moduleSpecifier) ||
+      !node.importClause?.namedBindings ||
+      !ts.isNamedImports(node.importClause.namedBindings)
+    ) {
+      return;
+    }
+    const target = resolveTarget(relativeFile, node.moduleSpecifier.text);
+    if (!target) return;
+    for (const element of node.importClause.namedBindings.elements) {
+      importedTargets.set(element.name.text, target);
+    }
+  });
+
+  const targets: string[] = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isClassDeclaration(node)) {
+      const decorators = ts.canHaveDecorators(node)
+        ? ts.getDecorators(node)
+        : undefined;
+      for (const decorator of decorators ?? []) {
+        if (
+          !ts.isCallExpression(decorator.expression) ||
+          !ts.isIdentifier(decorator.expression.expression) ||
+          decorator.expression.expression.text !== 'Module'
+        ) {
+          continue;
+        }
+        const metadata = decorator.expression.arguments[0];
+        if (!metadata || !ts.isObjectLiteralExpression(metadata)) continue;
+        const exportsProperty = metadata.properties.find(
+          (property): property is ts.PropertyAssignment =>
+            ts.isPropertyAssignment(property) &&
+            property.name.getText(source) === 'exports',
+        );
+        if (
+          !exportsProperty ||
+          !ts.isArrayLiteralExpression(exportsProperty.initializer)
+        ) {
+          continue;
+        }
+        for (const element of exportsProperty.initializer.elements) {
+          if (!ts.isIdentifier(element)) continue;
+          const target = importedTargets.get(element.text);
+          if (target) targets.push(target);
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return targets;
+}
+
+/** Returns string-literal arguments from calls to one named function. */
+export function readStringLiteralCallArguments(
+  relativeFile: string,
+  functionName: string,
+  argumentIndex: number,
+  includePropertyAccess = false,
+): string[] {
+  const source = ts.createSourceFile(
+    relativeFile,
+    readSource(relativeFile),
+    ts.ScriptTarget.Latest,
+    true,
+  );
+  const values: string[] = [];
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isCallExpression(node) &&
+      isNamedCall(node, functionName, includePropertyAccess)
+    ) {
+      const argument = node.arguments[argumentIndex];
+      if (argument && ts.isStringLiteralLike(argument))
+        values.push(argument.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return values;
+}
+
+/** Counts calls to one named function regardless of argument shape. */
+export function countCalls(
+  relativeFile: string,
+  functionName: string,
+  includePropertyAccess = false,
+): number {
+  const source = ts.createSourceFile(
+    relativeFile,
+    readSource(relativeFile),
+    ts.ScriptTarget.Latest,
+    true,
+  );
+  let count = 0;
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isCallExpression(node) &&
+      isNamedCall(node, functionName, includePropertyAccess)
+    ) {
+      count += 1;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return count;
+}
+
+function isNamedCall(
+  node: ts.CallExpression,
+  functionName: string,
+  includePropertyAccess: boolean,
+): boolean {
+  return (
+    (ts.isIdentifier(node.expression) &&
+      node.expression.text === functionName) ||
+    (includePropertyAccess &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      node.expression.name.text === functionName)
+  );
+}
+
 /** Reads a repository-relative UTF-8 source file. */
 export function readSource(relativeFile: string): string {
   return readFileSync(path.join(repositoryRoot, relativeFile), 'utf8');

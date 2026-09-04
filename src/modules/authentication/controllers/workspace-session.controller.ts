@@ -16,6 +16,10 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
+import {
+  readCookie,
+  setSessionCookie,
+} from '../../../common/http/session-cookie';
 import { ZodValidationPipe } from '../../../common/http/zod-validation.pipe';
 import { AppConfig } from '../../../config/app-config';
 import { AuthenticatedRoute } from '../../authorization/route-admission.decorator';
@@ -26,7 +30,6 @@ import {
   type WorkspaceSwitchDto,
 } from '../dto/workspace-switch.dto';
 import { WorkspaceSwitchRequestGuard } from '../guards/workspace-switch-request.guard';
-import { readCookie, setSessionCookie } from '../http/session-cookie';
 import { WorkspaceSessionService } from '../services/workspace-session.service';
 
 /** HTTP adapter for accessible-workspace listing and active-tenant switching. */

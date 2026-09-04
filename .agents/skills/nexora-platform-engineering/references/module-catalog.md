@@ -131,6 +131,15 @@ ownership or public contracts change.
 
 - Limit shared primitives to stable identifiers, Money, Clock, Result, domain
   Error, and event envelopes.
+- Use imported modules and exported focused services for normal cross-feature
+  workflows. ADR-0017 limits non-service exceptions to Authentication's
+  authenticated-context decorator and context/origin guards, and
+  Authorization's route metadata, pure policy, and stable errors.
+- Keep those exceptional contracts feature-owned and free of direct Prisma,
+  infrastructure, repository, cache, rate-limit, provider, worker, or product
+  dependencies. They are not a generic shared-contract layer.
+- Put public service result shapes in feature-level `*.types.ts` files and
+  re-export them from the owning service; keep persistence records private.
 - Name contracts by capability, not provider or storage mechanism.
 - Keep retryable commands idempotent.
 - Include stable IDs, workspace, event version, occurred-at, correlation, and

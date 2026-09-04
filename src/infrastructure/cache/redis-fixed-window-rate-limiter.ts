@@ -1,5 +1,6 @@
 import { createHmac } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
+import type { RateLimitDecision } from '../../common/http/request-rate-limit';
 import { AppConfig } from '../../config/app-config';
 import { RedisService } from './redis.service';
 
@@ -10,12 +11,6 @@ if current == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end
 local ttl = redis.call('TTL', KEYS[1])
 return {current, ttl}
 `;
-
-/** Result shared by feature-specific rate-limit policies. */
-export type RateLimitDecision = Readonly<{
-  allowed: boolean;
-  retryAfterSeconds: number;
-}>;
 
 /** One shared Redis fixed-window and privacy-key implementation. */
 @Injectable()
@@ -33,9 +28,20 @@ export class RedisFixedWindowRateLimiter {
     if (!Array.isArray(result) || result.length !== 2) {
       return { allowed: false, retryAfterSeconds: WINDOW_SECONDS };
     }
+    const current = Number(result[0]);
+    const ttl = Number(result[1]);
+    if (
+      !Number.isSafeInteger(current) ||
+      current < 1 ||
+      !Number.isSafeInteger(ttl) ||
+      ttl < 0 ||
+      ttl > WINDOW_SECONDS
+    ) {
+      return { allowed: false, retryAfterSeconds: WINDOW_SECONDS };
+    }
     return {
-      allowed: Number(result[0]) <= limit,
-      retryAfterSeconds: Math.max(1, Number(result[1])),
+      allowed: current <= limit,
+      retryAfterSeconds: Math.max(1, ttl),
     };
   }
 

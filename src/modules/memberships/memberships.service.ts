@@ -16,12 +16,10 @@ import {
   MembershipOwnershipProtectedError,
   MembershipPageCursorInvalidError,
 } from './errors/memberships.errors';
-import {
-  MembershipsRepository,
-  type MembershipSummary,
-} from './memberships.repository';
+import { MembershipsRepository } from './memberships.repository';
+import type { MembershipSummary } from './memberships.types';
 
-export type { MembershipSummary } from './memberships.repository';
+export type { MembershipSummary } from './memberships.types';
 export type { WorkspaceRole } from '../authorization/authorization.policy';
 
 /** Public member summary with a role derived from permanent ownership. */

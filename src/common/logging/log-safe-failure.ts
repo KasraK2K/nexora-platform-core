@@ -16,10 +16,27 @@ export function logSafeFailure(
   logger.error(
     JSON.stringify({
       event,
-      errorType: error instanceof Error ? error.name : 'UnknownError',
+      errorType: readSafeErrorType(error),
       ...(options.includeErrorCode === false
         ? {}
         : { errorCode: readSafeErrorCode(error) }),
     }),
   );
 }
+
+/** Coarsens mutable Error names to a closed, non-sensitive diagnostic type. */
+function readSafeErrorType(error: unknown): string {
+  if (!(error instanceof Error)) return 'UnknownError';
+  return STANDARD_ERROR_NAMES.has(error.name) ? error.name : 'Error';
+}
+
+const STANDARD_ERROR_NAMES = new Set([
+  'Error',
+  'TypeError',
+  'RangeError',
+  'ReferenceError',
+  'SyntaxError',
+  'URIError',
+  'EvalError',
+  'AggregateError',
+]);
