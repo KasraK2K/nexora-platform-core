@@ -188,6 +188,11 @@ describe('Nexora lean multi-workspace core (e2e)', () => {
       .switchWorkspace(ownerCookie, secondWorkspaceId)
       .expect(200);
     const secondOwnerCookie = h.readCookieHeader(switchedOwner);
+    await h.currentSession(ownerCookie).expect(401);
+    const firstOwnerLogin = await h
+      .login('owner@example.test', h.defaultPassword, firstWorkspaceId)
+      .expect(201);
+    const firstOwnerCookie = h.readCookieHeader(firstOwnerLogin);
     const secondInvite = await h.createInvitation(
       secondOwnerCookie,
       'member@example.test',
@@ -222,7 +227,7 @@ describe('Nexora lean multi-workspace core (e2e)', () => {
     const members = await h
       .request(h.app.getHttpServer())
       .get('/v1/memberships')
-      .set('Cookie', ownerCookie)
+      .set('Cookie', firstOwnerCookie)
       .expect(200);
     const memberItem = h
       .readArray(members.body, 'data')
@@ -249,13 +254,13 @@ describe('Nexora lean multi-workspace core (e2e)', () => {
       .request(h.app.getHttpServer())
       .delete('/v1/memberships/me')
       .set('Origin', h.allowedOrigin)
-      .set('Cookie', ownerCookie)
+      .set('Cookie', firstOwnerCookie)
       .expect(409);
     await h
       .request(h.app.getHttpServer())
       .delete(`/v1/memberships/${ownerMembershipId}`)
       .set('Origin', h.allowedOrigin)
-      .set('Cookie', ownerCookie)
+      .set('Cookie', firstOwnerCookie)
       .expect(409);
     await h
       .request(h.app.getHttpServer())
@@ -270,7 +275,7 @@ describe('Nexora lean multi-workspace core (e2e)', () => {
       .request(h.app.getHttpServer())
       .delete(`/v1/memberships/${membershipId}`)
       .set('Origin', h.allowedOrigin)
-      .set('Cookie', ownerCookie)
+      .set('Cookie', firstOwnerCookie)
       .expect(204);
     await h.currentSession(firstMemberCookie).expect(401);
     await h.currentSession(independentMemberCookie).expect(200);
